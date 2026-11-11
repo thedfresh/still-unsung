@@ -143,7 +143,8 @@ jobs:
             Rules (also in reference/CLAUDE.md → "Jira workflow"; read it first, and reference/PLAN.md
             for decisions; reference/ is the private planning repo plus the old app, read-only):
             - Jira site dfresh.atlassian.net, project HSA. Use the jira MCP tools; you are signed in as
-              the Jira user "Claude".
+              the Jira user "Claude". If the jira tools are missing or fail, stop and say exactly that
+              (tool names and error) in your final message.
             - Only work the ticket if its status is Ready and it is assigned to Claude. Otherwise add a
               comment saying why, make no changes, and stop.
             - First move the ticket to In Progress (transition "In Progress"). Never move it to Done,
@@ -165,6 +166,28 @@ jobs:
             --max-turns 200
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(ls:*),Bash(cat:*),mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
 
+      # The action hides Claude's messages (full output would expose private reference/ content in
+      # this public repo's logs). Print only what's needed to see why a run ended.
+      - name: Report how Claude's run ended
+        if: always() && steps.claude.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          node -e '
+            const msgs = JSON.parse(require("fs").readFileSync(process.env.EXECUTION_FILE, "utf8"));
+            const init = msgs.find(m => m.type === "system" && m.subtype === "init") || {};
+            const result = msgs.find(m => m.type === "result") || {};
+            const tools = (init.tools || []).filter(t => t.startsWith("mcp__"));
+            const lines = [
+              "MCP servers: " + JSON.stringify(init.mcp_servers || "not reported"),
+              "Jira tools available: " + (tools.length ? tools.join(", ") : "none"),
+              "Turns: " + result.num_turns + ", error: " + result.is_error,
+              "Final message: " + String(result.result || "").slice(0, 1500),
+            ];
+            console.log(lines.join("\n"));
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, "### Claude run\n```\n" + lines.join("\n") + "\n```\n");
+          '
+
       # The action reports success even when it skips itself (for example when this file differs
       # from main's copy, which it requires before handing out the app token). Fail loudly instead.
       - name: Fail if Claude didn't run
@@ -179,7 +202,7 @@ jobs:
           APP_TOKEN: ${{ steps.claude.outputs.github_token }}
         run: |
           if [ -z "$(git log --oneline "${{ github.sha }}..HEAD")" ]; then
-            echo "No commits on $BRANCH; nothing to push (see the ticket for Claude's comment)."
+            echo "::warning::No commits on $BRANCH; nothing pushed. See 'Report how Claude's run ended' and the ticket."
             echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           if [ ! -s "$AGENT_TMP/pr-body.md" ]; then
