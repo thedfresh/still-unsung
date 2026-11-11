@@ -212,6 +212,16 @@ jobs:
               In Progress and comment an executive summary whose "Next step for you" is that one
               question. In Review always means: done, waiting for the user's check.
 
+            Creating tickets (also in /tmp/reference/CLAUDE.md → "Jira workflow"):
+            - Create Jira tickets only when the ticket you are working asks for them. Never create
+              tickets on your own initiative; suggest them in your hand-back instead.
+            - Each new ticket: project HSA, type Task, one discrete task with "Scope" and "Done when",
+              under the right epic (parent), assigned to you (agent work; your account from
+              atlassianUserInfo) or to the user (their own work; account ${{ env.USER_JIRA_ID }}).
+            - New tickets stay in To Do. Never move a ticket you created to Ready.
+            - List every ticket you created (key and title) in the hand-back's details, and say in
+              "Next step for you" that they need "Move to board" and a review.
+
             Contacting the user (also in /tmp/reference/CLAUDE.md → "How agents contact the user"):
             - Jira is the only channel. Never email, message, or tag the user in GitHub.
             - Tag the user in exactly two kinds of comment: the hand-back for a ticket finished
@@ -242,7 +252,7 @@ jobs:
             --add-dir /tmp/reference
             --model ${{ env.MODEL }}
             --max-turns 200
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__atlassianUserInfo,mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__atlassianUserInfo,mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment,mcp__jira__createJiraIssue"
 
       # The action hides Claude's messages (full output would expose private /tmp/reference content in
       # this public repo's logs). Print only what's needed to see why a run ended.
