@@ -77,6 +77,9 @@ jobs:
       # Jira sends the ticket's labels (comma-separated); "fable" or "opus" picks a bigger model.
       LABELS: ${{ github.event.client_payload.labels }}
       MODEL_CHOICE: ${{ inputs.model }}
+      # The user's Jira account, for the one mention in a hand-back or question (a repo variable,
+      # so it isn't written in this public file).
+      USER_JIRA_ID: ${{ vars.JIRA_USER_ACCOUNT_ID }}
       # Throwaway database for this run only. Not a secret.
       DATABASE_URL: postgresql://still_unsung:still_unsung@postgres:5432/still_unsung_test
       # Scratch files shared between steps (MCP config, PR description). A fixed path inside the
@@ -209,6 +212,15 @@ jobs:
               In Progress and comment an executive summary whose "Next step for you" is that one
               question. In Review always means: done, waiting for the user's check.
 
+            Contacting the user (also in /tmp/reference/CLAUDE.md → "How agents contact the user"):
+            - Jira is the only channel. Never email, message, or tag the user in GitHub.
+            - Tag the user in exactly two kinds of comment: the hand-back for a ticket finished
+              without code, and a question that needs their decision. Write those comments in HTML
+              (contentFormat "html") and start them with this mention:
+              <span data-type="mention" data-user-id="${{ env.USER_JIRA_ID }}">@Douglas</span>
+              Then the executive summary, labels in <strong>. Tag nowhere else: not when you claim
+              the ticket, and not in other comments. Ask one question per ticket, never a list.
+
             Writing rules (also in /tmp/reference/CLAUDE.md → "Writing style"; keep them in step):
             - Use ASD-STE100 (Simplified Technical English) as a guide, about 80%: short sentences
               (steps ≤20 words, descriptions ≤25), one idea per sentence, active voice, simple tenses,
@@ -284,10 +296,13 @@ jobs:
           path_to_bun_executable: ${{ env.BUN_PATH }}
           prompt: |
             In Jira (site dfresh.atlassian.net), for ticket ${{ env.TICKET }}: read
-            ${{ env.AGENT_TMP }}/summary.md and add one comment made of that executive summary
-            unchanged, then a blank line, then "Pull request: ${{ steps.pr.outputs.url }}". If the
-            file is missing, write a five-line executive summary from the PR description in
-            ${{ env.AGENT_TMP }}/pr-body.md instead. Then move the ticket to In Review (transition
+            ${{ env.AGENT_TMP }}/summary.md and add one comment in HTML (contentFormat "html"):
+            first this mention, which notifies the user:
+            <span data-type="mention" data-user-id="${{ env.USER_JIRA_ID }}">@Douglas</span>
+            then that executive summary with the same words (one <p> per labeled line, labels in
+            <strong>), then a paragraph "Pull request: " with the link ${{ steps.pr.outputs.url }}.
+            If the file is missing, write a five-line executive summary from the PR description in
+            ${{ env.AGENT_TMP }}/pr-body.md instead. Tag the user only in this comment. Then move the ticket to In Review (transition
             "In Review"). Do nothing else.
           claude_args: |
             --mcp-config ${{ env.AGENT_TMP }}/mcp.json

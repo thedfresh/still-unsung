@@ -91,6 +91,12 @@ Every Jira hand-back comment and PR description starts with a five-line executiv
 short sentences with ASD-STE100 as the guide. The full rules live in the planning repo's
 `CLAUDE.md` → *Writing style*; the workflow prompt restates them, so keep the two in step.
 
+Jira is the only channel to the user. Claude tags the user (a Jira mention) in exactly two kinds
+of comment: the hand-back when a ticket reaches In Review, and a question that needs a decision.
+The user's account ID comes from the repo variable `JIRA_USER_ACCOUNT_ID` (Settings → Secrets and
+variables → Actions → Variables), so it isn't written in this public repo. A failed run sends no
+message; GitHub emails the person who started it.
+
 ## Notes
 
 - The Jira token works only through Atlassian's MCP server, not the REST API, so every Jira
