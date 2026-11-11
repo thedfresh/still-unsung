@@ -118,11 +118,46 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Fail if the branch already exists
+      # A ticket that failed review comes back to Ready with its branch and PR still open: the run
+      # then reworks that branch. A branch with no open PR (merged or abandoned) stops the run.
+      - name: Check for earlier work on this ticket
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
-            echo "::error::Branch $BRANCH already exists. Finish or delete it before re-running."; exit 1
+          if ! git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
+            echo "REWORK=false" >> "$GITHUB_ENV"
+            echo "New work: $BRANCH starts from main."; exit 0
           fi
+          pr=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:$BRANCH" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s)[0]?.html_url ?? ""))')
+          if [ -z "$pr" ]; then
+            echo "::error::Branch $BRANCH exists but has no open pull request. Delete it (or reopen its PR) before re-running."; exit 1
+          fi
+          echo "REWORK=true" >> "$GITHUB_ENV"
+          echo "PR_URL=$pr" >> "$GITHUB_ENV"
+          {
+            echo "REWORK_NOTE<<EOF_NOTE"
+            echo "REWORK AFTER REVIEW. These instructions replace the push and PR steps below."
+            echo "This ticket failed the user's review. Branch $BRANCH and its pull request ($pr) already"
+            echo "exist, and the branch is checked out. Read the ticket's comments since your last hand-back"
+            echo "(and the PR's comments): they hold the review. Fix what the review asks, on this branch."
+            echo "Run the checks, commit, then run git push origin $BRANCH. Do NOT run scripts/open-pr.mjs:"
+            echo "the pull request exists. In the executive summary, say what the review asked and what"
+            echo "you changed in response."
+            echo "EOF_NOTE"
+          } >> "$GITHUB_ENV"
+          echo "Rework: $BRANCH has open PR $pr."
+
+      - name: Start the ticket branch
+        run: |
+          if [ "$REWORK" = "true" ]; then
+            git fetch origin "$BRANCH"
+            git checkout -b "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout -b "$BRANCH"
+          fi
+          echo "START_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       # Branch `planning` holds the current CLAUDE.md, PLAN.md and docs (its main is the frozen
       # old app and deploys on push, so planning commits live on this branch until cutover).
@@ -144,9 +179,6 @@ jobs:
         uses: ./.github/actions/setup
         timeout-minutes: 5
 
-      - name: Start the ticket branch
-        run: git checkout -b "$BRANCH"
-
       - name: Prepare the Claude step (Bun from npm, Jira MCP config signed in as Claude)
         timeout-minutes: 3
         env:
@@ -156,18 +188,7 @@ jobs:
           # The action's own Bun download needs unzip, which the image lacks; npm has Bun too.
           npm install -g --no-audit --no-fund bun@1.4.4
           echo "BUN_PATH=$(command -v bun)" >> "$GITHUB_ENV"
-          mkdir -p "$AGENT_TMP"
-          node -e '
-            // Trim stray whitespace, newlines and quotes from pasted secrets (same as the local
-            // helper, scripts/jira_mcp_headers.sh in the planning repo).
-            const clean = v => (v || "").trim().replace(/^["\x27]|["\x27]$/g, "").replace(/[\r\n ]/g, "");
-            const pair = clean(process.env.JIRA_EMAIL) + ":" + clean(process.env.JIRA_TOKEN);
-            // A short fingerprint (not the secret) to compare with the local .env when Jira rejects it.
-            console.log("Jira credential fingerprint: " + require("crypto").createHash("sha256").update(pair).digest("hex").slice(0, 8));
-            const auth = "Basic " + Buffer.from(pair).toString("base64");
-            const config = { mcpServers: { jira: { type: "http", url: "https://mcp.atlassian.com/v2/mcp", headers: { Authorization: auth } } } };
-            require("fs").writeFileSync(process.env.AGENT_TMP + "/mcp.json", JSON.stringify(config));
-          '
+          node scripts/write-jira-mcp-config.mjs
 
       - name: Claude works the ticket
         id: claude
@@ -178,6 +199,8 @@ jobs:
           prompt: |
             You are the Claude agent for the StillUnsung rebuild. Work Jira ticket ${{ env.TICKET }}
             in this repository (thedfresh/still-unsung), on the branch already checked out: ${{ env.BRANCH }}.
+
+            ${{ env.REWORK_NOTE }}
 
             Rules (also in /tmp/reference/CLAUDE.md → "Jira workflow"; read it first, and
             /tmp/reference/PLAN.md and /tmp/reference/docs/ for decisions and specs. /tmp/reference is
@@ -289,7 +312,14 @@ jobs:
       - name: Find the pull request
         id: pr
         run: |
-          if [ -s "$AGENT_TMP/pr-url" ]; then
+          if [ "$REWORK" = "true" ]; then
+            if [ "$(git rev-parse HEAD)" != "$START_SHA" ]; then
+              echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+              echo "Reworked pull request: $PR_URL"
+            else
+              echo "::warning::Rework made no commits. See 'Report how Claude's run ended' and the ticket."
+            fi
+          elif [ -s "$AGENT_TMP/pr-url" ]; then
             echo "url=$(cat "$AGENT_TMP/pr-url")" >> "$GITHUB_OUTPUT"
             echo "Pull request: $(cat "$AGENT_TMP/pr-url")"
           elif [ -n "$(git log --oneline "${{ github.sha }}..HEAD")" ]; then
@@ -353,6 +383,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://still_unsung:still_unsung@postgres:5432/still_unsung_test
+      AGENT_TMP: /tmp/agent
 
     steps:
       - uses: actions/checkout@v7
@@ -363,16 +394,25 @@ jobs:
         uses: ./.github/actions/setup
         timeout-minutes: 5
 
-      - name: Install Bun from npm (the action's own download needs unzip, which the image lacks)
+      - name: Prepare the Claude step (Bun from npm, Jira MCP config signed in as Claude)
         timeout-minutes: 3
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_CLAUDE_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_MCP_CLAUDE_TOKEN }}
         run: |
+          # The action's own Bun download needs unzip, which the image lacks; npm has Bun too.
           npm install -g --no-audit --no-fund bun@1.4.4
           echo "BUN_PATH=$(command -v bun)" >> "$GITHUB_ENV"
+          node scripts/write-jira-mcp-config.mjs
 
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_bun_executable: ${{ env.BUN_PATH }}
+          # Keep the Jira ticket in step: after the fix, a short note on the ticket named in the PR's
+          # "Refs:" line. No tag and no status change; the ticket's hand-back stays the summary.
           claude_args: |
+            --mcp-config ${{ env.AGENT_TMP }}/mcp.json
             --max-turns 100
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*)"
+            --append-system-prompt "After you push your fix, find the Jira key in the pull request description's 'Refs: HSA-n' line. Add one short comment to that ticket (Jira site dfresh.atlassian.net, jira MCP tools) that starts 'Fix from a PR comment:', says in one or two plain sentences what was asked and what you changed, and ends with the pull request link. Do not tag the user and do not change the ticket's status. If there is no Refs line, skip this."
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__jira__getJiraIssue,mcp__jira__addOrEditJiraIssueComment"
