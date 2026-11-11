@@ -51,3 +51,6 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# local Claude Code rules (imports private planning docs; never commit)
+CLAUDE.local.md

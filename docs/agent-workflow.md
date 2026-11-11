@@ -117,6 +117,15 @@ The user's account ID comes from the repo variable `JIRA_USER_ACCOUNT_ID` (Setti
 variables → Actions → Variables), so it isn't written in this public repo. A failed run sends no
 message; GitHub emails the person who started it.
 
+### Where the rules live
+
+- `CLAUDE.md` in this repo: the public rules (conventions pointer, writing style, commit and PR
+  rules, no private material).
+- The private planning repo's `CLAUDE.md`: the Jira workflow, contact rules and operational notes.
+  Both jobs check it out read-only to `/tmp/reference`; on the maintainer's machine,
+  `CLAUDE.local.md` (git-ignored) imports it.
+- The workflow prompt restates the rules every run needs, so keep all three in step.
+
 ## Notes
 
 - The Jira token works only through Atlassian's MCP server, not the REST API, so every Jira
