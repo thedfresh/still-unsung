@@ -2,7 +2,8 @@
 #
 # Ticket runs start by hand (Actions → "Claude agent" → Run workflow, with a Jira key) or,
 # once HSA-25 lands, from Jira through repository_dispatch. Each run:
-#   1. checks out main, plus the private planning repo read-only into reference/ (never committed)
+#   1. checks out main, plus the private planning repo's `planning` branch read-only into
+#      /tmp/reference (outside the project, so it's never built, linted or committed)
 #   2. lets Claude claim the ticket (In Progress), do the work on branch hsa-<n> with tests,
 #      commit, and write the PR description
 #   3. pushes the branch and opens the PR with the Claude GitHub App's token (so CI runs and the
@@ -96,16 +97,21 @@ jobs:
             echo "::error::Branch $BRANCH already exists. Finish or delete it before re-running."; exit 1
           fi
 
-      - name: Check out the planning repo read-only into reference/
+      # Branch `planning` holds the current CLAUDE.md, PLAN.md and docs (its main is the frozen
+      # old app and deploys on push, so planning commits live on this branch until cutover).
+      - name: Check out the planning repo read-only
         uses: actions/checkout@v7
         with:
           repository: thedfresh/hunter-setlist-archive
+          ref: planning
           token: ${{ secrets.REFERENCE_REPO_TOKEN }}
           path: reference
           persist-credentials: false
 
-      - name: Keep reference/ out of commits
-        run: echo "reference/" >> .git/info/exclude
+      # checkout can only write inside the workspace; move it out so the type checker, linter
+      # and tests never see it and it can't be committed.
+      - name: Move the planning repo out of the project, to /tmp/reference
+        run: mv reference /tmp/reference
 
       - name: Set up the app
         uses: ./.github/actions/setup
@@ -146,8 +152,10 @@ jobs:
             You are the Claude agent for the StillUnsung rebuild. Work Jira ticket ${{ env.TICKET }}
             in this repository (thedfresh/still-unsung), on the branch already checked out: ${{ env.BRANCH }}.
 
-            Rules (also in reference/CLAUDE.md → "Jira workflow"; read it first, and reference/PLAN.md
-            for decisions; reference/ is the private planning repo plus the old app, read-only):
+            Rules (also in /tmp/reference/CLAUDE.md → "Jira workflow"; read it first, and
+            /tmp/reference/PLAN.md and /tmp/reference/docs/ for decisions and specs. /tmp/reference is
+            the private planning repo plus the old app, read-only; its freeze rules are about the old
+            app and don't apply to this repository):
             - Jira site dfresh.atlassian.net, project HSA. Use the jira MCP tools; you are signed in as
               the Jira user "Claude". If the jira tools are missing or fail, stop and say exactly that
               (tool names and error) in your final message.
@@ -161,7 +169,7 @@ jobs:
               `npm run test:e2e` when pages change. Everything must pass before you commit.
             - Commit on ${{ env.BRANCH }} only. Commit messages end with "Refs: ${{ env.TICKET }}".
               Do not push, do not create a pull request: the workflow does both after you finish.
-            - Never commit anything from reference/, secrets, production data or private research
+            - Never copy private material from /tmp/reference into this repo, never commit secrets, production data or private research
               material: this repository is public.
             - Write the pull request description to ${{ env.AGENT_TMP }}/pr-body.md with the sections
               "What changed and why", "What to check" (exact steps), "Migration or risk", and a last
@@ -169,10 +177,11 @@ jobs:
           claude_args: |
             --mcp-config ${{ env.AGENT_TMP }}/mcp.json
             --add-dir ${{ env.AGENT_TMP }}
+            --add-dir /tmp/reference
             --max-turns 200
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(ls:*),Bash(cat:*),mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
 
-      # The action hides Claude's messages (full output would expose private reference/ content in
+      # The action hides Claude's messages (full output would expose private /tmp/reference content in
       # this public repo's logs). Print only what's needed to see why a run ended.
       - name: Report how Claude's run ended
         if: always() && steps.claude.outputs.execution_file != ''
