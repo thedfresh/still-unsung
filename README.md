@@ -69,6 +69,11 @@ install, apply migrations to a throwaway Postgres 18, `npm run build`, `npm test
 Playwright and accessibility tests. A failing step fails the check; once branch protection is on,
 a red check blocks merging. On failure the Playwright traces are attached to the run.
 
+## Claude agent
+
+`.github/workflows/claude-agent.yml` lets Claude work Jira tickets and answer `@claude` on pull
+requests. Setup and how it works: [docs/agent-workflow.md](docs/agent-workflow.md).
+
 ## Health check
 
 `GET /api/health` reports `{"status":"ok","checks":{"database":"ok"}}` with HTTP 200, or HTTP 503
