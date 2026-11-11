@@ -19,6 +19,11 @@ on:
       ticket:
         description: "Jira key of a Ready ticket assigned to Claude, e.g. HSA-42"
         required: true
+      model:
+        description: "Model for this run (Jira runs pick it from the ticket's labels instead)"
+        type: choice
+        options: [sonnet, opus, fable]
+        default: sonnet
   repository_dispatch:
     types: [jira-ticket-ready]
   issue_comment:
@@ -69,6 +74,9 @@ jobs:
 
     env:
       TICKET: ${{ inputs.ticket || github.event.client_payload.ticket }}
+      # Jira sends the ticket's labels (comma-separated); "fable" or "opus" picks a bigger model.
+      LABELS: ${{ github.event.client_payload.labels }}
+      MODEL_CHOICE: ${{ inputs.model }}
       # Throwaway database for this run only. Not a secret.
       DATABASE_URL: postgresql://still_unsung:still_unsung@postgres:5432/still_unsung_test
       # Scratch files shared between steps (MCP config, PR description). A fixed path inside the
@@ -82,6 +90,23 @@ jobs:
             echo "::error::Not a valid Jira key: '$TICKET'"; exit 1
           fi
           echo "BRANCH=hsa-${TICKET#HSA-}" >> "$GITHUB_ENV"
+
+      - name: Pick the model (label fable or opus on the ticket; Sonnet otherwise)
+        run: |
+          choice="${MODEL_CHOICE:-sonnet}"
+          IFS=',' read -ra labels <<< "$(echo "$LABELS" | tr "[:upper:]" "[:lower:]")"
+          for label in "${labels[@]}"; do
+            label="$(echo "$label" | xargs)"
+            if [ "$label" = "fable" ]; then choice=fable; fi
+            if [ "$label" = "opus" ] && [ "$choice" != "fable" ]; then choice=opus; fi
+          done
+          case "$choice" in
+            fable) model=claude-fable-5-2 ;;
+            opus)  model=claude-opus-5-5 ;;
+            *)     model=claude-sonnet-5-5 ;;
+          esac
+          echo "MODEL=$model" >> "$GITHUB_ENV"
+          echo "Model for $TICKET: $model"
 
       # The workflow's own commit: main for real runs (dispatch from main, or Jira), or a
       # workflow-fix branch when testing a change to this file with --ref.
@@ -185,6 +210,7 @@ jobs:
             --mcp-config ${{ env.AGENT_TMP }}/mcp.json
             --add-dir ${{ env.AGENT_TMP }}
             --add-dir /tmp/reference
+            --model ${{ env.MODEL }}
             --max-turns 200
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__atlassianUserInfo,mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
 
@@ -203,6 +229,7 @@ jobs:
             const lines = [
               "MCP servers: " + JSON.stringify(init.mcp_servers || "not reported"),
               "Jira tools available: " + (tools.length ? tools.join(", ") : "none"),
+              "Model: " + (init.model || process.env.MODEL),
               "Turns: " + result.num_turns + ", error: " + result.is_error,
               "Final message: " + String(result.result || "").slice(0, 1500),
             ];
