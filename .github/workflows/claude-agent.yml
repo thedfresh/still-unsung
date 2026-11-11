@@ -80,9 +80,11 @@ jobs:
           fi
           echo "BRANCH=hsa-${TICKET#HSA-}" >> "$GITHUB_ENV"
 
+      # The workflow's own commit: main for real runs (dispatch from main, or Jira), or a
+      # workflow-fix branch when testing a change to this file with --ref.
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Fail if the branch already exists
@@ -164,7 +166,7 @@ jobs:
         env:
           APP_TOKEN: ${{ steps.claude.outputs.github_token }}
         run: |
-          if [ -z "$(git log --oneline origin/main..HEAD)" ]; then
+          if [ -z "$(git log --oneline "${{ github.sha }}..HEAD")" ]; then
             echo "No commits on $BRANCH; nothing to push (see the ticket for Claude's comment)."
             echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
