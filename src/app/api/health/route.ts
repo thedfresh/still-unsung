@@ -1,7 +1,7 @@
 import { connection } from "next/server";
-import { getPrisma } from "@/lib/db";
+import { pingDatabase } from "@/lib/data/health";
 import { buildHealthReport } from "@/lib/health";
-import packageJson from "../../../../package.json";
+import packageJson from "@/package.json";
 
 /**
  * Health check for the deploy (zero-downtime switch-over and smoke tests).
@@ -10,13 +10,8 @@ import packageJson from "../../../../package.json";
 export async function GET() {
   await connection();
 
-  let databaseOk = false;
-  try {
-    await getPrisma().$queryRaw`SELECT 1`;
-    databaseOk = true;
-  } catch {
-    // Report the failure without leaking error details.
-  }
+  // pingDatabase reports a failure as false, without leaking error details.
+  const databaseOk = await pingDatabase();
 
   const { report, httpStatus } = buildHealthReport(databaseOk, packageJson.version);
   return Response.json(report, {
