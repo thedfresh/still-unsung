@@ -84,6 +84,14 @@ pushes, PRs and Jira changes inside the run still come from Claude.
 If a move to Ready starts nothing, check the rule's audit log first: no entry means the rule
 didn't fire; an error on *Send web request* shows GitHub's reply.
 
+### Creating tickets
+
+Claude may create Jira tickets, but only when the ticket it works asks for them (for example, a
+checklist ticket that drafts follow-up tickets). New tickets are Tasks under the right epic,
+assigned to Claude or to the user, and stay in To Do; only the user moves a ticket to Ready, so a
+created ticket never starts a run by itself. The API puts new tickets in the backlog: use
+"Move to board" on the ones to keep. The hand-back lists every ticket created.
+
 ### Hand-back format
 
 Every Jira hand-back comment and PR description starts with a five-line executive summary
