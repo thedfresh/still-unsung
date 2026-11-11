@@ -1,7 +1,7 @@
 # Claude agent: works one Jira ticket per run, and answers @claude on pull requests.
 #
-# Ticket runs start by hand (Actions → "Claude agent" → Run workflow, with a Jira key) or,
-# once HSA-25 lands, from Jira through repository_dispatch. Each run:
+# Ticket runs start automatically when a ticket assigned to Claude moves to Ready (a Jira
+# Automation rule sends repository_dispatch; docs/agent-workflow.md), or by hand from Actions. Each run:
 #   1. checks out main, plus the private planning repo's `planning` branch read-only into
 #      /tmp/reference (outside the project, so it's never built, linted or committed)
 #   2. lets Claude claim the ticket (In Progress), do the work on branch hsa-<n> with tests,
@@ -158,7 +158,8 @@ jobs:
             - Jira site dfresh.atlassian.net, project HSA. Use the jira MCP tools; you are signed in as
               the Jira user "Claude". If the jira tools are missing or fail, stop and say exactly that
               (tool names and error) in your final message.
-            - Only work the ticket if its status is Ready and it is assigned to Claude. Otherwise add a
+            - Only work the ticket if its status is Ready and it is assigned to you (check your account
+              with atlassianUserInfo; the Jira user is shown as "Claude Code"). Otherwise add a
               comment saying why, make no changes, and stop.
             - First move the ticket to In Progress (transition "In Progress"). Never move it to Done,
               never change its assignee.
@@ -181,7 +182,7 @@ jobs:
             --add-dir ${{ env.AGENT_TMP }}
             --add-dir /tmp/reference
             --max-turns 200
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__atlassianUserInfo,mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
 
       # The action hides Claude's messages (full output would expose private /tmp/reference content in
       # this public repo's logs). Print only what's needed to see why a run ended.
