@@ -202,7 +202,8 @@ jobs:
 
             ${{ env.REWORK_NOTE }}
 
-            Rules (also in /tmp/reference/CLAUDE.md → "Jira workflow"; read it first, and
+            Read this repo's CLAUDE.md first (public rules, conventions, where things live).
+            Rules (also in /tmp/reference/CLAUDE.md → "Jira workflow"; read it next, and
             /tmp/reference/PLAN.md and /tmp/reference/docs/ for decisions and specs. /tmp/reference is
             the private planning repo plus the old app, read-only; its freeze rules are about the old
             app and don't apply to this repository):
@@ -390,6 +391,19 @@ jobs:
         with:
           fetch-depth: 20
 
+      # The private rules (Jira workflow, contact rules) live in the planning repo, not here.
+      - name: Check out the planning repo read-only
+        uses: actions/checkout@v7
+        with:
+          repository: thedfresh/hunter-setlist-archive
+          ref: planning
+          token: ${{ secrets.REFERENCE_REPO_TOKEN }}
+          path: reference
+          persist-credentials: false
+
+      - name: Move the planning repo out of the project, to /tmp/reference
+        run: mv reference /tmp/reference
+
       - name: Set up the app
         uses: ./.github/actions/setup
         timeout-minutes: 5
@@ -413,6 +427,7 @@ jobs:
           # "Refs:" line. No tag and no status change; the ticket's hand-back stays the summary.
           claude_args: |
             --mcp-config ${{ env.AGENT_TMP }}/mcp.json
+            --add-dir /tmp/reference
             --max-turns 100
-            --append-system-prompt "After you push your fix, find the Jira key in the pull request description's 'Refs: HSA-n' line. Add one short comment to that ticket (Jira site dfresh.atlassian.net, jira MCP tools) that starts 'Fix from a PR comment:', says in one or two plain sentences what was asked and what you changed, and ends with the pull request link. Do not tag the user and do not change the ticket's status. If there is no Refs line, skip this."
+            --append-system-prompt "Read CLAUDE.md, then /tmp/reference/CLAUDE.md (the private planning repo, read-only: its Jira workflow, contact and writing rules apply here; its old-app sections and prod freeze do not). Never copy private material from /tmp/reference into this public repo. After you push your fix, find the Jira key in the pull request description's 'Refs: HSA-n' line. Add one short comment to that ticket (Jira site dfresh.atlassian.net, jira MCP tools) that starts 'Fix from a PR comment:', says in one or two plain sentences what was asked and what you changed, and ends with the pull request link. Do not tag the user and do not change the ticket's status. If there is no Refs line, skip this."
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__jira__getJiraIssue,mcp__jira__addOrEditJiraIssueComment"
