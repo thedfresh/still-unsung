@@ -84,6 +84,13 @@ pushes, PRs and Jira changes inside the run still come from Claude.
 If a move to Ready starts nothing, check the rule's audit log first: no entry means the rule
 didn't fire; an error on *Send web request* shows GitHub's reply.
 
+### Hand-back format
+
+Every Jira hand-back comment and PR description starts with a five-line executive summary
+(Question, What I did, What I found, What changed, Next step for you), written in plain,
+short sentences with ASD-STE100 as the guide. The full rules live in the planning repo's
+`CLAUDE.md` → *Writing style*; the workflow prompt restates them, so keep the two in step.
+
 ## Notes
 
 - The Jira token works only through Atlassian's MCP server, not the REST API, so every Jira
