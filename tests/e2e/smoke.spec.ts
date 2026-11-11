@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import packageJson from "../../package.json";
 
 test("home page loads", async ({ page }) => {
   await page.goto("/");
@@ -25,5 +26,9 @@ test("home page does not scroll sideways", async ({ page }) => {
 test("health check reports ok", async ({ request }) => {
   const res = await request.get("/api/health");
   expect(res.status()).toBe(200);
-  expect(await res.json()).toEqual({ status: "ok", checks: { database: "ok" } });
+  expect(await res.json()).toEqual({
+    status: "ok",
+    version: packageJson.version,
+    checks: { database: "ok" },
+  });
 });
