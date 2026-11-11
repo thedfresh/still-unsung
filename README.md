@@ -66,8 +66,15 @@ npx playwright install chromium
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and every push to `main`:
 install, apply migrations to a throwaway Postgres 18, `npm run build`, `npm test`, then the
-Playwright and accessibility tests. A failing step fails the check; once branch protection is on,
-a red check blocks merging. On failure the Playwright traces are attached to the run.
+Playwright and accessibility tests. A failing step fails the check, and a red check blocks merging.
+On failure the Playwright traces are attached to the run.
+
+CI and the Claude agent run inside Playwright's container image
+(`mcr.microsoft.com/playwright`, tag pinned in both workflows), which already has Node 26, Chromium
+and its system libraries, so runs never wait on Ubuntu's package servers. Shared setup steps live
+in `.github/actions/setup`, and each step has a time limit so a bad runner fails in minutes.
+When `@playwright/test` or the Node version in `.nvmrc` changes, change the image tag to match;
+the setup step fails with a clear message if the image's Node and `.nvmrc` disagree.
 
 ## Claude agent
 

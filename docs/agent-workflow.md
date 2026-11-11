@@ -46,3 +46,7 @@ CI green, and the ticket in In Review with the PR link.
   change in a run is made by Claude through MCP.
 - `reference/` is excluded from git in the runner and must never be committed: it is private.
 - One ticket run at a time; a second request waits for the first.
+- Runs use the same container image as CI (see README → CI), so setup takes about a minute.
+- "Manual run by <you>" in the Actions list means the run was started with your GitHub sign-in
+  (from the Actions tab or `gh` on your machine). Pushes and PRs inside the run still come from
+  the Claude GitHub App. The Jira trigger (HSA-25) should start runs with the app's identity.
