@@ -46,3 +46,10 @@ CI green, and the ticket in In Review with the PR link.
   change in a run is made by Claude through MCP.
 - `reference/` is excluded from git in the runner and must never be committed: it is private.
 - One ticket run at a time; a second request waits for the first.
+- Changes to `claude-agent.yml` can't be fully tested from a branch: the Claude GitHub App only
+  issues its token when the workflow file matches `main`'s copy (a safety rule), so a `--ref`
+  run tests everything up to the Claude step, which then fails on purpose. Test the rest after merge.
+- Runs use the same container image as CI (see README → CI), so setup takes about a minute.
+- "Manual run by <you>" in the Actions list means the run was started with your GitHub sign-in
+  (from the Actions tab or `gh` on your machine). Pushes and PRs inside the run still come from
+  the Claude GitHub App. The Jira trigger (HSA-25) should start runs with the app's identity.

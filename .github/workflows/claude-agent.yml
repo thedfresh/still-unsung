@@ -41,6 +41,14 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Same image as CI: Node 26, git, Chromium and its libraries are already in it, so setup
+    # never waits on Ubuntu's package servers. Keep the tag in step with @playwright/test.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --init --ipc=host
+    defaults:
+      run:
+        shell: bash
     # One ticket at a time; a second request waits instead of cancelling the first.
     concurrency:
       group: claude-agent-ticket
@@ -53,8 +61,6 @@ jobs:
           POSTGRES_USER: still_unsung
           POSTGRES_PASSWORD: still_unsung
           POSTGRES_DB: still_unsung_test
-        ports:
-          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U still_unsung -d still_unsung_test"
           --health-interval 5s
@@ -64,7 +70,7 @@ jobs:
     env:
       TICKET: ${{ inputs.ticket || github.event.client_payload.ticket }}
       # Throwaway database for this run only. Not a secret.
-      DATABASE_URL: postgresql://still_unsung:still_unsung@localhost:5432/still_unsung_test
+      DATABASE_URL: postgresql://still_unsung:still_unsung@postgres:5432/still_unsung_test
 
     steps:
       - name: Validate the ticket key
@@ -74,18 +80,18 @@ jobs:
           fi
           echo "BRANCH=hsa-${TICKET#HSA-}" >> "$GITHUB_ENV"
 
-      - name: Fail if the branch already exists
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh api "repos/${{ github.repository }}/branches/$BRANCH" --silent 2>/dev/null; then
-            echo "::error::Branch $BRANCH already exists. Finish or delete it before re-running."; exit 1
-          fi
-
+      # The workflow's own commit: main for real runs (dispatch from main, or Jira), or a
+      # workflow-fix branch when testing a change to this file with --ref.
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 0
+
+      - name: Fail if the branch already exists
+        run: |
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null; then
+            echo "::error::Branch $BRANCH already exists. Finish or delete it before re-running."; exit 1
+          fi
 
       - name: Check out the planning repo read-only into reference/
         uses: actions/checkout@v7
@@ -98,34 +104,34 @@ jobs:
       - name: Keep reference/ out of commits
         run: echo "reference/" >> .git/info/exclude
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies and prepare the test database
-        run: |
-          npm ci
-          npx prisma migrate deploy
-          npx playwright install --with-deps chromium
+      - name: Set up the app
+        uses: ./.github/actions/setup
+        timeout-minutes: 5
 
       - name: Start the ticket branch
         run: git checkout -b "$BRANCH"
 
-      - name: Write the Jira MCP config (signs in as the Jira user Claude)
+      - name: Prepare the Claude step (Bun from npm, Jira MCP config signed in as Claude)
+        timeout-minutes: 3
         env:
           JIRA_EMAIL: ${{ secrets.JIRA_CLAUDE_EMAIL }}
           JIRA_TOKEN: ${{ secrets.JIRA_MCP_CLAUDE_TOKEN }}
         run: |
-          auth="Basic $(printf '%s:%s' "$JIRA_EMAIL" "$JIRA_TOKEN" | base64 -w0)"
-          jq -n --arg auth "$auth" '{mcpServers: {jira: {type: "http", url: "https://mcp.atlassian.com/v2/mcp", headers: {Authorization: $auth}}}}' \
-            > "$RUNNER_TEMP/mcp.json"
+          # The action's own Bun download needs unzip, which the image lacks; npm has Bun too.
+          npm install -g --no-audit --no-fund bun@1.4.4
+          echo "BUN_PATH=$(command -v bun)" >> "$GITHUB_ENV"
+          node -e '
+            const auth = "Basic " + Buffer.from(process.env.JIRA_EMAIL + ":" + process.env.JIRA_TOKEN).toString("base64");
+            const config = { mcpServers: { jira: { type: "http", url: "https://mcp.atlassian.com/v2/mcp", headers: { Authorization: auth } } } };
+            require("fs").writeFileSync(process.env.RUNNER_TEMP + "/mcp.json", JSON.stringify(config));
+          '
 
       - name: Claude works the ticket
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          path_to_bun_executable: ${{ env.BUN_PATH }}
           prompt: |
             You are the Claude agent for the StillUnsung rebuild. Work Jira ticket ${{ env.TICKET }}
             in this repository (thedfresh/still-unsung), on the branch already checked out: ${{ env.BRANCH }}.
@@ -154,33 +160,61 @@ jobs:
             --max-turns 200
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(ls:*),Bash(cat:*),mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
 
-      - name: Push the branch and open the pull request
-        id: pr
-        env:
-          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
+      # The action reports success even when it skips itself (for example when this file differs
+      # from main's copy, which it requires before handing out the app token). Fail loudly instead.
+      - name: Fail if Claude didn't run
+        if: steps.claude.outputs.github_token == ''
         run: |
-          if [ -z "$(git log --oneline origin/main..HEAD)" ]; then
+          echo "::error::The Claude step skipped itself or got no app token; see its log. The workflow file must match main's copy."; exit 1
+
+      - name: Push the branch
+        id: push
+        timeout-minutes: 3
+        env:
+          APP_TOKEN: ${{ steps.claude.outputs.github_token }}
+        run: |
+          if [ -z "$(git log --oneline "${{ github.sha }}..HEAD")" ]; then
             echo "No commits on $BRANCH; nothing to push (see the ticket for Claude's comment)."
-            echo "url=" >> "$GITHUB_OUTPUT"; exit 0
+            echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           if [ ! -s "$RUNNER_TEMP/pr-body.md" ]; then
             printf 'Work for %s.\n\nRefs: %s\n' "$TICKET" "$TICKET" > "$RUNNER_TEMP/pr-body.md"
           fi
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$BRANCH"
-          title="$TICKET: $(git log -1 --format=%s)"
-          url=$(gh pr create --repo "${{ github.repository }}" --base main --head "$BRANCH" \
-                 --title "$title" --body-file "$RUNNER_TEMP/pr-body.md")
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Opened $url"
+          git push "https://x-access-token:${APP_TOKEN}@github.com/${{ github.repository }}.git" "$BRANCH"
+          echo "title=$TICKET: $(git log -1 --format=%s)" >> "$GITHUB_OUTPUT"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open the pull request (as the Claude GitHub App)
+        id: pr
+        if: steps.push.outputs.pushed == 'true'
+        timeout-minutes: 2
+        uses: actions/github-script@v9
+        env:
+          TITLE: ${{ steps.push.outputs.title }}
+        with:
+          github-token: ${{ steps.claude.outputs.github_token }}
+          result-encoding: string
+          script: |
+            const fs = require("fs");
+            const { data } = await github.rest.pulls.create({
+              ...context.repo,
+              base: "main",
+              head: process.env.BRANCH,
+              title: process.env.TITLE,
+              body: fs.readFileSync(process.env.RUNNER_TEMP + "/pr-body.md", "utf8"),
+            });
+            core.info(`Opened ${data.html_url}`);
+            return data.html_url;
 
       - name: Move the ticket to In Review with the PR link
-        if: steps.pr.outputs.url != ''
+        if: steps.pr.outputs.result != ''
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          path_to_bun_executable: ${{ env.BUN_PATH }}
           prompt: |
             In Jira (site dfresh.atlassian.net), for ticket ${{ env.TICKET }}: add a comment
-            "PR open for review: ${{ steps.pr.outputs.url }}" with a two-line summary of what the PR
+            "PR open for review: ${{ steps.pr.outputs.result }}" with a two-line summary of what the PR
             changes, then move the ticket to In Review (transition "In Review"). Do nothing else.
           claude_args: |
             --mcp-config ${{ runner.temp }}/mcp.json
@@ -196,6 +230,14 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Same image as CI: Node 26, git, Chromium and its libraries are already in it, so setup
+    # never waits on Ubuntu's package servers. Keep the tag in step with @playwright/test.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --init --ipc=host
+    defaults:
+      run:
+        shell: bash
 
     services:
       postgres:
@@ -204,8 +246,6 @@ jobs:
           POSTGRES_USER: still_unsung
           POSTGRES_PASSWORD: still_unsung
           POSTGRES_DB: still_unsung_test
-        ports:
-          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U still_unsung -d still_unsung_test"
           --health-interval 5s
@@ -213,26 +253,27 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgresql://still_unsung:still_unsung@localhost:5432/still_unsung_test
+      DATABASE_URL: postgresql://still_unsung:still_unsung@postgres:5432/still_unsung_test
 
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 20
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
+      - name: Set up the app
+        uses: ./.github/actions/setup
+        timeout-minutes: 5
 
-      - name: Install dependencies and prepare the test database
+      - name: Install Bun from npm (the action's own download needs unzip, which the image lacks)
+        timeout-minutes: 3
         run: |
-          npm ci
-          npx prisma migrate deploy
+          npm install -g --no-audit --no-fund bun@1.4.4
+          echo "BUN_PATH=$(command -v bun)" >> "$GITHUB_ENV"
 
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          path_to_bun_executable: ${{ env.BUN_PATH }}
           claude_args: |
             --max-turns 100
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*)"
