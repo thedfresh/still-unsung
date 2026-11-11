@@ -1,0 +1,19 @@
+// Prisma schema for StillUnsung.
+// The real schema comes from the data-model design session (HSA-28, HSA-35).
+// SystemCheck is a placeholder so the skeleton can prove a real database
+// round trip; it will be removed when the real models land.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model SystemCheck {
+  id        Int      @id @default(autoincrement())
+  note      String
+  createdAt DateTime @default(now())
+}
