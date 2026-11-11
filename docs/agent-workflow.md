@@ -56,6 +56,7 @@ Ready:
 
 `fable` wins if both are set. Bigger models use up the Claude subscription's limits faster. Runs
 started by hand pick the model on the *Run workflow* form. Each run's report shows the model used.
+Jira prints the labels as a comma-separated list; `{{issue.labels.join(",")}}` is rejected as invalid JSON by the rule editor.
 A ticket Sonnet can't handle usually comes back as a question on the ticket: add the label and
 move it to Ready again.
 
@@ -69,7 +70,7 @@ A Jira Automation rule in the Hunter Setlist Archive space, named
 - **Action:** Send web request
   - URL `https://api.github.com/repos/thedfresh/still-unsung/dispatches`, method POST
   - Body (custom data):
-    `{"event_type": "jira-ticket-ready", "client_payload": {"ticket": "{{issue.key}}", "labels": "{{issue.labels.join(",")}}"}}`
+    `{"event_type": "jira-ticket-ready", "client_payload": {"ticket": "{{issue.key}}", "labels": "{{issue.labels}}"}}`
   - Headers: `Authorization: Bearer <token>` (hidden), `Accept: application/vnd.github+json`,
     `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
   - Waits for the response, so the rule's audit log shows GitHub's answer (204 means accepted).
