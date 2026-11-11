@@ -43,6 +43,22 @@ Create a small ticket assigned to Claude, move it to Ready, then run the workflo
 its key. Expect: the ticket moves to In Progress, a branch `hsa-<n>`, a PR opened by the app with
 CI green, and the ticket in In Review with the PR link.
 
+### Choosing the model
+
+Runs use Sonnet unless the ticket says otherwise. Add a label to the ticket before moving it to
+Ready:
+
+| Label | Model | For |
+|---|---|---|
+| (none) | Sonnet | Most tickets |
+| `opus` | Opus | Hard problems: tricky logic, wide changes, design-heavy work |
+| `fable` | Fable | The hardest, most complex tasks |
+
+`fable` wins if both are set. Bigger models use up the Claude subscription's limits faster. Runs
+started by hand pick the model on the *Run workflow* form. Each run's report shows the model used.
+A ticket Sonnet can't handle usually comes back as a question on the ticket: add the label and
+move it to Ready again.
+
 ### 4. The Jira trigger (HSA-25)
 
 A Jira Automation rule in the Hunter Setlist Archive space, named
@@ -52,7 +68,8 @@ A Jira Automation rule in the Hunter Setlist Archive space, named
 - **Condition:** Assignee equals the Jira user Claude (shown as "Claude Code").
 - **Action:** Send web request
   - URL `https://api.github.com/repos/thedfresh/still-unsung/dispatches`, method POST
-  - Body (custom data): `{"event_type": "jira-ticket-ready", "client_payload": {"ticket": "{{issue.key}}"}}`
+  - Body (custom data):
+    `{"event_type": "jira-ticket-ready", "client_payload": {"ticket": "{{issue.key}}", "labels": "{{issue.labels.join(",")}}"}}`
   - Headers: `Authorization: Bearer <token>` (hidden), `Accept: application/vnd.github+json`,
     `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
   - Waits for the response, so the rule's audit log shows GitHub's answer (204 means accepted).
