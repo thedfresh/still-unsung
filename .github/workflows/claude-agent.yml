@@ -160,6 +160,13 @@ jobs:
             --max-turns 200
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(ls:*),Bash(cat:*),mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
 
+      # The action reports success even when it skips itself (for example when this file differs
+      # from main's copy, which it requires before handing out the app token). Fail loudly instead.
+      - name: Fail if Claude didn't run
+        if: steps.claude.outputs.github_token == ''
+        run: |
+          echo "::error::The Claude step skipped itself or got no app token; see its log. The workflow file must match main's copy."; exit 1
+
       - name: Push the branch
         id: push
         timeout-minutes: 3
