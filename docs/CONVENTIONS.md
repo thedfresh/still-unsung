@@ -9,6 +9,13 @@ Each rule says how it is enforced: **build** (type check or lint fails `npm run 
 Rules marked *built with its first user* describe code that does not exist yet. The first
 ticket that needs it builds it once, in the place named here.
 
+Security rules (sign-in, roles, secrets, headers) are not in this file. They come from a
+separate review, HSA-135.
+
+The app runs as one process. During a deploy the old and the new process overlap for a few
+seconds, and each has its own cache. A second long-running process would first need a shared
+cache handler.
+
 ## 1. Where code goes
 
 | Folder | What goes there |
@@ -24,10 +31,14 @@ ticket that needs it builds it once, in the place named here.
 
 - Unit tests sit next to their source as `*.test.ts`. (test: Vitest finds them)
 - File names are kebab-case: `event-card.tsx`, `sort-date.ts`. Components export PascalCase
-  names. (review)
-- Import with the `@/` alias, not long relative paths. (review)
-- Only `src/lib/data/` imports the Prisma client. Pages, components and actions call the data
-  layer. (review)
+  names. (build: `eslint-plugin-check-file` for file names; review for the exports)
+- Import with the `@/` alias, not long relative paths (more than one `../`).
+  (build: ESLint `no-restricted-imports`)
+- App code (pages, components, Server Actions, routes) never imports anything from Prisma: not
+  the client, not the generated types, not the error classes. It calls the data layer instead.
+  Only `src/lib/data/` does, together with `src/lib/db.ts`, the client factory the data layer
+  uses. (build: ESLint `no-restricted-imports`)
+- Seeds, `tests/db/` and scripts are not app code and may use Prisma directly.
 
 ## 2. Server components, Server Actions and API routes
 
@@ -83,6 +94,18 @@ Every API route and Server Action reports errors with the same shape, from `src/
 
 - Throw `AppError(code, message?)` for an expected failure. Its message is fixed, safe text.
   (review)
+- The data layer maps Prisma errors to `AppError` codes: a unique-constraint error becomes
+  `conflict`, a missing record becomes `not_found`. `src/lib/errors.ts` never knows about
+  Prisma, and no code outside the data layer sees a Prisma error. (build: the Prisma import
+  rule in section 1; review for the mapping)
+- **Edit conflicts.** `conflict` for "the record changed since the form loaded" has one
+  mechanism. Every editable record has an `updatedAt` column that Prisma sets on each write.
+  The edit form carries the `updatedAt` it loaded, as a hidden field. The data layer writes
+  only if `updatedAt` still matches. If no row changes, it raises `conflict`, and the form says
+  the record changed since it was opened. `defineAction`, `useEntityForm` and the data layer
+  build this in once. (test: a database test with the first editable entity; review until
+  then.) Adding `updatedAt` to every table is also a data-model design requirement (HSA-28,
+  HSA-35).
 - Never send `error.message`, a Prisma error, SQL or a stack trace to the client. `toErrorBody`
   logs unknown errors on the server and returns only "Something went wrong." (test)
 - The health check is the one exception: it keeps the shape the deploy reads. (test)
@@ -95,13 +118,14 @@ forms and list pages, and each copy drifted.
 - **`defineAction` (Server Actions)** — *built with its first user*, in `src/lib/actions.ts`.
   It takes a Zod schema, the required role, the data-layer call and the cache tags to refresh.
   It validates, checks the role, runs the call, refreshes the tags and returns
-  `{ ok: true, data }` or `{ ok: false, error }` in the shape from section 3. Every admin
-  mutation goes through it. (review)
+  `{ ok: true, data }` or `{ ok: false, error }` in the shape from section 3. It also builds in
+  the `updatedAt` edit-conflict check. Every admin mutation goes through it. (review)
 - **`defineRoute` (API routes)** — *built with its first user*, in `src/lib/api.ts`. The same
   steps for route handlers: parse params, query and body with Zod, check the role, set
   `Cache-Control`, map errors with `toErrorBody`. (review)
 - **`useEntityForm` (admin forms)** — *built with its first user*, in `src/lib/use-entity-form.ts`.
-  One form hook on top of React's `useActionState`. It shows field errors from `fields`, keeps
+  One form hook on top of React's `useActionState`. It carries the hidden `updatedAt` field and
+  shows the conflict message. It shows field errors from `fields`, keeps
   the input after an error and marks the form as busy while it saves. No admin form writes its
   own save logic. (review)
 - **Config-driven admin lists** — *built with its first user*, in
@@ -117,12 +141,21 @@ fields. (review)
 - **Slugs** (`src/lib/slugs.ts`): one `slugify` for every entity, and one way to resolve a
   collision that relies on the database's unique index. Public pages never compute slugs; they
   read the stored slug. A changed slug keeps a redirect from the old one.
-- **Sort dates** (`src/lib/sort-date.ts`): the stored sort date is always computed by this
-  helper from the partial date and the show timing (early or late show). Never compute it in a
-  route or a form.
+- **Sort dates** (`src/lib/sort-date.ts`): the stored sort key is always computed by this
+  helper from the partial date, the show timing and the slug number. Never compute it in a
+  route or a form. The sort key is internal: it may use placeholder values to get the order
+  right, and it is never shown or treated as a real date. The order is:
+  - A year-only date sorts before every dated show that year. A year and month sorts before the
+    dated shows in that month.
+  - Several year-only shows in one year keep a fixed order, set by the number in the slug.
+    The same holds for several year-and-month shows in one month.
+  - Shows on the same day: if both have a start time, compare start times. Otherwise compare
+    the labels: no label, then early, then late. If still tied, the show with a start time
+    goes first.
 - **Partial dates** (`src/lib/partial-date.ts`): a date may have a year only, a year and month,
   or a full date. One type, one Zod schema and one formatter for display. Never fill a missing
-  month or day with 1.
+  month or day with 1 in a stored or displayed date. (The sort key above is the one place a
+  placeholder is allowed.)
 - **Three-state booleans** (`src/lib/tri-state.ts`): many flags are `true`, `false` or `null`,
   and `null` means "not known". Store them as nullable columns with no default. Validate with
   `z.boolean().nullable()`. Edit them with a three-option control (Yes, No, Not known), never a
@@ -138,36 +171,53 @@ and a test.
   with `"use cache"`, always with a `cacheLife` and a `cacheTag`. (review)
 - Cache tags come from one module, `src/lib/cache-tags.ts` (*built with its first user*), for
   example `event` for all events and `event:42` for one event. Never write a tag as a string
-  literal anywhere else. (review)
+  literal anywhere else. (build: ESLint `no-restricted-syntax` on `cacheTag`, `updateTag` and
+  `revalidateTag` calls)
 - Every write refreshes the tags it affects, through `defineAction`. Use `updateTag` in Server
   Actions so the editor sees the change at once. (review)
 - **No database content in the build.** The build runs in CI against an empty database, so
   content baked into the build would be wrong. A page that shows database content calls
   `await connection()` (or reads request data) before the cached read. The cache then fills at
-  request time. (test: the stale-data test below)
-- Writes from outside the app (changesets, the data migration) end with a call to a protected
-  cache-refresh route. That route is *built with its first user*. (review)
+  request time. (build: CI runs `npm run build` with a database address that fails on any
+  connection, so a page that reads the database at build time breaks the build)
+- Writes from outside the app (changesets, the data import) end with a call to a protected
+  cache-refresh route. That route is *built with its first user*. It uses
+  `revalidateTag(tag, { expire: 0 })`, not `updateTag` (which only works in Server Actions), so
+  the cache entry expires at once and the next visitor sees new data. (review)
 - The proxy in front of the app (nginx) does not cache pages or API responses. It may cache
   `/_next/static/`, whose file names change with every build. (review of the deploy config)
 - API routes set `Cache-Control` themselves: `no-store` unless a route documents otherwise.
   (review)
 - **Stale-data test.** The first cached public page brings an e2e test that loads the page,
   changes the record through the admin action, loads the page again and expects the new value.
-  Each new cached page adds its case. (test)
+  Each new cached page adds its case. This test proves that edits show up; it does not check
+  the build rule above. (test)
 
 ## 6. Database and migrations
 
 - Change the schema only with Prisma Migrate: `npm run db:migrate` locally, `npm run db:deploy`
   on staging and prod. Never `prisma db push` outside a laptop experiment. (review; CI applies
   the migrations from scratch)
-- Every change is additive, in two steps (expand, then contract). First deploy: add the new
-  column or table, and write to both old and new. A later deploy: remove the old one. Old and
-  new code then run side by side during the zero-downtime switch. (review)
-- To rename, edit the generated SQL to `ALTER ... RENAME`. Never drop and add, which loses the
-  data. (review)
-- A backfill that goes with a schema change lives in the same migration. (review)
+"Cutover" is the day the new app takes live traffic from the old app. Two phases follow from it.
+
+- **Before cutover** there is no live traffic, so a change may be done in one step. (review)
+- **After cutover** every change is additive, in two steps (expand, then contract). First
+  deploy: add the new column or table, and write to both old and new. A later deploy: remove
+  the old one. Old and new code run side by side during the zero-downtime switch. (review)
+- **Renames.** Before cutover, a plain `RENAME` in the migration is allowed. After cutover, a
+  rename follows expand/contract: add the new column, deploy code that writes both, backfill,
+  then drop the old column in a later deploy. A plain `RENAME` after cutover needs a planned
+  maintenance window that the owner approves. Never drop and add in one migration, which loses
+  the data. (review)
+- **Backfills.** Before cutover, a backfill may sit in the migration. After cutover: (1) a
+  migration adds the column; (2) a deploy ships code that writes old and new values; (3) a
+  separate script backfills existing rows in batches; (4) a later deploy drops the old column.
+  (review)
 - Never edit a migration that is already on `main`. Add a new one. (review)
-- Test data is synthetic. Never put production data in a migration, seed or test. (review)
+- Test data is synthetic. Never put production data in a migration, seed or test: nothing in
+  the repository holds production data. The data import (the one-time copy of the old
+  database) is a script, not a schema migration. It reads production data at run time and
+  never stores it in the repository. (review)
 
 ## 7. Components, mobile and accessibility
 
