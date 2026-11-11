@@ -94,7 +94,7 @@ jobs:
       - name: Pick the model (label fable or opus on the ticket; Sonnet otherwise)
         run: |
           choice="${MODEL_CHOICE:-sonnet}"
-          IFS=',' read -ra labels <<< "$(echo "$LABELS" | tr "[:upper:]" "[:lower:]")"
+          IFS=',' read -ra labels <<< "$(echo "$LABELS" | tr -d "[]" | tr "[:upper:]" "[:lower:]")"
           for label in "${labels[@]}"; do
             label="$(echo "$label" | xargs)"
             if [ "$label" = "fable" ]; then choice=fable; fi
