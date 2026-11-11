@@ -5,10 +5,9 @@
 #   1. checks out main, plus the private planning repo's `planning` branch read-only into
 #      /tmp/reference (outside the project, so it's never built, linted or committed)
 #   2. lets Claude claim the ticket (In Progress), do the work on branch hsa-<n> with tests,
-#      commit, and write the PR description
-#   3. pushes the branch and opens the PR with the Claude GitHub App's token (so CI runs and the
-#      PR comes from the app, not a person)
-#   4. lets Claude move the ticket to In Review with the PR link
+#      commit, write the PR description, push the branch and open the PR (scripts/open-pr.mjs),
+#      all with the Claude GitHub App's token, so CI runs and the PR comes from the app
+#   3. lets Claude move the ticket to In Review with the PR link
 #
 # Guard rails: never pushes to main (branch protection also blocks it), never merges, never
 # deploys, never touches the production database. Setup: docs/agent-workflow.md.
@@ -168,18 +167,21 @@ jobs:
             - Follow README.md and the repo's conventions. Run `npm run build` and `npm test`; run
               `npm run test:e2e` when pages change. Everything must pass before you commit.
             - Commit on ${{ env.BRANCH }} only. Commit messages end with "Refs: ${{ env.TICKET }}".
-              Do not push, do not create a pull request: the workflow does both after you finish.
             - Never copy private material from /tmp/reference into this repo, never commit secrets, production data or private research
               material: this repository is public.
             - Write the pull request description to ${{ env.AGENT_TMP }}/pr-body.md with the sections
               "What changed and why", "What to check" (exact steps), "Migration or risk", and a last
-              line "Refs: ${{ env.TICKET }}". Do not move the ticket to In Review; a later step does.
+              line "Refs: ${{ env.TICKET }}".
+            - Last, only if you committed and everything passes: run `git push origin ${{ env.BRANCH }}`,
+              then `node scripts/open-pr.mjs` (opens the PR from your description). Both must succeed;
+              if either fails, put its exact error in your final message. Never push any other branch.
+              Do not move the ticket to In Review; a later step does.
           claude_args: |
             --mcp-config ${{ env.AGENT_TMP }}/mcp.json
             --add-dir ${{ env.AGENT_TMP }}
             --add-dir /tmp/reference
             --max-turns 200
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(ls:*),Bash(cat:*),mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
 
       # The action hides Claude's messages (full output would expose private /tmp/reference content in
       # this public repo's logs). Print only what's needed to see why a run ended.
@@ -210,54 +212,29 @@ jobs:
         run: |
           echo "::error::The Claude step skipped itself or got no app token; see its log. The workflow file must match main's copy."; exit 1
 
-      - name: Push the branch
-        id: push
-        timeout-minutes: 3
-        env:
-          APP_TOKEN: ${{ steps.claude.outputs.github_token }}
-        run: |
-          if [ -z "$(git log --oneline "${{ github.sha }}..HEAD")" ]; then
-            echo "::warning::No commits on $BRANCH; nothing pushed. See 'Report how Claude's run ended' and the ticket."
-            echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if [ ! -s "$AGENT_TMP/pr-body.md" ]; then
-            printf 'Work for %s.\n\nRefs: %s\n' "$TICKET" "$TICKET" > "$AGENT_TMP/pr-body.md"
-          fi
-          git push "https://x-access-token:${APP_TOKEN}@github.com/${{ github.repository }}.git" "$BRANCH"
-          echo "title=$TICKET: $(git log -1 --format=%s)" >> "$GITHUB_OUTPUT"
-          echo "pushed=true" >> "$GITHUB_OUTPUT"
-
-      - name: Open the pull request (as the Claude GitHub App)
+      # Claude pushes and opens the PR itself (scripts/open-pr.mjs) while the app token is live:
+      # the action withdraws that token when its step ends.
+      - name: Find the pull request
         id: pr
-        if: steps.push.outputs.pushed == 'true'
-        timeout-minutes: 2
-        uses: actions/github-script@v9
-        env:
-          TITLE: ${{ steps.push.outputs.title }}
-        with:
-          github-token: ${{ steps.claude.outputs.github_token }}
-          result-encoding: string
-          script: |
-            const fs = require("fs");
-            const { data } = await github.rest.pulls.create({
-              ...context.repo,
-              base: "main",
-              head: process.env.BRANCH,
-              title: process.env.TITLE,
-              body: fs.readFileSync(process.env.AGENT_TMP + "/pr-body.md", "utf8"),
-            });
-            core.info(`Opened ${data.html_url}`);
-            return data.html_url;
+        run: |
+          if [ -s "$AGENT_TMP/pr-url" ]; then
+            echo "url=$(cat "$AGENT_TMP/pr-url")" >> "$GITHUB_OUTPUT"
+            echo "Pull request: $(cat "$AGENT_TMP/pr-url")"
+          elif [ -n "$(git log --oneline "${{ github.sha }}..HEAD")" ]; then
+            echo "::error::Claude committed on $BRANCH but no PR was opened. See 'Report how Claude's run ended'."; exit 1
+          else
+            echo "::warning::No commits on $BRANCH and no PR. See 'Report how Claude's run ended' and the ticket."
+          fi
 
       - name: Move the ticket to In Review with the PR link
-        if: steps.pr.outputs.result != ''
+        if: steps.pr.outputs.url != ''
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_bun_executable: ${{ env.BUN_PATH }}
           prompt: |
             In Jira (site dfresh.atlassian.net), for ticket ${{ env.TICKET }}: add a comment
-            "PR open for review: ${{ steps.pr.outputs.result }}" with a two-line summary of what the PR
+            "PR open for review: ${{ steps.pr.outputs.url }}" with a two-line summary of what the PR
             changes, then move the ticket to In Review (transition "In Review"). Do nothing else.
           claude_args: |
             --mcp-config ${{ env.AGENT_TMP }}/mcp.json
