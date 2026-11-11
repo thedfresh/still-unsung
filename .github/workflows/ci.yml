@@ -24,6 +24,14 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Playwright's image already has Node 26, Chromium and its system libraries, so a run never
+    # waits on Ubuntu's package servers. Keep the tag in step with @playwright/test.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --init --ipc=host
+    defaults:
+      run:
+        shell: bash
 
     services:
       postgres:
@@ -32,8 +40,6 @@ jobs:
           POSTGRES_USER: still_unsung
           POSTGRES_PASSWORD: still_unsung
           POSTGRES_DB: still_unsung_test
-        ports:
-          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U still_unsung -d still_unsung_test"
           --health-interval 5s
@@ -42,34 +48,27 @@ jobs:
 
     env:
       # Throwaway database that exists only for this run. Not a secret.
-      DATABASE_URL: postgresql://still_unsung:still_unsung@localhost:5432/still_unsung_test
+      DATABASE_URL: postgresql://still_unsung:still_unsung@postgres:5432/still_unsung_test
       CI: "true"
 
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Apply migrations from scratch
-        run: npx prisma migrate deploy
+      - name: Set up the app
+        uses: ./.github/actions/setup
+        timeout-minutes: 5
 
       - name: Build (type check, lint, Next build)
         run: npm run build
+        timeout-minutes: 6
 
       - name: Unit and database tests
         run: npm test
-
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 5
 
       - name: Playwright and accessibility tests
         run: npm run test:e2e
+        timeout-minutes: 6
 
       - name: Upload Playwright report on failure
         if: failure()

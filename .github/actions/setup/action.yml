@@ -1,0 +1,31 @@
+# Shared setup for CI and the Claude agent. Runs inside the Playwright image
+# (mcr.microsoft.com/playwright, pinned in each workflow), which already has Node 26, git,
+# Chromium and its system libraries, so nothing here downloads from Ubuntu's package servers.
+name: Set up the app
+description: Check the Node version, restore the npm cache, install packages, apply migrations.
+
+runs:
+  using: composite
+  steps:
+    - name: Check the image's Node matches .nvmrc
+      shell: bash
+      run: |
+        want="$(cat .nvmrc)"; have="$(node -p 'process.versions.node.split(".")[0]')"
+        if [ "$want" != "$have" ]; then
+          echo "::error::The container image has Node $have but .nvmrc asks for $want. Update the image tag in the workflows."; exit 1
+        fi
+
+    - name: Restore the npm cache
+      uses: actions/cache@v6
+      with:
+        path: ~/.npm
+        key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+        restore-keys: npm-${{ runner.os }}-
+
+    - name: Install packages
+      shell: bash
+      run: npm ci --prefer-offline --no-audit --no-fund
+
+    - name: Apply migrations to the throwaway database
+      shell: bash
+      run: npx prisma migrate deploy
