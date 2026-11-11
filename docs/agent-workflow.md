@@ -30,7 +30,7 @@ Settings → Secrets and variables → Actions → *New repository secret*:
 | `CLAUDE_CODE_OAUTH_TOKEN` | Runs Claude on your Claude subscription (no API bill) | Run `claude setup-token` in a terminal and copy the token it prints |
 | `JIRA_CLAUDE_EMAIL` | The Jira user *Claude*'s email | Same value as `JIRA_CLAUDE_EMAIL` in the planning repo's `.env` |
 | `JIRA_MCP_CLAUDE_TOKEN` | The Jira user *Claude*'s MCP token | Same value as `JIRA_MCP_CLAUDE_TOKEN` in the planning repo's `.env` |
-| `REFERENCE_REPO_TOKEN` | Read-only access to the private planning repo, checked out into `reference/` | A fine-grained personal access token: repository access *only* `hunter-setlist-archive`, permission *Contents: Read-only*, nothing else |
+| `REFERENCE_REPO_TOKEN` | Read-only access to the private planning repo, its `planning` branch checked out to `/tmp/reference` | A fine-grained personal access token: repository access *only* `hunter-setlist-archive`, permission *Contents: Read-only*, nothing else |
 
 Secrets are never shown in logs and are not available to pull requests from forks.
 
@@ -44,7 +44,9 @@ CI green, and the ticket in In Review with the PR link.
 
 - The Jira token works only through Atlassian's MCP server, not the REST API, so every Jira
   change in a run is made by Claude through MCP.
-- `reference/` is excluded from git in the runner and must never be committed: it is private.
+- The planning repo is checked out from its `planning` branch to `/tmp/reference`, outside the project,
+  so the build, linter and tests never see it and it can't be committed. It is private. Planning
+  commits go on that branch (its `main` deploys the old app).
 - One ticket run at a time; a second request waits for the first.
 - Changes to `claude-agent.yml` can't be fully tested from a branch: the Claude GitHub App only
   issues its token when the workflow file matches `main`'s copy (a safety rule), so a `--ref`
