@@ -1,0 +1,238 @@
+# Claude agent: works one Jira ticket per run, and answers @claude on pull requests.
+#
+# Ticket runs start by hand (Actions → "Claude agent" → Run workflow, with a Jira key) or,
+# once HSA-25 lands, from Jira through repository_dispatch. Each run:
+#   1. checks out main, plus the private planning repo read-only into reference/ (never committed)
+#   2. lets Claude claim the ticket (In Progress), do the work on branch hsa-<n> with tests,
+#      commit, and write the PR description
+#   3. pushes the branch and opens the PR with the Claude GitHub App's token (so CI runs and the
+#      PR comes from the app, not a person)
+#   4. lets Claude move the ticket to In Review with the PR link
+#
+# Guard rails: never pushes to main (branch protection also blocks it), never merges, never
+# deploys, never touches the production database. Setup: docs/agent-workflow.md.
+name: Claude agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticket:
+        description: "Jira key of a Ready ticket assigned to Claude, e.g. HSA-42"
+        required: true
+  repository_dispatch:
+    types: [jira-ticket-ready]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  ticket:
+    name: Work a Jira ticket
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # One ticket at a time; a second request waits instead of cancelling the first.
+    concurrency:
+      group: claude-agent-ticket
+      cancel-in-progress: false
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: still_unsung
+          POSTGRES_PASSWORD: still_unsung
+          POSTGRES_DB: still_unsung_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U still_unsung -d still_unsung_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TICKET: ${{ inputs.ticket || github.event.client_payload.ticket }}
+      # Throwaway database for this run only. Not a secret.
+      DATABASE_URL: postgresql://still_unsung:still_unsung@localhost:5432/still_unsung_test
+
+    steps:
+      - name: Validate the ticket key
+        run: |
+          if [[ ! "$TICKET" =~ ^HSA-[0-9]+$ ]]; then
+            echo "::error::Not a valid Jira key: '$TICKET'"; exit 1
+          fi
+          echo "BRANCH=hsa-${TICKET#HSA-}" >> "$GITHUB_ENV"
+
+      - name: Fail if the branch already exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/branches/$BRANCH" --silent 2>/dev/null; then
+            echo "::error::Branch $BRANCH already exists. Finish or delete it before re-running."; exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Check out the planning repo read-only into reference/
+        uses: actions/checkout@v7
+        with:
+          repository: thedfresh/hunter-setlist-archive
+          token: ${{ secrets.REFERENCE_REPO_TOKEN }}
+          path: reference
+          persist-credentials: false
+
+      - name: Keep reference/ out of commits
+        run: echo "reference/" >> .git/info/exclude
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies and prepare the test database
+        run: |
+          npm ci
+          npx prisma migrate deploy
+          npx playwright install --with-deps chromium
+
+      - name: Start the ticket branch
+        run: git checkout -b "$BRANCH"
+
+      - name: Write the Jira MCP config (signs in as the Jira user Claude)
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_CLAUDE_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_MCP_CLAUDE_TOKEN }}
+        run: |
+          auth="Basic $(printf '%s:%s' "$JIRA_EMAIL" "$JIRA_TOKEN" | base64 -w0)"
+          jq -n --arg auth "$auth" '{mcpServers: {jira: {type: "http", url: "https://mcp.atlassian.com/v2/mcp", headers: {Authorization: $auth}}}}' \
+            > "$RUNNER_TEMP/mcp.json"
+
+      - name: Claude works the ticket
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are the Claude agent for the StillUnsung rebuild. Work Jira ticket ${{ env.TICKET }}
+            in this repository (thedfresh/still-unsung), on the branch already checked out: ${{ env.BRANCH }}.
+
+            Rules (also in reference/CLAUDE.md → "Jira workflow"; read it first, and reference/PLAN.md
+            for decisions; reference/ is the private planning repo plus the old app, read-only):
+            - Jira site dfresh.atlassian.net, project HSA. Use the jira MCP tools; you are signed in as
+              the Jira user "Claude".
+            - Only work the ticket if its status is Ready and it is assigned to Claude. Otherwise add a
+              comment saying why, make no changes, and stop.
+            - First move the ticket to In Progress (transition "In Progress"). Never move it to Done,
+              never change its assignee.
+            - Do exactly what the ticket asks, in one pass. If it can't be done without a decision from
+              the user, comment one clear question on the ticket and stop without committing.
+            - Follow README.md and the repo's conventions. Run `npm run build` and `npm test`; run
+              `npm run test:e2e` when pages change. Everything must pass before you commit.
+            - Commit on ${{ env.BRANCH }} only. Commit messages end with "Refs: ${{ env.TICKET }}".
+              Do not push, do not create a pull request: the workflow does both after you finish.
+            - Never commit anything from reference/, secrets, production data or private research
+              material: this repository is public.
+            - Write the pull request description to ${{ runner.temp }}/pr-body.md with the sections
+              "What changed and why", "What to check" (exact steps), "Migration or risk", and a last
+              line "Refs: ${{ env.TICKET }}". Do not move the ticket to In Review; a later step does.
+          claude_args: |
+            --mcp-config ${{ runner.temp }}/mcp.json
+            --max-turns 200
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(ls:*),Bash(cat:*),mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
+
+      - name: Push the branch and open the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
+        run: |
+          if [ -z "$(git log --oneline origin/main..HEAD)" ]; then
+            echo "No commits on $BRANCH; nothing to push (see the ticket for Claude's comment)."
+            echo "url=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ ! -s "$RUNNER_TEMP/pr-body.md" ]; then
+            printf 'Work for %s.\n\nRefs: %s\n' "$TICKET" "$TICKET" > "$RUNNER_TEMP/pr-body.md"
+          fi
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$BRANCH"
+          title="$TICKET: $(git log -1 --format=%s)"
+          url=$(gh pr create --repo "${{ github.repository }}" --base main --head "$BRANCH" \
+                 --title "$title" --body-file "$RUNNER_TEMP/pr-body.md")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Opened $url"
+
+      - name: Move the ticket to In Review with the PR link
+        if: steps.pr.outputs.url != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            In Jira (site dfresh.atlassian.net), for ticket ${{ env.TICKET }}: add a comment
+            "PR open for review: ${{ steps.pr.outputs.url }}" with a two-line summary of what the PR
+            changes, then move the ticket to In Review (transition "In Review"). Do nothing else.
+          claude_args: |
+            --mcp-config ${{ runner.temp }}/mcp.json
+            --max-turns 10
+            --allowedTools "mcp__jira__getJiraIssue,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment,Bash(git log:*)"
+
+  respond:
+    name: Answer @claude on a pull request
+    # The action itself only runs for users with write access to the repo.
+    if: |
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: still_unsung
+          POSTGRES_PASSWORD: still_unsung
+          POSTGRES_DB: still_unsung_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U still_unsung -d still_unsung_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://still_unsung:still_unsung@localhost:5432/still_unsung_test
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 20
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies and prepare the test database
+        run: |
+          npm ci
+          npx prisma migrate deploy
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --max-turns 100
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*)"
