@@ -7,6 +7,10 @@ description: Check the Node version, restore the npm cache, install packages, ap
 runs:
   using: composite
   steps:
+    - name: Let git work on the checkout (the container runs as root; the files belong to the runner)
+      shell: bash
+      run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
     - name: Check the image's Node matches .nvmrc
       shell: bash
       run: |
