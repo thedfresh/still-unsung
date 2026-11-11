@@ -62,6 +62,15 @@ npx playwright install chromium
 | `npm run db:migrate` | Create and apply a migration locally (Prisma Migrate) |
 | `npm run db:deploy` | Apply pending migrations (staging and prod) |
 
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and every push to `main`:
+install, apply migrations to a throwaway Postgres 18, `npm run build`, `npm test`, then the
+Playwright and accessibility tests. A failing step fails the check; once branch protection is on,
+a red check blocks merging. On failure the Playwright traces are attached to the run.
+
+## Health check
+
 `GET /api/health` reports `{"status":"ok","checks":{"database":"ok"}}` with HTTP 200, or HTTP 503
 when the database is unreachable. Deploys use it to decide when to switch traffic.
 
