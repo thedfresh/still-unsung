@@ -5,9 +5,10 @@
 - **Work a Jira ticket.** Start it by hand from the Actions tab ("Claude agent" → *Run workflow*,
   enter a key like `HSA-42`), or, once the Jira trigger exists (HSA-25), automatically when a
   ticket moves to Ready. Claude checks the ticket is Ready and assigned to Claude, moves it to
-  In Progress, does the work on branch `hsa-<n>` with tests, and commits. The workflow then pushes
-  the branch and opens the PR with the Claude GitHub App's token, and Claude moves the ticket to
-  In Review with the PR link.
+  In Progress, does the work on branch `hsa-<n>` with tests, commits, pushes the branch and opens
+  the PR (`scripts/open-pr.mjs`). Then a second short Claude step moves the ticket to In Review
+  with the PR link. Pushing and opening the PR happen inside Claude's step because the action
+  withdraws the Claude GitHub App's token when that step ends.
 - **Answer `@claude` on a pull request.** Comment `@claude` with a request on a PR; Claude
   pushes fixes to that PR's branch. Only people with write access to the repo can trigger it.
 
