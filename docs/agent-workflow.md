@@ -2,9 +2,10 @@
 
 `.github/workflows/claude-agent.yml` runs Claude on GitHub Actions in two ways:
 
-- **Work a Jira ticket.** Start it by hand from the Actions tab ("Claude agent" → *Run workflow*,
-  enter a key like `HSA-42`), or, once the Jira trigger exists (HSA-25), automatically when a
-  ticket moves to Ready. Claude checks the ticket is Ready and assigned to Claude, moves it to
+- **Work a Jira ticket.** Starts automatically when a ticket assigned to Claude moves to Ready
+  (the Jira rule below), or by hand from the Actions tab ("Claude agent" → *Run workflow*, enter
+  a key like `HSA-42`). The run starts within seconds; the ticket moves to In Progress about a
+  minute and a half later, once setup is done. Claude checks the ticket is Ready and assigned to Claude, moves it to
   In Progress, does the work on branch `hsa-<n>` with tests, commits, pushes the branch and opens
   the PR (`scripts/open-pr.mjs`). Then a second short Claude step moves the ticket to In Review
   with the PR link. Pushing and opening the PR happen inside Claude's step because the action
@@ -40,6 +41,29 @@ Secrets are never shown in logs and are not available to pull requests from fork
 Create a small ticket assigned to Claude, move it to Ready, then run the workflow by hand with
 its key. Expect: the ticket moves to In Progress, a branch `hsa-<n>`, a PR opened by the app with
 CI green, and the ticket in In Review with the PR link.
+
+### 4. The Jira trigger (HSA-25)
+
+A Jira Automation rule in the Hunter Setlist Archive space, named
+`Ready for Claude → start agent run`:
+
+- **Trigger:** Work item transitioned, to status **Ready** (from any status).
+- **Condition:** Assignee equals the Jira user Claude (shown as "Claude Code").
+- **Action:** Send web request
+  - URL `https://api.github.com/repos/thedfresh/still-unsung/dispatches`, method POST
+  - Body (custom data): `{"event_type": "jira-ticket-ready", "client_payload": {"ticket": "{{issue.key}}"}}`
+  - Headers: `Authorization: Bearer <token>` (hidden), `Accept: application/vnd.github+json`,
+    `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
+  - Waits for the response, so the rule's audit log shows GitHub's answer (204 means accepted).
+
+The token is a fine-grained personal access token named `jira-trigger-still-unsung`: repository
+`still-unsung` only, *Contents: Read and write* (what GitHub requires for a dispatch). It lives
+only in the Jira rule. When it expires the trigger stops; make a new one and paste it into the
+rule's Authorization header. Runs started this way show the token's owner as the actor; the
+pushes, PRs and Jira changes inside the run still come from Claude.
+
+If a move to Ready starts nothing, check the rule's audit log first: no entry means the rule
+didn't fire; an error on *Send web request* shows GitHub's reply.
 
 ## Notes
 
