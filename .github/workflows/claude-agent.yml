@@ -125,7 +125,13 @@ jobs:
           echo "BUN_PATH=$(command -v bun)" >> "$GITHUB_ENV"
           mkdir -p "$AGENT_TMP"
           node -e '
-            const auth = "Basic " + Buffer.from(process.env.JIRA_EMAIL + ":" + process.env.JIRA_TOKEN).toString("base64");
+            // Trim stray whitespace, newlines and quotes from pasted secrets (same as the local
+            // helper, scripts/jira_mcp_headers.sh in the planning repo).
+            const clean = v => (v || "").trim().replace(/^["\x27]|["\x27]$/g, "").replace(/[\r\n ]/g, "");
+            const pair = clean(process.env.JIRA_EMAIL) + ":" + clean(process.env.JIRA_TOKEN);
+            // A short fingerprint (not the secret) to compare with the local .env when Jira rejects it.
+            console.log("Jira credential fingerprint: " + require("crypto").createHash("sha256").update(pair).digest("hex").slice(0, 8));
+            const auth = "Basic " + Buffer.from(pair).toString("base64");
             const config = { mcpServers: { jira: { type: "http", url: "https://mcp.atlassian.com/v2/mcp", headers: { Authorization: auth } } } };
             require("fs").writeFileSync(process.env.AGENT_TMP + "/mcp.json", JSON.stringify(config));
           '
