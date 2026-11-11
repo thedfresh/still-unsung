@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { getPrisma } from "@/lib/db";
 import { buildHealthReport } from "@/lib/health";
+import packageJson from "../../../../package.json";
 
 /**
  * Health check for the deploy (zero-downtime switch-over and smoke tests).
@@ -17,7 +18,7 @@ export async function GET() {
     // Report the failure without leaking error details.
   }
 
-  const { report, httpStatus } = buildHealthReport(databaseOk);
+  const { report, httpStatus } = buildHealthReport(databaseOk, packageJson.version);
   return Response.json(report, {
     status: httpStatus,
     headers: { "Cache-Control": "no-store" },
