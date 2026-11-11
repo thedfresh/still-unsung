@@ -16,6 +16,7 @@ until cutover.
 | Prisma | 7 | `prisma-client` generator with the `pg` driver adapter |
 | PostgreSQL | 18 | |
 | Tailwind CSS | 4 | |
+| Zod | 4 | Input validation ([docs/CONVENTIONS.md](docs/CONVENTIONS.md)) |
 | Vitest | 5 | Unit and database tests |
 | Playwright + axe | 1.65 / 4.14 | Smoke and accessibility tests at phone, tablet and desktop widths |
 
@@ -88,6 +89,9 @@ when the database is unreachable. `version` is the `version` in `package.json`, 
 which release is live. Deploys use it to decide when to switch traffic.
 
 ## Rules
+
+The full engineering conventions (where code goes, validation and errors, caching, migrations,
+component size, performance) are in [docs/CONVENTIONS.md](docs/CONVENTIONS.md). In short:
 
 - Schema changes go through Prisma Migrate only, never `prisma db push` against staging or prod.
   Keep changes additive so deploys stay zero-downtime.
