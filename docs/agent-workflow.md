@@ -12,7 +12,7 @@
   saying what was done; one that needs a decision stays In Progress with Claude's question. Pushing and opening the PR happen inside Claude's step because the action
   withdraws the Claude GitHub App's token when that step ends.
 - **Answer `@claude` on a pull request.** Comment `@claude` with a request on a PR; Claude
-  pushes fixes to that PR's branch. Only people with write access to the repo can trigger it.
+  pushes fixes to that PR's branch and notes them on the Jira ticket. Only people with write access to the repo can trigger it.
 
 Claude never pushes to `main`, never merges, never deploys and never touches the production
 database. Branch protection on `main` enforces the first two.
@@ -83,6 +83,18 @@ pushes, PRs and Jira changes inside the run still come from Claude.
 
 If a move to Ready starts nothing, check the rule's audit log first: no entry means the rule
 didn't fire; an error on *Send web request* shows GitHub's reply.
+
+### Review and rework
+
+Two ways to send work back, both recorded on the Jira ticket:
+
+- **Rework through Jira (the default).** Comment the review on the ticket and move it back to
+  Ready. The run finds the ticket's branch and open PR, reads the review, fixes the same branch,
+  pushes to the same PR and hands back with a tagged summary of what changed. A branch with no
+  open PR (merged or abandoned) stops the run: delete it first.
+- **`@claude` on the PR**, for small, line-level fixes. Claude pushes to the PR branch and adds a
+  short "Fix from a PR comment" note to the ticket named in the PR's `Refs:` line (no tag, no
+  status change).
 
 ### Creating tickets
 
