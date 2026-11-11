@@ -71,6 +71,9 @@ jobs:
       TICKET: ${{ inputs.ticket || github.event.client_payload.ticket }}
       # Throwaway database for this run only. Not a secret.
       DATABASE_URL: postgresql://still_unsung:still_unsung@postgres:5432/still_unsung_test
+      # Scratch files shared between steps (MCP config, PR description). A fixed path inside the
+      # container: runner.temp expands to the host's path, which the container can't see.
+      AGENT_TMP: /tmp/agent
 
     steps:
       - name: Validate the ticket key
@@ -120,10 +123,11 @@ jobs:
           # The action's own Bun download needs unzip, which the image lacks; npm has Bun too.
           npm install -g --no-audit --no-fund bun@1.4.4
           echo "BUN_PATH=$(command -v bun)" >> "$GITHUB_ENV"
+          mkdir -p "$AGENT_TMP"
           node -e '
             const auth = "Basic " + Buffer.from(process.env.JIRA_EMAIL + ":" + process.env.JIRA_TOKEN).toString("base64");
             const config = { mcpServers: { jira: { type: "http", url: "https://mcp.atlassian.com/v2/mcp", headers: { Authorization: auth } } } };
-            require("fs").writeFileSync(process.env.RUNNER_TEMP + "/mcp.json", JSON.stringify(config));
+            require("fs").writeFileSync(process.env.AGENT_TMP + "/mcp.json", JSON.stringify(config));
           '
 
       - name: Claude works the ticket
@@ -152,11 +156,12 @@ jobs:
               Do not push, do not create a pull request: the workflow does both after you finish.
             - Never commit anything from reference/, secrets, production data or private research
               material: this repository is public.
-            - Write the pull request description to ${{ runner.temp }}/pr-body.md with the sections
+            - Write the pull request description to ${{ env.AGENT_TMP }}/pr-body.md with the sections
               "What changed and why", "What to check" (exact steps), "Migration or risk", and a last
               line "Refs: ${{ env.TICKET }}". Do not move the ticket to In Review; a later step does.
           claude_args: |
-            --mcp-config ${{ runner.temp }}/mcp.json
+            --mcp-config ${{ env.AGENT_TMP }}/mcp.json
+            --add-dir ${{ env.AGENT_TMP }}
             --max-turns 200
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(ls:*),Bash(cat:*),mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
 
@@ -177,8 +182,8 @@ jobs:
             echo "No commits on $BRANCH; nothing to push (see the ticket for Claude's comment)."
             echo "pushed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          if [ ! -s "$RUNNER_TEMP/pr-body.md" ]; then
-            printf 'Work for %s.\n\nRefs: %s\n' "$TICKET" "$TICKET" > "$RUNNER_TEMP/pr-body.md"
+          if [ ! -s "$AGENT_TMP/pr-body.md" ]; then
+            printf 'Work for %s.\n\nRefs: %s\n' "$TICKET" "$TICKET" > "$AGENT_TMP/pr-body.md"
           fi
           git push "https://x-access-token:${APP_TOKEN}@github.com/${{ github.repository }}.git" "$BRANCH"
           echo "title=$TICKET: $(git log -1 --format=%s)" >> "$GITHUB_OUTPUT"
@@ -201,7 +206,7 @@ jobs:
               base: "main",
               head: process.env.BRANCH,
               title: process.env.TITLE,
-              body: fs.readFileSync(process.env.RUNNER_TEMP + "/pr-body.md", "utf8"),
+              body: fs.readFileSync(process.env.AGENT_TMP + "/pr-body.md", "utf8"),
             });
             core.info(`Opened ${data.html_url}`);
             return data.html_url;
@@ -217,7 +222,7 @@ jobs:
             "PR open for review: ${{ steps.pr.outputs.result }}" with a two-line summary of what the PR
             changes, then move the ticket to In Review (transition "In Review"). Do nothing else.
           claude_args: |
-            --mcp-config ${{ runner.temp }}/mcp.json
+            --mcp-config ${{ env.AGENT_TMP }}/mcp.json
             --max-turns 10
             --allowedTools "mcp__jira__getJiraIssue,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment,Bash(git log:*)"
 
