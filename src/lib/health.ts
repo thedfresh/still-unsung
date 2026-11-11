@@ -2,6 +2,7 @@ export type CheckStatus = "ok" | "error";
 
 export interface HealthReport {
   status: CheckStatus;
+  version: string;
   checks: { database: CheckStatus };
 }
 
@@ -9,11 +10,14 @@ export interface HealthReport {
  * Turn the result of the individual checks into the health report and HTTP status
  * the deploy's health check reads. Any failing check makes the whole report fail.
  */
-export function buildHealthReport(databaseOk: boolean): {
+export function buildHealthReport(
+  databaseOk: boolean,
+  version: string,
+): {
   report: HealthReport;
   httpStatus: 200 | 503;
 } {
   const database: CheckStatus = databaseOk ? "ok" : "error";
   const status: CheckStatus = database === "ok" ? "ok" : "error";
-  return { report: { status, checks: { database } }, httpStatus: status === "ok" ? 200 : 503 };
+  return { report: { status, version, checks: { database } }, httpStatus: status === "ok" ? 200 : 503 };
 }

@@ -83,8 +83,9 @@ requests. Setup and how it works: [docs/agent-workflow.md](docs/agent-workflow.m
 
 ## Health check
 
-`GET /api/health` reports `{"status":"ok","checks":{"database":"ok"}}` with HTTP 200, or HTTP 503
-when the database is unreachable. Deploys use it to decide when to switch traffic.
+`GET /api/health` reports `{"status":"ok","version":"0.1.0","checks":{"database":"ok"}}` with HTTP 200, or HTTP 503
+when the database is unreachable. `version` is the `version` in `package.json`, so a deploy can confirm
+which release is live. Deploys use it to decide when to switch traffic.
 
 ## Rules
 
