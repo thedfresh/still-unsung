@@ -2,7 +2,7 @@
 #
 # Ticket runs start automatically when a ticket assigned to Claude moves to Ready (a Jira
 # Automation rule sends repository_dispatch; docs/agent-workflow.md), or by hand from Actions. Each run:
-#   1. checks out main, plus the private planning repo's `planning` branch read-only into
+#   1. checks out main, plus the private planning repo's `main` branch read-only into
 #      /tmp/reference (outside the project, so it's never built, linted or committed)
 #   2. lets Claude claim the ticket (In Progress), do the work on branch hsa-<n> with tests,
 #      commit, write the PR description, push the branch and open the PR (scripts/open-pr.mjs),
@@ -159,13 +159,13 @@ jobs:
           fi
           echo "START_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
-      # Branch `planning` holds the current CLAUDE.md, PLAN.md and docs (its main is the frozen
-      # old app and deploys on push, so planning commits live on this branch until cutover).
+      # The planning repo's main holds the current CLAUDE.md, PLAN.md and docs. Its deploy workflow
+      # is turned off (2026-11-12), so planning commits go straight to its main.
       - name: Check out the planning repo read-only
         uses: actions/checkout@v7
         with:
           repository: thedfresh/hunter-setlist-archive
-          ref: planning
+          ref: main
           token: ${{ secrets.REFERENCE_REPO_TOKEN }}
           path: reference
           persist-credentials: false
@@ -396,7 +396,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: thedfresh/hunter-setlist-archive
-          ref: planning
+          ref: main
           token: ${{ secrets.REFERENCE_REPO_TOKEN }}
           path: reference
           persist-credentials: false
