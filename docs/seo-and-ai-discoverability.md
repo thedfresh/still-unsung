@@ -161,7 +161,7 @@ Sitemap: https://<canonical-host>/sitemap.xml
 ### Rules
 
 - Use JSON-LD, in a `<script type="application/ld+json">` tag in the page. Next.js recommends this
-  and says to escape `<` as `<`. Use one helper that does it
+  and says to escape `<` as `\u003c`. Use one helper that does it
   (`src/lib/json-ld.ts`, built with its first user). (our docs: `02-guides/json-ld.md`;
   primary: Google structured data guidelines)
 - Google says: "Don't mark up content that is not visible to readers of the page." Markup must
@@ -306,7 +306,7 @@ share the name.
 | Item | Verdict | Timing | Reason |
 |---|---|---|---|
 | `sitemap.xml` | Build | **Launch** | Cheap. Crawlers use it to find every page. It also carries `lastModified`. |
-| Open data license | Choose and show | **Now** (decision), **Launch** (show) | Without a license, reuse and citation are unclear. |
+| License | CC BY 4.0, decided 2026-11-16 | **Launch** (show) | Own data and text. Third-party items keep their own license. |
 | `robots.txt` | Build | **Launch** | Question 1. |
 | Public JSON API | Reuse the planned `/api/v1/` | **After launch** | The conventions already plan `/api/v1/` for "a future public API, LLM tools". Build read-only list and detail routes when a user need appears. |
 | Bulk data export (CSV or JSON dump) | Defer | **Deferred**, but design for it | A dump lets researchers and model builders get the data without scraping. It needs a license, provenance filtering and a privacy review (no `privateNotes`). |
@@ -344,16 +344,20 @@ share the name.
 
 - The archive combines facts (dates, set lists), our own editing and research text, and some
   third-party material (images, quoted text, recordings). One license does not fit all.
-- **Recommendation, to confirm with the user (Now):** publish the factual data (events, sets,
-  performances, dates) under an open data license, and keep text and images under a separate
-  statement. Candidates: CC0 or ODbL for the data, CC BY or CC BY-SA for our text. Facts are
-  weakly protected in many countries, but the database right applies in the EU. A clear license
-  states our wishes. This is not legal advice.
-- **Attribution is what gets us cited.** CC BY (or a data license with attribution, such as
-  ODbL) asks reusers to credit the archive. CC0 asks nothing. If credit matters most, choose an
-  attribution license.
-- Do not license material we do not own. Images and third-party text need their own credit and
-  permission lines (see the data-model item on image provenance).
+- **Decision (user, 2026-11-16): everything the archive owns is under CC BY 4.0.** That covers
+  the data (events, sets, performances, dates) and our own text. One license is simple to show,
+  it requires credit, and version 4.0 also covers the EU database right. This is not legal advice.
+- **Options rejected:**
+  - CC0 for the data: it would allow bulk imports into Wikidata and MusicBrainz, but reusers need
+    not credit us. Facts can still go into Wikidata one at a time, with our page as the cited
+    source. Revisit only if a bulk contribution becomes a goal. A later change can only make the
+    license more open, never less.
+  - ODbL for the data: share-alike terms are harder for reusers to follow, and it blocks the same
+    imports as CC BY.
+- **Third-party material keeps its own license.** Images, quoted text and recordings we do not own
+  are not under CC BY 4.0. Each item shows its own credit line and license, as its owner's terms
+  require. Example: the home page photo comes from Flickr; confirm its license and required credit
+  before launch. The site-wide license statement must say "except where noted".
 - Show the license in the page footer and in the "Cite this page" block. Put the license URL in
   JSON-LD as `license`.
 
@@ -512,9 +516,9 @@ may change.
    `dateModified` is the maximum over the children, or a stored value touched on each write.
 8. **Public or not.** Which rows are public? Tags for visibility must be in the data model so that
    the sitemap and JSON-LD never expose private rows. `privateNotes` never leaves the data layer.
-9. **License per record.** If the site mixes licenses (own text, third-party images), decide
-   whether a record carries a license or credit field. Image provenance is already in the
-   data-model scope.
+9. **License per record.** The site default is CC BY 4.0 (decided). Third-party items, such as
+   images, need a credit line and a license field on the record, so the page can show them and
+   say "except where noted". Image provenance is already in the data-model scope.
 10. **Venue identity over time.** A venue keeps one slug across name changes (already planned).
     JSON-LD should carry the name at the time of the show if it differs. Decide the field for that.
 
@@ -522,8 +526,9 @@ may change.
 
 These are suggestions. I did not create them. Each would be a Task with *Scope* and *Done when*.
 
-1. **Choose the data license and the site name for citation.** The user decides; output is a short
-   decision note and the footer text. Epic: public pages. (needed before launch)
+1. **Choose the site name for citation, and write the footer and license text.** The license is
+   decided (CC BY 4.0, except where noted). Also confirm the home page photo's Flickr license and
+   credit line. Epic: public pages. (needed before launch)
 2. **Look up and confirm the Wikidata and MusicBrainz IDs for Robert Hunter and the first
    songs and venues.** Needs a person to confirm each match. Feeds the external ID design.
 3. **Build the JSON-LD helper and entity builders with unit tests.** Part of HSA-39 or its split.
