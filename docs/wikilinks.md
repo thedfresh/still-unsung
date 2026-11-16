@@ -14,14 +14,25 @@ now needs no rework.
 | `[[1978-10]]`, `[[1978]]` | A partial date ("October 1978", "1978"), linked when exactly one show matches. |
 | `[[song:Ripple]]` | The song title, linked to the song page. |
 | `[[album:Tiger Rose]]` | The album title, linked to the album page. |
+| `[[band:Liberty Hill Aristocrats]]` | The band name, linked to the band page. |
+| `[[musician:Rodney Albin]]` | The musician's name, linked to the musician page. |
+| `[[venue:Keystone Berkeley]]` | The venue's current name, linked to the venue page. Use `\|` text for the name it had at the time. |
+| `[[performance:1990-11-16/Ripple]]` | "Ripple (November 16, 1990)", linked to that song's line on the show page. The show part takes the same forms as a date link (`1978-10-14 late/…`). |
+| `[[recording:<id>]]` | The recording, linked to its card on the show page. `<id>` is the recording's Live Music Archive identifier or SHN ID. |
+| `[[guide:field-guide#1980s]]` | The guide's title (and section), linked to that page and heading. |
 | `[[1990-11-16\|that night in Philadelphia]]` | Your own words, linked to the show. |
 
 - Dates need no prefix. Every other entity needs a type prefix, so a song and an album with the
   same name cannot collide.
 - `|` adds your own link text to any wikilink.
 - Single brackets keep their normal Markdown meaning. Do not use `[1990-11-16]` for a show.
-- Planned types: `song`, `album`, `source` (see External links). Later types (for example `venue`, `musician`, `lyric`) are
-  added only when their data model exists. Lyrics wait on the lyrics model (data-model session).
+- Planned types (decided 2026-11-16): `song`, `album`, `band`, `musician`, `venue`, `performance`,
+  `recording`, `guide`, and `source` (see External links).
+- Shelved: `lyric` (waits on the lyrics and variations model, data-model session), `tag` (tag pages
+  are parked until after launch), tours and runs (not modelled yet). `set` is not needed: a show
+  or performance link covers it.
+- People who are not musicians (scholars, tapers, bloggers) are not a type. Cite their work as a
+  source record instead.
 - An unknown type renders as plain text, so text written early never breaks.
 - Bear also uses `[[…]]` for links between notes. Drafts in Bear show these as links to missing
   notes; the text is not changed.
