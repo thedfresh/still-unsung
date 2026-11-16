@@ -20,11 +20,29 @@ now needs no rework.
   same name cannot collide.
 - `|` adds your own link text to any wikilink.
 - Single brackets keep their normal Markdown meaning. Do not use `[1990-11-16]` for a show.
-- Planned types: `song`, `album`. Later types (for example `venue`, `musician`, `lyric`) are
+- Planned types: `song`, `album`. Reserved: `source` (see External links). Later types (for example `venue`, `musician`, `lyric`) are
   added only when their data model exists. Lyrics wait on the lyrics model (data-model session).
 - An unknown type renders as plain text, so text written early never breaks.
 - Bear also uses `[[…]]` for links between notes. Drafts in Bear show these as links to missing
   notes; the text is not changed.
+
+## External links
+
+- **Plain Markdown links are allowed:** `[Whitegum's notes](https://…)`. Keep writing them.
+- **They are tracked automatically.** When a text is saved, every external link goes into an index:
+  the URL, the link text, and the text it came from. The index feeds:
+  - a scheduled link-rot check, which lists URLs that now fail and shows a Wayback Machine copy
+    where one exists;
+  - reports, for example "which guides cite Whitegum".
+- **Citations use a source wikilink, later.** `source:` is reserved. When the Source model exists
+  (data-model session, HSA-28), a citation points to one shared source record, so the URL, credit,
+  license and saved copy live in one place. The exact form waits on that design.
+- **Per-entity links live on the entity.** The Whitegum lyrics page for a song is stored on that
+  song, pointing to one "Whitegum" source record. Text that mentions the song writes
+  `[[song:Ripple]]`; the song page shows the Whitegum link.
+- **Moving to source records:** when the Source model lands, the link index shows the URLs used
+  most. Those become source records, and a script proposes rewriting their links to source
+  wikilinks, for the user to review.
 
 ## Rendering rules
 
