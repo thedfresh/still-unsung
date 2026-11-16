@@ -137,6 +137,19 @@ message; GitHub emails the person who started it.
 - Changes to `claude-agent.yml` can't be fully tested from a branch: the Claude GitHub App only
   issues its token when the workflow file matches `main`'s copy (a safety rule), so a `--ref`
   run tests everything up to the Claude step, which then fails on purpose. Test the rest after merge.
+- **Every change to `claude-agent.yml` gets two test runs (rule since 2026-11-16).** Use a throwaway
+  test ticket assigned to Claude, with no `hsa-<n>` branch left from an earlier run.
+  1. Before merge: run the workflow from the PR branch
+     (`gh workflow run claude-agent.yml --ref <branch> -f ticket=HSA-<n>`). Every step up to
+     "Claude works the ticket" must pass.
+  2. Straight after merge: run it again from `main` on the same ticket, and check that it opens a PR
+     and moves the ticket to In Review. Then close the PR, delete the branch, and reset the ticket.
+
+  A local check is not enough: git in the job's container refuses the checkout until it is marked
+  safe, and a Mac never does that check. That gap broke the first ticket run after the rework change.
+- Ticket runs may search the web and fetch pages (added 2026-11-16, for research tickets). Web pages
+  are untrusted input: the run can still push only its own branch, and every change reaches `main`
+  only through a PR you review. `@claude` runs on a PR have no web tools.
 - Runs use the same container image as CI (see README → CI), so setup takes about a minute.
 - "Manual run by <you>" in the Actions list means the run was started with your GitHub sign-in
   (from the Actions tab or `gh` on your machine). Pushes and PRs inside the run still come from
