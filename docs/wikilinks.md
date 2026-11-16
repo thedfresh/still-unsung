@@ -20,7 +20,7 @@ now needs no rework.
   same name cannot collide.
 - `|` adds your own link text to any wikilink.
 - Single brackets keep their normal Markdown meaning. Do not use `[1990-11-16]` for a show.
-- Planned types: `song`, `album`. Reserved: `source` (see External links). Later types (for example `venue`, `musician`, `lyric`) are
+- Planned types: `song`, `album`, `source` (see External links). Later types (for example `venue`, `musician`, `lyric`) are
   added only when their data model exists. Lyrics wait on the lyrics model (data-model session).
 - An unknown type renders as plain text, so text written early never breaks.
 - Bear also uses `[[…]]` for links between notes. Drafts in Bear show these as links to missing
@@ -34,12 +34,27 @@ now needs no rework.
   - a scheduled link-rot check, which lists URLs that now fail and shows a Wayback Machine copy
     where one exists;
   - reports, for example "which guides cite Whitegum".
-- **Citations use a source wikilink, later.** `source:` is reserved. When the Source model exists
-  (data-model session, HSA-28), a citation points to one shared source record, so the URL, credit,
-  license and saved copy live in one place. The exact form waits on that design.
-- **Per-entity links live on the entity.** The Whitegum lyrics page for a song is stored on that
-  song, pointing to one "Whitegum" source record. Text that mentions the song writes
-  `[[song:Ripple]]`; the song page shows the Whitegum link.
+- **Frequently used sites become source records (decided 2026-11-16).** A site we cite often, such
+  as Whitegum, gets one source record with a short key (`whitegum`), its name, credit and license.
+  Its page for each song (or show, venue, and so on) is stored once, on that entity, as a locator
+  that points to the source record. Nobody looks up or types the URL again, and a changed URL is
+  fixed in one place.
+- **Source wikilinks** (`source:` is reserved until the Source model exists, HSA-28):
+
+  | You write | Renders as |
+  |---|---|
+  | `[[source:whitegum]]` | The source's name, linked to its home page. |
+  | `[[source:whitegum/Ripple]]` | "Ripple (Whitegum)", linked straight to Whitegum's Ripple page, through the locator stored on the song. |
+  | `[[source:whitegum/Ripple\|Alex Allan's notes]]` | Your own words, same link. |
+
+  The part after `/` names the entity the same way as other wikilinks; a date names a show
+  (`[[source:etree/1990-11-16]]`). A missing locator renders as plain text and shows in the
+  broken-link check, so the gap gets filled once, on the entity.
+- **Text that only mentions the song** writes `[[song:Ripple]]`; the song page shows its Whitegum
+  link with the other sources.
+- **Until the Source model exists,** write plain Markdown links. Already known: the old app's
+  `local-data/parsed-data/whitegum-manual-review.json` matches songs to their Whitegum pages, so
+  those locators can be loaded at import.
 - **Moving to source records:** when the Source model lands, the link index shows the URLs used
   most. Those become source records, and a script proposes rewriting their links to source
   wikilinks, for the user to review.
