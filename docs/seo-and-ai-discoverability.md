@@ -344,6 +344,7 @@ share the name.
 
 - The archive combines facts (dates, set lists), our own editing and research text, and some
   third-party material (images, quoted text, recordings). One license does not fit all.
+- **Full policy: `docs/licensing.md`.**
 - **Decision (user, 2026-11-16): everything the archive owns is under CC BY 4.0.** That covers
   the data (events, sets, performances, dates) and our own text. One license is simple to show,
   it requires credit, and version 4.0 also covers the EU database right. This is not legal advice.
