@@ -118,6 +118,13 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
+      # The container runs as root but the checkout belongs to another user, so git refuses the
+      # repo ("dubious ownership") until it is marked safe. The setup action does this too, but the
+      # branch steps below run before it. Without this, the earlier-work check also fails quietly
+      # and treats every ticket as new work.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       # A ticket that failed review comes back to Ready with its branch and PR still open: the run
       # then reworks that branch. A branch with no open PR (merged or abandoned) stops the run.
       - name: Check for earlier work on this ticket
