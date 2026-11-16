@@ -118,6 +118,13 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
+      # The container runs as root but the checkout belongs to another user, so git refuses the
+      # repo ("dubious ownership") until it is marked safe. The setup action does this too, but the
+      # branch steps below run before it. Without this, the earlier-work check also fails quietly
+      # and treats every ticket as new work.
+      - name: Let git use the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       # A ticket that failed review comes back to Ready with its branch and PR still open: the run
       # then reworks that branch. A branch with no open PR (merged or abandoned) stops the run.
       - name: Check for earlier work on this ticket
@@ -276,7 +283,7 @@ jobs:
             --add-dir /tmp/reference
             --model ${{ env.MODEL }}
             --max-turns 200
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__atlassianUserInfo,mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment,mcp__jira__createJiraIssue"
+            --allowedTools "Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__atlassianUserInfo,mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment,mcp__jira__createJiraIssue"
 
       # The action hides Claude's messages (full output would expose private /tmp/reference content in
       # this public repo's logs). Print only what's needed to see why a run ended.
