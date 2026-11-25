@@ -27,10 +27,23 @@ export interface PreviewInput {
   evidence: unknown;
   edits: unknown;
   isPublic?: boolean;
+  /** Who is saving: the MCP server (the default) or the admin screens. */
+  path?: "MCP" | "ADMIN";
+}
+
+/** A record that changed since it was read, with its stored values, for a form to show. */
+export interface PreviewConflict {
+  record: string;
+  expectedRev: number;
+  /** The stored record now; null when it no longer exists. */
+  current: Record<string, unknown> | null;
+  /** The fields the edit wanted to write. */
+  proposed: Record<string, unknown>;
 }
 
 export interface PreviewResult extends PreviewData {
   changesetId: number | null;
+  conflicts: PreviewConflict[];
 }
 
 /** The place in a source, a recording or a contributor, in words, for the preview. */
@@ -61,16 +74,18 @@ function summarize(items: PreviewItem[]): string {
   return `${countsSentence(items)} ${names}`.slice(0, 500);
 }
 
-async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<PreviewData["warnings"]> {
+async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<{ warnings: PreviewData["warnings"]; conflicts: PreviewConflict[] }> {
   const warnings = await findMissingListValues(tx, edits);
+  const conflicts: PreviewConflict[] = [];
   for (const c of await findConflicts(tx, edits)) {
+    conflicts.push({ record: `${c.type} ${c.id}`, expectedRev: c.expectedRev, current: c.current, proposed: c.proposed });
     warnings.push(
       c.current
         ? `Edit ${c.index}: ${c.type} ${c.id} changed since you read it (you read version ${c.expectedRev}, it is now version ${String(c.current.rev)}). Read it again.`
         : `Edit ${c.index}: ${c.type} ${c.id} does not exist.`,
     );
   }
-  return warnings;
+  return { warnings, conflicts };
 }
 
 /**
@@ -82,12 +97,13 @@ export async function previewChanges(userId: string, input: PreviewInput): Promi
   const edits = parseEdits(input.edits);
   const evidence = parseEvidence(input.evidence);
   const isPublic = input.isPublic ?? defaultPublicMark(edits.map((e) => e.type));
-  const base = { items: [], isPublic, expiresAt: null, token: null, changesetId: null };
+  const base = { items: [], isPublic, expiresAt: null, token: null, changesetId: null, conflicts: [] as PreviewConflict[] };
   const db = getPrisma();
   const live = await db.changeset.count({ where: { userId, previewToken: { not: null }, previewExpiresAt: { gt: new Date() } } });
   if (live >= MAX_LIVE_PREVIEWS) throw new AppError("rate_limited", "Too many open previews. Apply one or wait for them to expire.");
   let evidenceText = "";
   let warnings: string[] = [];
+  let conflicts: PreviewConflict[] = [];
   if (edits.length > MAX_EDITS) {
     return { ...base, evidence: "", warnings: [`The call has ${edits.length} edits. The limit is ${MAX_EDITS}. Split it into smaller calls.`] };
   }
@@ -95,7 +111,7 @@ export async function previewChanges(userId: string, input: PreviewInput): Promi
   try {
     await db.$transaction(async (tx) => {
       evidenceText = await describeEvidence(tx, evidence);
-      warnings = await trialRun(tx, edits);
+      ({ warnings, conflicts } = await trialRun(tx, edits));
       if (warnings.length > 0) return;
       const items = await writeEdits(tx, edits);
       throw new Rollback({ items: await describeItems(tx, items) });
@@ -104,13 +120,13 @@ export async function previewChanges(userId: string, input: PreviewInput): Promi
     if (!(err instanceof Rollback)) throw err;
     data = err.data;
   }
-  if (!data) return { ...base, evidence: evidenceText, warnings };
+  if (!data) return { ...base, evidence: evidenceText, warnings, conflicts };
   const token = `suprev_${randomBytes(24).toString("base64url")}`;
   const expiresAt = new Date(Date.now() + PREVIEW_MINUTES * 60_000);
   const changeset = await db.changeset.create({
     data: {
       userId,
-      path: "MCP",
+      path: input.path ?? "MCP",
       status: "PREVIEWED",
       sourceId: evidence.sourceId,
       recordingId: evidence.recordingId,

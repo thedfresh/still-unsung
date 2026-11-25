@@ -159,6 +159,7 @@ function workTitle(row: SegmentRow): string {
 function mapSegment(row: SegmentRow, number: string, depth: number, maps: Maps): ReviewSegment {
   return {
     id: row.id,
+    rev: row.rev,
     number,
     depth,
     origin: maps.origin("Segment", row.id),

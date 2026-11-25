@@ -1,8 +1,10 @@
 import type { ReviewSegment } from "@/lib/data/shows/review-types";
+import type { RecentEvidence } from "@/lib/data/changes/admin-save";
 import { Attachments, CARD, Facts, Lines, Origin } from "./parts";
+import { SummaryEditor } from "./summary-editor";
 
 /** One segment: its facts, its summary in full, and what hangs under it. Children are indented. */
-export function SegmentCard({ segment }: { segment: ReviewSegment }) {
+export function SegmentCard({ segment, recent }: { segment: ReviewSegment; recent: RecentEvidence[] }) {
   return (
     <li id={`segment-${segment.id}`} style={{ marginInlineStart: `${segment.depth * 1.25}rem` }} className="list-none">
       <article className={`${CARD} flex flex-col gap-2`} aria-labelledby={`segment-${segment.id}-title`}>
@@ -28,12 +30,13 @@ export function SegmentCard({ segment }: { segment: ReviewSegment }) {
             ["Delivered by", segment.deliveredBy],
           ]}
         />
-        {segment.summary ? (
-          <section className="flex flex-col gap-1">
-            <h4 className="font-semibold">Summary</h4>
-            <p className="whitespace-pre-wrap">{segment.summary}</p>
-          </section>
-        ) : null}
+        <SummaryEditor
+          segmentId={segment.id}
+          label={`segment ${segment.number}`}
+          rev={segment.rev}
+          summary={segment.summary}
+          recent={recent}
+        />
         {segment.wordsAsHeard ? (
           <section className="flex flex-col gap-1">
             <h4 className="font-semibold">Words as heard (private)</h4>

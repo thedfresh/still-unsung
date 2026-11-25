@@ -345,3 +345,39 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   sentence, who made it, its evidence and the time). Opening a line shows the readout.
 - **Not built yet:** the call to the cache-refresh route after an apply (no cached page reads
   content yet; section 5), and undo.
+
+## 12. Admin edit forms and the shared save
+
+Every admin edit screen saves through one path, so an admin edit and an agent edit are the same
+kind of change (data-model items 19, 42, 87, 102, 109).
+
+- **One server function.** `saveAdminChanges` (`src/lib/data/changes/admin-save.ts`) takes
+  `{ edits, evidence, isPublic? }`. The edits have the shape of the MCP tool: `{ op, type, id?,
+  rev?, ref?, before?, after?, fields }`. It checks the role `ADMIN`, then runs the same
+  `previewChanges` and `applyChanges` as the MCP server, in one step, with path `ADMIN`. One save
+  is one changeset. It has no write logic of its own. (test: `tests/db/admin-save.test.ts`)
+- **One Server Action.** `saveAdminChangesAction` (`src/app/admin/save-action.ts`) wraps it with
+  `defineAction`. A form calls this action, never its own. (review)
+- **Result.** `{ status: "saved" }`, `{ status: "conflict" }` (a record changed: both versions,
+  nothing written) or `{ status: "blocked" }` (for example a missing list value). Both refusals
+  carry plain `messages`. A bad edit or a wrong role comes back in the error shape of section 3.
+  A form never shows a database error. (test)
+- **Form pattern.**
+  1. The page reads the record with its `rev` and passes `rev` to the form as a prop.
+  2. The form keeps its draft in React state. It sends the `rev` it was given with each update.
+  3. The form calls `useAdminSave(saveAdminChangesAction)`
+     (`src/components/admin/use-admin-save.ts`). The hook gives `pending`, `messages`,
+     `conflicts` and `save`. Disable Save and show "Saving…" while `pending` is true. Show
+     `messages` in a `role="alert"` region. Show both versions of a conflict. Keep the draft
+     after an error.
+  4. After a save the hook refreshes the page. The new `rev` arrives as a prop. The form closes
+     when its `rev` changes (see `summary-editor.tsx`).
+  5. Count text fields that have a limit, for example "12 of 300 characters".
+- **Evidence picker.** `EvidencePicker` (`src/components/admin/evidence-picker.tsx`) is part of
+  every edit form. A save always names its evidence once. "My own knowledge" is the default.
+  `recentEvidence(userId)` gives the five latest choices of the user, one click each. The
+  picker also takes a source, recording or contributor by ID, with a page or time. `evidenceOf`
+  (`src/lib/evidence-choice.ts`) turns the choice into the `evidence` of the save.
+- **The public mark** keeps the changeset default (`defaultPublicMark`). A form does not set it
+  yet.
+- **Not built yet:** undo from the admin (the changeset keeps `before`), and delete edits.
