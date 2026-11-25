@@ -17,6 +17,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:deploy:test": "node --env-file=.env.test node_modules/prisma/build/index.js migrate deploy",
     "db:seed": "node --env-file=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON prisma/seed/run.ts",
+    "db:import-legacy": "node --env-file=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/import-legacy/run.ts",
     "check": "npm run build && npm run test && npm run test:e2e"
   },
   "dependencies": {
