@@ -88,7 +88,7 @@ test.describe("the MCP endpoint", () => {
     const change = page.locator("details", { hasText: agent.email }).first();
     await change.locator("summary").click();
     await expect(change.locator("summary")).toContainText("Added 1 show.");
-    await expect(change).toContainText(`New Show ${year}-03-04`);
+    await expect(change).toContainText(`New · Show ${year}-03-04`);
     await expect(change).toContainText("own knowledge");
     const results = await new AxeBuilder({ page }).withTags(WCAG).analyze();
     expect(results.violations).toEqual([]);

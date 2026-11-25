@@ -70,7 +70,7 @@ export async function applyChanges(userId: string, token: string, isPublic?: boo
       if (conflicts.length > 0) throw new ConflictAbort(conflicts);
       const items = await writeEdits(tx, edits);
       // The same description as the preview: names, links and grouping, saved for the Changes page.
-      const described = await describeItems(tx, items);
+      const described = await describeItems(tx, items, { final: true });
       const labels = described.map((item) => withType(item.type, item.label));
       await tx.changesetItem.createMany({
         data: items.map((item, position) => ({

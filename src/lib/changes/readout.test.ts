@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { countsSentence, formatReadout, storedReadoutItem, type LinkInfo, type ParentInfo, type ReadoutItem } from "@/lib/changes/readout";
+import { buildReadout, countsSentence, formatReadout, storedReadoutItem, type LinkInfo, type ParentInfo, type ReadoutItem } from "@/lib/changes/readout";
 
 const show: ParentInfo = { key: "Show:1", type: "Show", label: "Show 1980-11-14, WHFS-FM Studio" };
 const link = (type: string, name: string, isNew = false): LinkInfo => ({ type, label: type === "Set" ? name : `${type} "${name}"`, name, isNew });
 const none = { before: {}, after: {} };
+const HEADING = "Show 1980-11-14, WHFS-FM Studio";
 
 function create(type: string, label: string, after: Record<string, unknown>, parent: ParentInfo | null, links: Record<string, LinkInfo> = {}): ReadoutItem {
   return { op: "create", type, label, before: null, after, links: { before: {}, after: links }, parent };
@@ -13,7 +14,7 @@ function create(type: string, label: string, after: Record<string, unknown>, par
 function mixed(): ReadoutItem[] {
   return [
     create("Segment", "Hunter talks about Terrapin Station, 1980-11-14", { id: 11, setId: 5, sortKey: "a1", delivery: "SPOKEN", summary: "Hunter talks about Terrapin Station.", isPublic: true, wordsPublic: false }, show, { setId: link("Set", "1980-11-14, set 1") }),
-    create("Segment", "Ripple, 1980-11-14", { id: 12, setId: 5, sortKey: "a2", workId: 7, workCertainty: "POSSIBLE", isPublic: false }, show, { workId: link("Work", "Ripple") }),
+    create("Segment", "Ripple, 1980-11-14", { id: 12, setId: 5, sortKey: "a2", workId: 7, workCertainty: "POSSIBLE", isPublic: false }, show, { setId: link("Set", "1980-11-14, set 1"), workId: link("Work", "Ripple") }),
     create("Reference", "Reference", { id: 21, fromId: 11, toId: 8, referenceKindId: 4, certainty: "PROBABLE" }, show, {
       fromId: link("Segment", "Hunter talks about Terrapin Station, 1980-11-14"),
       toId: link("Work", "Terrapin Station"),
@@ -31,11 +32,13 @@ function mixed(): ReadoutItem[] {
   ];
 }
 
+function update(type: string, label: string, before: Record<string, unknown>, after: Record<string, unknown>, links = none): ReadoutItem {
+  return { op: "update", type, label, before: { id: 1, ...before }, after: { id: 1, ...after }, links, parent: null };
+}
+
 describe("countsSentence", () => {
   it("counts what was added, to which parents, what changed and what is new", () => {
-    expect(countsSentence(mixed())).toBe(
-      "Added 2 segments, 1 reference, 1 bill entry, 1 person and 1 note to 1 show; Changed 1 show; 1 is a new person, place, work, band, subject or source.",
-    );
+    expect(countsSentence(mixed())).toBe("Added 2 segments, 1 reference, 1 bill entry, 1 person and 1 note to 1 show; changed 1 show; 1 new record.");
   });
   it("says so when there is nothing", () => {
     expect(countsSentence([])).toBe("No changes.");
@@ -44,35 +47,54 @@ describe("countsSentence", () => {
     const items = [create("Show", "Show 1980", { id: 1, dateYear: 1980 }, show), create("Set", "Set", { id: 2, showId: 1, position: 1 }, show)];
     expect(countsSentence(items)).toBe("Added 1 show and 1 set.");
   });
+  it("reads well for one subject, one reference and one change", () => {
+    const items = [
+      create("Subject", "Subject \"Harp\"", { id: 3, name: "Harp" }, show),
+      create("Reference", "Reference", { id: 4 }, show),
+      update("Segment", "Ripple", { notes: "a" }, { notes: "b" }),
+    ];
+    expect(countsSentence(items)).toBe("Added 1 subject and 1 reference to 1 show; changed 1 segment; 1 new record.");
+  });
+  it("counts many new records in the plural", () => {
+    const items = [1, 2].map((id) => create("Person", `Person "P${id}"`, { id, name: `P${id}` }, null));
+    expect(countsSentence(items)).toBe("Added 2 people; 2 new records.");
+  });
 });
 
 describe("formatReadout", () => {
   const text = formatReadout(mixed());
   const lines = text.split("\n");
+  const unusualEnd = lines.indexOf(HEADING) - 1;
 
   it("puts the counts first, then the unusual lines, then the groups", () => {
     expect(lines[0]).toBe(countsSentence(mixed()));
-    expect(lines.indexOf("Look at these first:")).toBeLessThan(lines.indexOf("Show 1980-11-14, WHFS-FM Studio"));
+    expect(lines.indexOf("Look at these first:")).toBeLessThan(lines.indexOf(HEADING));
   });
   it("lists the unusual lines: new people, overwritten values, certainty below confirmed", () => {
-    const unusual = lines.slice(lines.indexOf("Look at these first:") + 1, lines.indexOf("Show 1980-11-14, WHFS-FM Studio") - 1);
+    const unusual = lines.slice(lines.indexOf("Look at these first:") + 1, unusualEnd).join("\n");
     expect(unusual).toContain("- New person: Walter Scott");
-    expect(unusual.some((l) => l.startsWith("- Changed value in Show 1980-11-14") && l.includes('time label: "Early" → "Late"'))).toBe(true);
-    expect(unusual.some((l) => l.includes("Not confirmed") && l.includes("work certainty: possible"))).toBe(true);
-    expect(unusual.some((l) => l.includes("Not confirmed") && l.includes("certainty: probable"))).toBe(true);
+    expect(unusual).toContain("- Changed value in Show 1980-11-14");
+    expect(unusual).toContain("time label: “Early” → “Late”");
+    expect(unusual).toContain("work certainty: possible");
+    expect(unusual).toContain("certainty: probable");
     // A value that was only filled in is not unusual.
-    expect(unusual.join("\n")).not.toContain("notes");
+    expect(unusual).not.toContain("notes");
   });
-  it("groups the records under one heading per parent, with one line each", () => {
-    expect(lines.filter((l) => l === "Show 1980-11-14, WHFS-FM Studio")).toHaveLength(1);
-    expect(text).toContain('Person "Walter Scott"\n- New Person "Walter Scott"\n');
-    expect(text).toContain("- New Reference: Hunter talks about Terrapin Station, 1980-11-14 mentions Terrapin Station");
-    expect(text).toContain("- New Bill: Roadhog (headliner)");
+  it("says which record a not-confirmed line is about", () => {
+    expect(text).toContain("- Not confirmed: Hunter talks about Terrapin Station, 1980-11-14 mentions Terrapin Station · certainty: probable");
+    expect(text).toContain("- Not confirmed: Segment: Ripple, 1980-11-14 · work certainty: possible");
+  });
+  it("groups the records under one heading per parent, with each field on its own line", () => {
+    expect(lines.filter((l) => l === HEADING)).toHaveLength(1);
+    expect(text).toContain('Person "Walter Scott"\n  New Person "Walter Scott"\n');
+    expect(text).toContain("  New Reference: Hunter talks about Terrapin Station, 1980-11-14 mentions Terrapin Station\n    certainty: probable");
+    expect(text).toContain("  New Bill: Roadhog (headliner)\n");
+    expect(Math.max(...lines.map((l) => l.length))).toBeLessThan(160);
   });
   it("words who can see each record and shows no raw flags or system fields", () => {
-    expect(text).toContain("public: summary and references · words: private");
-    expect(text).toContain("not public");
-    expect(text).toContain("private note");
+    expect(text).toContain("who can see it: public: summary and references · words: private");
+    expect(text).toContain("who can see it: not public");
+    expect(text).toContain("who can see it: private note");
     for (const raw of ["isPublic", "wordsPublic", "sortKey", "rev", "setId: 5"]) expect(text).not.toContain(raw);
     expect(text).not.toContain("true");
   });
@@ -82,17 +104,19 @@ describe("formatReadout", () => {
     expect(text).not.toContain("cut at");
   });
   it("shows a change of who can see a record in words", () => {
-    const item: ReadoutItem = {
-      op: "update", type: "Segment", label: "Ripple, 1980", links: none, parent: null,
-      before: { id: 1, isPublic: true, wordsPublic: false }, after: { id: 1, isPublic: true, wordsPublic: true },
-    };
+    const item = update("Segment", "Ripple, 1980", { isPublic: true, wordsPublic: false }, { isPublic: true, wordsPublic: true });
     expect(formatReadout([item])).toContain("who can see it: public: summary and references · words: private → public: summary and references · words: public");
   });
-  it("shows public text in full and cuts long private text", () => {
+  it("treats a missing public flag as unknown, not as public", () => {
+    const item = create("Segment", "Ripple", { id: 1, summary: "x" }, null);
+    expect(formatReadout([item])).not.toContain("who can see it");
+  });
+  it("shows public text in full and does not print long private text", () => {
     const long = "x".repeat(500);
     const read = (type: string, after: Record<string, unknown>) => formatReadout([create(type, type, { id: 1, ...after }, null)]);
     expect(read("Note", { body: long, isPublic: true })).toContain(long);
     expect(read("Note", { body: long, isPublic: false })).not.toContain(long);
+    expect(read("Note", { body: long, isPublic: false })).toContain("(private; 500 characters)");
     expect(read("Segment", { summary: long })).toContain(long);
     expect(read("Segment", { wordsAsHeard: long })).not.toContain(long);
   });
@@ -108,14 +132,99 @@ describe("formatReadout", () => {
   });
 });
 
+describe("changed fields", () => {
+  it("shows a changed text field as was and now, cut at about 100 characters", () => {
+    const was = `Jack O' Roses was a hobbyist record for England. ${"a".repeat(200)}`;
+    const item = update("Segment", "Ripple", { summary: was }, { summary: "Jack O' Roses was a record made in England" });
+    const text = formatReadout([item]);
+    expect(text).toContain("    summary\n      was: “Jack O' Roses was a hobbyist record for England. ");
+    expect(text).toContain("      now: “Jack O' Roses was a record made in England”");
+    expect(Math.max(...text.split("\n").map((l) => l.length))).toBeLessThan(140);
+  });
+  it("does not print long private text, and says how it changed", () => {
+    const item = update("Segment", "Ripple", { wordsAsHeard: "a".repeat(412) }, { wordsAsHeard: "b".repeat(196) });
+    const text = formatReadout([item]);
+    expect(text).toContain("words as heard: changed (private; 412 → 196 characters)");
+    expect(text).not.toContain("aaaa");
+  });
+  it("shows a short private change as a diff marked private", () => {
+    const item = update("Citation", "Citation", { excerpt: "old words" }, { excerpt: "new words" });
+    const text = formatReadout([item]);
+    expect(text).toContain("excerpt (private)");
+    expect(text).toContain("was: “old words”");
+  });
+  it("shows a moved link in names", () => {
+    const item: ReadoutItem = {
+      op: "update", type: "Reference", label: "Reference", parent: null,
+      before: { id: 5, fromId: 13929, toId: 8, referenceKindId: 4 },
+      after: { id: 5, fromId: 14222, toId: 8, referenceKindId: 4 },
+      links: {
+        before: { fromId: link("Segment", "Jack O' Roses was a hobbyist record…"), toId: link("Work", "Ripple"), referenceKindId: link("ReferenceKind", "mentions") },
+        after: { fromId: link("Segment", "Made for an English audience…"), toId: link("Work", "Ripple"), referenceKindId: link("ReferenceKind", "mentions") },
+      },
+    };
+    const text = formatReadout([item]);
+    expect(text).toContain("Moved Reference: Made for an English audience… mentions Ripple");
+    expect(text).toContain("from: Segment \"Jack O' Roses was a hobbyist record…\" (13929) → Segment \"Made for an English audience…\" (14222)");
+  });
+  it("never prints a bare ID: a missing record reads as deleted", () => {
+    const item = create("Reference", "Reference", { id: 5, fromId: 14180, certainty: "PROBABLE" }, null);
+    expect(formatReadout([item])).toContain("from: (deleted record 14180)");
+  });
+  it("prints no backslash before a quote inside a value", () => {
+    const item = update("Show", "Show 1980", { notes: "He said hi." }, { notes: 'He said "hello" to the host.' });
+    const text = formatReadout([item]);
+    expect(text).toContain("“He said \"hello\" to the host.”");
+    expect(text).not.toContain("\\");
+  });
+  it("lists the not-confirmed fields in the model order, whatever the order of the stored keys", () => {
+    const a = create("Segment", "Ripple", { id: 1, wordsFromCertainty: "PROBABLE", tuneFromCertainty: "POSSIBLE" }, null);
+    const b = create("Segment", "Ripple", { id: 1, tuneFromCertainty: "POSSIBLE", wordsFromCertainty: "PROBABLE" }, null);
+    expect(formatReadout([a])).toBe(formatReadout([b]));
+  });
+});
+
 describe("storedReadoutItem", () => {
   it("builds the same text from a stored item as from the preview item", () => {
     const [item] = mixed();
     const stored = storedReadoutItem({ type: item.type, label: item.label, action: "CREATE", before: null, after: item.after, detail: { links: item.links, parent: item.parent } });
     expect(formatReadout([stored])).toBe(formatReadout([item]));
   });
-  it("reads an old item with no detail without links", () => {
-    const stored = storedReadoutItem({ type: "Segment", label: "Ripple", action: "CREATE", before: null, after: { id: 1, workId: 7 }, detail: null });
-    expect(formatReadout([stored])).toContain("work: 7");
+  it("builds the same text when the stored row has its keys in another order", () => {
+    const item = create("Segment", "Ripple", { id: 1, wordsFromCertainty: "PROBABLE", tuneFromCertainty: "POSSIBLE", summary: "x" }, show);
+    const reordered = { summary: "x", tuneFromCertainty: "POSSIBLE", wordsFromCertainty: "PROBABLE", id: 1 };
+    const stored = storedReadoutItem({ type: "Segment", label: "Ripple", action: "CREATE", before: null, after: reordered, detail: { links: item.links, parent: show } });
+    expect(formatReadout([stored])).toBe(formatReadout([item]));
+  });
+  it("puts items with no stored grouping under one heading, with no bare IDs", () => {
+    const old = (id: number) => storedReadoutItem({ type: "Reference", label: "Reference", action: "CREATE", before: null, after: { id, fromId: 13928, toId: 14180, referenceKindId: 4, note: 'Says: "import record"' }, detail: null });
+    const readout = buildReadout([old(1), old(2)]);
+    expect(readout.groups).toHaveLength(1);
+    expect(readout.groups[0].heading).toBe("Earlier change (no grouping stored)");
+    expect(readout.groups[0].cards).toHaveLength(2);
+    const text = formatReadout([old(1)]);
+    expect(text).toContain("(deleted record 13928)");
+    expect(text).not.toMatch(/: \d+( →|$)/m);
+    expect(text).not.toContain("to Earlier");
+  });
+  it("reads an old item with names that the page looked up", () => {
+    const stored = storedReadoutItem({
+      type: "Reference", label: "Reference #14197", action: "CREATE", before: null,
+      after: { id: 14197, fromId: 13928, toId: 14180, referenceKindId: 4, note: 'Says: "import record"' },
+      detail: {
+        parent: null,
+        links: { before: {}, after: { fromId: link("Segment", "The host has an import copy of Jack O' Roses, 1980-11-14"), toId: link("Source", "Jack O' Roses"), referenceKindId: link("ReferenceKind", "mentions") } },
+      },
+    });
+    const text = formatReadout([stored]);
+    expect(text).toContain("The host has an import copy of Jack O' Roses, 1980-11-14 mentions Jack O' Roses");
+    expect(text).toContain("note: “Says: \"import record\"”");
+    expect(text).not.toContain("13928");
+  });
+  it("reads a delete as a delete", () => {
+    const stored = storedReadoutItem({ type: "Note", label: "Note \"x\"", action: "DELETE", before: { id: 1, body: "x", isPublic: true }, after: null, detail: null });
+    const text = formatReadout([stored]);
+    expect(text).toContain("Deleted Note");
+    expect(text).not.toContain("Changed");
   });
 });

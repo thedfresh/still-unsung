@@ -63,7 +63,7 @@ describe("formatPreview", () => {
     const expiresAt = new Date("2026-01-01T00:30:00Z");
     const text = formatPreview({ ...base, items: [item], token: "suprev_x", expiresAt });
     expect(text.startsWith("Changed 1 show.")).toBe(true);
-    expect(text).toContain('time label: (empty) → "Late"');
+    expect(text).toContain("time label: “Late”");
     expect(text).not.toMatch(/\brev\b/);
     expect(text).toContain("Evidence: own knowledge");
     expect(text).toContain("Apply token: suprev_x");

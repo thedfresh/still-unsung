@@ -69,14 +69,20 @@ export function withType(type: string, label: string): string {
 /** Plain words for enum values that the raw name would make hard to read. */
 const PLAIN_VALUES: Record<string, string> = { RECORDING_PLAYED: "recording played" };
 
+/** Cut text at `max` characters, with an ellipsis. */
+export function cutText(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+}
+
 /**
- * One value as plain text for the preview. A long string is cut at 200 characters unless `full`
- * is true (public text, which the user must read whole before it goes live).
+ * One value as plain text. A text value sits in typographic quotes and its own quotes stay as
+ * they are, so no backslash appears. A long string is cut at `max` characters unless `full` is
+ * true (public text, which the user must read whole before it goes live).
  */
-export function showValue(value: unknown, full = false): string {
+export function showValue(value: unknown, full = false, max = 200): string {
   if (value === null || value === undefined) return "(empty)";
   if (typeof value === "string" && value in PLAIN_VALUES) return PLAIN_VALUES[value];
-  if (typeof value === "string") return JSON.stringify(!full && value.length > 200 ? `${value.slice(0, 197)}...` : value);
+  if (typeof value === "string") return `“${full ? value : cutText(value, max)}”`;
   return String(value);
 }
 
@@ -84,6 +90,13 @@ export function showValue(value: unknown, full = false): string {
 export function isPublicText(type: string, field: string, row: Row | null): boolean {
   if (type === "Segment") return field === "summary";
   return type === "Note" && field === "body" && row?.isPublic === true;
+}
+
+/** True for long text that only the curator reads: words as heard, a citation excerpt, a private note. */
+export function isPrivateText(type: string, field: string, row: Row | null): boolean {
+  if (type === "Segment") return field === "wordsAsHeard";
+  if (type === "Citation") return field === "excerpt";
+  return type === "Note" && field === "body" && row?.isPublic !== true;
 }
 
 /** A record label without its type, for example `Work "Ripple"` becomes `Ripple`. */

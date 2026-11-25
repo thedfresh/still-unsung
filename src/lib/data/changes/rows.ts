@@ -38,32 +38,49 @@ export async function readRow(tx: Tx, type: string, id: number): Promise<Row | n
   return toJson(usesEntityPublicFlag(type) ? { ...rest, isPublic: entity?.isPublic ?? true } : rest);
 }
 
+/** Lookups already made in one describe call, so a long changeset does not repeat them. */
+export type LookupCache = Map<string, Promise<unknown>>;
+
+/** Run `lookup` once per key. */
+export function memo<T>(cache: LookupCache | undefined, key: string, lookup: () => Promise<T>): Promise<T> {
+  if (!cache) return lookup();
+  const known = cache.get(key) as Promise<T> | undefined;
+  if (known) return known;
+  const started = lookup();
+  cache.set(key, started);
+  return started;
+}
+
 /** The date of a show, as text, or null when the show is unknown or has no date. */
-async function showDateOf(tx: Tx, showId: unknown): Promise<string | null> {
+async function showDateOf(tx: Tx, showId: unknown, cache?: LookupCache): Promise<string | null> {
   if (typeof showId !== "number") return null;
-  const show = await tx.show.findUnique({ where: { id: showId }, select: { dateYear: true, dateMonth: true, dateDay: true, dateAsWritten: true } });
+  const show = await memo(cache, `show:${showId}`, () =>
+    tx.show.findUnique({ where: { id: showId }, select: { dateYear: true, dateMonth: true, dateDay: true, dateAsWritten: true } }),
+  );
   return show ? datePart(show) : null;
 }
 
 /**
  * A readable name for a record. A show also gets the name of its place. A set is named by its
- * show and position, a segment by its work and show.
+ * show and position, a segment by its work and show. `cache` saves repeated lookups.
  */
-export async function labelRow(tx: Tx, type: string, row: Row, withId = true): Promise<string> {
-  if (type === "Set") return setLabel(row, await showDateOf(tx, row.showId)) ?? describeRecord(type, row, null, withId);
+export async function labelRow(tx: Tx, type: string, row: Row, withId = true, cache?: LookupCache): Promise<string> {
+  if (type === "Set") return setLabel(row, await showDateOf(tx, row.showId, cache)) ?? describeRecord(type, row, null, withId);
   if (type === "Segment") {
-    const set = typeof row.setId === "number" ? await tx.set.findUnique({ where: { id: row.setId }, select: { showId: true } }) : null;
-    const work = typeof row.workId === "number" ? await tx.work.findUnique({ where: { id: row.workId }, select: { title: true } }) : null;
-    return segmentLabel(work?.title ?? null, await showDateOf(tx, set?.showId), row);
+    const setId = row.setId;
+    const workId = row.workId;
+    const set = typeof setId === "number" ? await memo(cache, `set:${setId}`, () => tx.set.findUnique({ where: { id: setId }, select: { showId: true } })) : null;
+    const work = typeof workId === "number" ? await memo(cache, `work:${workId}`, () => tx.work.findUnique({ where: { id: workId }, select: { title: true } })) : null;
+    return segmentLabel(work?.title ?? null, await showDateOf(tx, set?.showId, cache), row);
   }
   if (type !== "Show") return describeRecord(type, row, null, withId);
   const placeNameId = row.placeNameId;
   const placeId = row.placeId;
   let name: string | null = null;
   if (typeof placeNameId === "number") {
-    name = ((await tx.placeName.findUnique({ where: { id: placeNameId }, select: { name: true } })) ?? null)?.name ?? null;
+    name = (await memo(cache, `placeName:${placeNameId}`, () => tx.placeName.findUnique({ where: { id: placeNameId }, select: { name: true } })))?.name ?? null;
   } else if (typeof placeId === "number") {
-    name = (await tx.placeName.findFirst({ where: { placeId }, orderBy: { position: "asc" }, select: { name: true } }))?.name ?? null;
+    name = (await memo(cache, `placeOf:${placeId}`, () => tx.placeName.findFirst({ where: { placeId }, orderBy: { position: "asc" }, select: { name: true } })))?.name ?? null;
   }
   return describeRecord(type, row, name, withId);
 }
