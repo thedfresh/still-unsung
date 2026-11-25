@@ -142,7 +142,7 @@ message; GitHub emails the person who started it.
   and starts CI at once, or it fails. A push with `GITHUB_TOKEN` starts no CI run without approval.
 - One ticket run at a time; a second request waits for the first.
 - To test the `@claude` job after a change to it: open a small pull request with a `Refs: HSA-n`
-  line, comment `@claude` with a small fix, and check that CI starts on the agent's comit with no
+  line, comment `@claude` with a small fix, and check that CI starts on the agent's commit with no
   approval and that the ticket gets its note.
 - Changes to `claude-agent.yml` can't be fully tested from a branch: the Claude GitHub App only
   issues its token when the workflow file matches `main`'s copy (a safety rule), so a `--ref`
