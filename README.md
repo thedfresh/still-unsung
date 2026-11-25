@@ -154,7 +154,7 @@ the setup step fails with a clear message if the image's Node and `.nvmrc` disag
 ## Claude agent
 
 `.github/workflows/claude-agent.yml` lets Claude work Jira tickets and answer `@claude` on pull
-requests. Setup and how it works: [docs/agent-workflow.md](docs/agent-workflow.md).
+requests. Setup and how it works: `docs/agent-workflow.md` in the private planning repository.
 
 ## Health check
 
