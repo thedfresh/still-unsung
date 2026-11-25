@@ -2,6 +2,7 @@ import { isReadable, modelInfo } from "@/lib/content-access";
 import { getPrisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { withType, type Row } from "@/lib/changes/labels";
+import { describeChangeEvidence, EVIDENCE_INCLUDE } from "@/lib/data/changes/list";
 import { delegateOf, labelRow, toJson } from "@/lib/data/changes/rows";
 
 const NAME_FIELDS = ["name", "title", "displayName", "label", "slug", "value", "body"];
@@ -28,9 +29,36 @@ async function readSetlist(showId: number): Promise<Row[]> {
   }));
 }
 
+/** The most changesets "where this came from" lists for one record. */
+const MAX_PROVENANCE = 20;
+
+/**
+ * The evidence of the applied changesets that created or changed a record, newest first. Changeset
+ * items hold the table name and record ID as plain values, so this is a lookup by both.
+ */
+async function readProvenance(type: string, id: number): Promise<Row[]> {
+  const items = await getPrisma().changesetItem.findMany({
+    where: { tableName: modelInfo(type).table, recordId: id, changeset: { status: "APPLIED" } },
+    orderBy: [{ changeset: { appliedAt: "desc" } }, { changesetId: "desc" }],
+    take: MAX_PROVENANCE,
+    select: {
+      action: true,
+      changeset: { include: { user: { select: { email: true } }, ...EVIDENCE_INCLUDE } },
+    },
+  });
+  return items.map(({ action, changeset }) => ({
+    changesetId: changeset.id,
+    date: changeset.appliedAt?.toISOString() ?? null,
+    user: changeset.user.email,
+    action: action === "CREATE" ? "created" : action === "DELETE" ? "deleted" : "changed",
+    evidence: describeChangeEvidence(changeset),
+  }));
+}
+
 /**
  * One record by ID or by legacy ID, with everything the agent may edit: private fields too. A
- * shared record comes with its citations, notes, tags and external IDs.
+ * shared record comes with its citations, notes and external IDs. Every record comes with
+ * the evidence of the changes that made and changed it (`whereThisCameFrom`, data-model item 109).
  */
 export async function getRecord(type: string, key: { id?: number; legacyId?: string }): Promise<Row> {
   assertReadable(type);
@@ -45,7 +73,6 @@ export async function getRecord(type: string, key: { id?: number; legacyId?: str
           include: {
             citations: true,
             notes: { include: { note: true } },
-            tags: { include: { tag: true } },
             externalIds: true,
           },
         },
@@ -56,10 +83,11 @@ export async function getRecord(type: string, key: { id?: number; legacyId?: str
   if (!row) throw new AppError("not_found");
   const { entity, ...rest } = row as Row & { entity?: Row & { isPublic: boolean } };
   const label = withType(type, await labelRow(db, type, toJson(rest)));
-  if (!entity) return toJson({ label, ...rest });
+  const whereThisCameFrom = await readProvenance(type, row.id as number);
+  if (!entity) return toJson({ label, ...rest, whereThisCameFrom });
   const sets = type === "Show" ? await readSetlist(row.id as number) : undefined;
-  const { citations, notes, tags, externalIds, isPublic } = entity as Row & { isPublic: boolean };
-  return toJson({ label, ...rest, isPublic, ...(sets ? { sets } : {}), attachments: { citations, notes, tags, externalIds } });
+  const { citations, notes, externalIds, isPublic } = entity as Row & { isPublic: boolean };
+  return toJson({ label, ...rest, isPublic, ...(sets ? { sets } : {}), attachments: { citations, notes, externalIds }, whereThisCameFrom });
 }
 
 export interface SearchInput {

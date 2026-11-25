@@ -71,6 +71,26 @@ describe("parseEdits", () => {
     expect(problems([{ op: "create", type: "Source", fields: { zoteroData: {} } }])).toBeTruthy();
     expect(problems([])).toHaveProperty(["edits"]);
   });
+
+  it("creates a source with only a title and a key, and never sets the Zotero fields", () => {
+    const [edit] = parseEdits([{ op: "create", type: "Source", fields: { title: "An interview", key: "an-interview", sourceKindId: 3, otherNames: ["x"] } }]);
+    expect(edit.fields).toMatchObject({ title: "An interview", key: "an-interview" });
+    for (const name of ["zoteroKey", "zoteroData", "syncedAt", "extractedText"]) {
+      const fields = { title: "t", key: "k", [name]: name === "zoteroData" ? {} : "x" };
+      expect(problems([{ op: "create", type: "Source", fields }])).toHaveProperty([`edits.0.fields.${name}`]);
+      expect(problems([{ op: "update", type: "Source", id: 1, rev: 1, fields: { [name]: null } }])).toHaveProperty([`edits.0.fields.${name}`]);
+    }
+  });
+
+  it("refuses an empty or blank source title and a key that is not a short key", () => {
+    for (const title of ["", "   "]) {
+      expect(problems([{ op: "create", type: "Source", fields: { title, key: "k" } }])).toHaveProperty(["edits.0.fields.title"]);
+    }
+    for (const key of ["", " ", "Has Caps", "a b", "under_score"]) {
+      expect(problems([{ op: "create", type: "Source", fields: { title: "t", key } }])).toHaveProperty(["edits.0.fields.key"]);
+      expect(problems([{ op: "update", type: "Source", id: 1, rev: 1, fields: { key } }])).toHaveProperty(["edits.0.fields.key"]);
+    }
+  });
 });
 
 describe("parseEvidence", () => {

@@ -70,7 +70,7 @@ export function createContentMcpServer(user: CurrentUser): McpServer {
   server.registerTool(
     "get_record",
     {
-      description: `Read one record by ID or legacy ID, with its citations, notes, tags and external IDs. A show also comes with its sets in order and the segments of each set in order, with their sortKey. Private fields are included. Types: ${readableTypes().join(", ")}.`,
+      description: `Read one record by ID or legacy ID, with its citations, notes and external IDs, and "whereThisCameFrom": the evidence of the changes that made and changed it, newest first. A show also comes with its sets in order and the segments of each set in order, with their sortKey. Private fields are included. Types: ${readableTypes().join(", ")}.`,
       inputSchema: { type: z.string(), id: z.number().int().positive().optional(), legacyId: z.string().max(200).optional() },
     },
     ({ type, id, legacyId }) => run(async () => JSON.stringify(await getRecord(type, { id, legacyId }), null, 1)),

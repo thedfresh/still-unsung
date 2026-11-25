@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { PROPOSAL_NAMES, type Ctx, type ProposalRow } from "./context.ts";
+import { PROPOSAL_NAMES, type Ctx } from "./context.ts";
+import { addContext } from "./proposal-context.ts";
+import { PROPOSAL_INFO } from "./proposal-info.ts";
 import { normalizeName } from "./rules.ts";
 
 // The 17 review lists of plan section 5. The script never applies them: it writes each one to a
@@ -51,9 +53,12 @@ export async function writeProposals(ctx: Ctx, outputDir: string): Promise<Propo
   const dir = path.join(outputDir, "proposals");
   await mkdir(dir, { recursive: true });
   const files: ProposalFile[] = [];
+  const described = await addContext(ctx, ctx.proposals);
   for (const name of PROPOSAL_NAMES) {
-    const rows: ProposalRow[] = ctx.proposals.get(name) ?? [];
-    const text = `${JSON.stringify({ proposal: name, applied: false, rows }, null, 1)}\n`;
+    const rows = described.get(name) ?? [];
+    const { what, decision } = PROPOSAL_INFO[name];
+    const summary = { list: what, rows: rows.length, decision };
+    const text = `${JSON.stringify({ proposal: name, applied: false, summary, rows }, null, 1)}\n`;
     await writeFile(path.join(dir, `${name}.json`), text);
     files.push({ name, rows: rows.length, bytes: Buffer.byteLength(text) });
   }

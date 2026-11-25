@@ -42,7 +42,7 @@ describe("filledFields", () => {
 });
 
 describe("formatPreview", () => {
-  const base = { evidence: "own knowledge", citedLabels: [], isPublic: false, warnings: [], expiresAt: null, token: null };
+  const base = { evidence: "own knowledge", isPublic: false, warnings: [], expiresAt: null, token: null };
   it("shows a change as before → after", () => {
     const text = formatPreview({
       ...base,

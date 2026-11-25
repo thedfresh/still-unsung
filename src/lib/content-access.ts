@@ -67,8 +67,6 @@ export const AGENT_WRITABLE_TYPES = [
   "Note",
   "NoteAttachment",
   "GuidePage",
-  "Tag",
-  "TagAssignment",
   "ExternalId",
 ] as const;
 
@@ -96,6 +94,14 @@ const LISTS = new Set<string>(LIST_TABLES);
 
 /** Columns the server owns. The agent never sets them. */
 export const SYSTEM_FIELDS = new Set(["id", "rev", "createdAt", "updatedAt", "legacyId", "previewToken"]);
+
+/**
+ * Fields the agent never sets, per type (item 108). A Source's Zotero link and cache belong to
+ * the Zotero sync and to the admin, who sets the key. The tools refuse them on create and update.
+ */
+export const AGENT_FORBIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  Source: ["zoteroKey", "zoteroData", "syncedAt", "extractedText"],
+};
 
 /** Types that count as setlist information for the public mark (data-model item 20). */
 const PUBLIC_BY_DEFAULT = new Set(["Show", "Set", "Segment", "Recording"]);

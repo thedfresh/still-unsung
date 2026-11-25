@@ -63,9 +63,9 @@ describe("preview and apply", () => {
     const item = change.items.find((i) => i.tableName === "shows");
     expect(item?.before).toMatchObject({ timeLabel: null, rev: show.rev });
     expect(item?.after).toMatchObject({ timeLabel: "Late" });
-    // One citation for the changed show, written from the evidence.
-    const citations = await db.citation.findMany({ where: { entityId: show.id } });
-    expect(citations.at(-1)).toMatchObject({ sourceId, place: "page 4" });
+    // The evidence stays on the changeset. No citation is written from it (item 109).
+    expect(await db.citation.count()).toBe(0);
+    expect(formatPreview(preview)).not.toContain("Citations written");
   });
 
   it("creates a show with its sets and segments that point at each other", async () => {
@@ -85,7 +85,7 @@ describe("preview and apply", () => {
     await applyChanges(agentId, preview.token as string);
     expect(await db.show.count()).toBe(1);
     expect(await db.segment.count()).toBe(1);
-    // Each new shared record has its entities row and a citation.
+    // Each new shared record has its entities row.
     expect(await db.entity.count({ where: { kind: { in: ["SHOW", "SET", "SEGMENT"] } } })).toBe(3);
   });
 
@@ -121,6 +121,37 @@ describe("preview and apply", () => {
     await db.changeset.update({ where: { id: preview.changesetId as number }, data: { previewExpiresAt: new Date(Date.now() - 1000) } });
     await expect(applyChanges(agentId, preview.token as string)).rejects.toMatchObject({ code: "not_found" });
     expect(await db.show.count()).toBe(0);
+  });
+});
+
+describe("highlights (item 110)", () => {
+  it("marks a show with a part-of reference to a highlight subject, with a note", async () => {
+    const show = await makeShow();
+    const kind = await db.subjectKind.findUniqueOrThrow({ where: { name: "highlight" } });
+    const partOf = await db.referenceKind.findUniqueOrThrow({ where: { name: "part of" } });
+    // A reference points at an Entity, so the subject is made first and the reference names its id.
+    const subjectPreview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Subject", fields: { name: "Notable show", subjectKindId: kind.id } }],
+    });
+    await applyChanges(agentId, subjectPreview.token as string);
+    const subject = await db.subject.findFirstOrThrow();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [
+        {
+          op: "create",
+          type: "Reference",
+          fields: { fromId: show.id, toId: subject.id, referenceKindId: partOf.id, note: "The first night of the run." },
+        },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    await applyChanges(agentId, preview.token as string);
+    const reference = await db.reference.findFirstOrThrow({ include: { referenceKind: true, to: { include: { subject: true } } } });
+    expect(reference).toMatchObject({ fromId: show.id, note: "The first night of the run." });
+    expect(reference.referenceKind.name).toBe("part of");
+    expect(reference.to.subject?.subjectKindId).toBe(kind.id);
   });
 });
 
@@ -263,7 +294,7 @@ describe("preview wording", () => {
       ],
     });
     const text = formatPreview(preview);
-    expect(text).toContain("entityId: Show 1978-05-23");
+    expect(text).toMatch(/entityId: \d+ \(1978-05-23\)/);
     expect(text).toContain("attaches to: Show 1978-05-23");
     expect(text).not.toMatch(/#\d+/);
     expect(text).toContain("Listed in recent changes:");
@@ -319,8 +350,8 @@ describe("labels, defaults and position", () => {
     expect(preview.warnings).toEqual([]);
     const text = formatPreview(preview);
     expect(text).toContain("NEW Segment: Man Of Constant Sorrow, 2002-04-30");
-    expect(text).toContain("setId: 2002-04-30, set 1");
-    expect(text).toContain('workId: Work "Man Of Constant Sorrow"');
+    expect(text).toMatch(/setId: \d+ \(2002-04-30, set 1\)/);
+    expect(text).toMatch(/workId: \d+ \(Man Of Constant Sorrow\)/);
     for (const word of ["joinsNext", "workCertainty", "cutAtStart", "cutAtEnd", "extent", "isPublic"]) {
       expect(text).not.toContain(word);
     }
@@ -413,6 +444,33 @@ describe("read and search", () => {
     expect(record.sets[0].segments.map((x) => x.sortKey)).toEqual(["a", "b"]);
   });
 
+  it("lists the evidence of every change to a record, newest first", async () => {
+    const show = await makeShow();
+    const preview = await previewChanges(agentId, {
+      evidence: { ownKnowledge: true },
+      edits: [{ op: "update", type: "Show", id: show.id, rev: show.rev, fields: { timeLabel: "Late" } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    const record = await getRecord("Show", { id: show.id });
+    const from = record.whereThisCameFrom as Array<{ action: string; evidence: string }>;
+    expect(from.map((c) => c.action)).toEqual(["changed", "created"]);
+    expect(from[0].evidence).toBe("own knowledge");
+    expect(from[1].evidence).toContain("page 4");
+  });
+
+  it("still creates a deliberate citation", async () => {
+    const show = await makeShow();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Citation", fields: { entityId: show.id, sourceId, place: "page 9", excerpt: "Ad for the show" } }],
+    });
+    expect(preview.warnings).toEqual([]);
+    await applyChanges(agentId, preview.token as string);
+    expect(await db.citation.findMany({ where: { entityId: show.id } })).toEqual([expect.objectContaining({ place: "page 9", excerpt: "Ad for the show" })]);
+    const record = await getRecord("Show", { id: show.id });
+    expect((record.attachments as { citations: unknown[] }).citations).toHaveLength(1);
+  });
+
   it("finds a show by date and place and reads it with its citations", async () => {
     const place = await db.entity.create({ data: { kind: "PLACE" } });
     await db.place.create({ data: { id: place.id, slug: "keystone" } });
@@ -428,8 +486,95 @@ describe("read and search", () => {
     expect(hits[0].label).toBe("Show 1978-05-23, Keystone Berkeley");
     const record = await getRecord("Show", { id: hits[0].id as number });
     expect(record).toMatchObject({ dateYear: 1978, isPublic: true });
-    expect((record.attachments as { citations: unknown[] }).citations).toHaveLength(1);
+    expect((record.attachments as { citations: unknown[] }).citations).toHaveLength(0);
+    expect(record.whereThisCameFrom).toEqual([
+      expect.objectContaining({ action: "created", user: "agent@example.test", evidence: expect.stringContaining('source "Synthetic notebook'), changesetId: expect.any(Number) }),
+    ]);
     await expect(getRecord("User", { id: 1 })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(searchRecords({ type: "Session", query: "x" })).rejects.toMatchObject({ code: "invalid_input" });
+  });
+});
+
+describe("sources without a Zotero link (item 108)", () => {
+  async function makeUnlinked() {
+    const kind = await db.sourceKind.findFirstOrThrow({ where: { name: "article" } });
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Source", fields: { title: "Synthetic interview", key: "synthetic-interview", sourceKindId: kind.id, otherNames: ["the interview"] } }],
+    });
+    expect(preview.warnings).toEqual([]);
+    expect(await db.source.count({ where: { key: "synthetic-interview" } })).toBe(0);
+    await applyChanges(agentId, preview.token as string);
+    return db.source.findFirstOrThrow({ where: { key: "synthetic-interview" } });
+  }
+
+  it("has the album and article source kinds", async () => {
+    const names = (await db.sourceKind.findMany()).map((k) => k.name);
+    expect(names).toEqual(expect.arrayContaining(["album", "article"]));
+  });
+
+  it("creates a source with no Zotero key through preview and apply", async () => {
+    const source = await makeUnlinked();
+    expect(source).toMatchObject({ zoteroKey: null, zoteroData: null, syncedAt: null, title: "Synthetic interview" });
+  });
+
+  it("stores the other names on create and on update", async () => {
+    const source = await makeUnlinked();
+    expect(source.otherNames).toEqual(["the interview"]);
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Source", id: source.id, rev: source.rev, fields: { otherNames: ["the interview", "radio talk"] } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    const after = await db.source.findUniqueOrThrow({ where: { id: source.id } });
+    expect(after.otherNames).toEqual(["the interview", "radio talk"]);
+    expect(after.rev).toBe(source.rev + 1);
+  });
+
+  it("changes the title of an unlinked source", async () => {
+    const source = await makeUnlinked();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Source", id: source.id, rev: source.rev, fields: { title: "Renamed interview" } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    expect((await db.source.findUniqueOrThrow({ where: { id: source.id } })).title).toBe("Renamed interview");
+  });
+
+  it("refuses to change the title of a linked source", async () => {
+    const linked = await db.source.findUniqueOrThrow({ where: { id: sourceId } });
+    await expect(
+      previewChanges(agentId, {
+        evidence: evidence(),
+        edits: [{ op: "update", type: "Source", id: linked.id, rev: linked.rev, fields: { title: "New title" } }],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    // Other fields of a linked source stay editable.
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Source", id: linked.id, rev: linked.rev, fields: { otherNames: ["notebook"] } }],
+    });
+    expect(preview.token).toMatch(/^suprev_/);
+  });
+
+  it("refuses a title change that applies after the source was linked", async () => {
+    const source = await makeUnlinked();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Source", id: source.id, rev: source.rev, fields: { title: "Late rename" } }],
+    });
+    await db.source.update({ where: { id: source.id }, data: { zoteroKey: "ZK2", zoteroData: {}, syncedAt: new Date() } });
+    await expect(applyChanges(agentId, preview.token as string)).rejects.toMatchObject({ code: "invalid_input" });
+    expect((await db.source.findUniqueOrThrow({ where: { id: source.id } })).title).toBe("Synthetic interview");
+  });
+
+  it("allows many unlinked sources (a unique key allows many nulls)", async () => {
+    await makeUnlinked();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Source", fields: { title: "Second", key: "second" } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    expect(await db.source.count({ where: { zoteroKey: null } })).toBe(2);
   });
 });

@@ -11,7 +11,7 @@
 //
 // 1. The shared record ID (items 44, 45, 92). Every record that states a fact has a row in
 //    `Entity`, and its own primary key IS that entity's id (a shared primary key). Citations,
-//    notes, references, tags, external IDs and backlinks point at `Entity`, so they attach to
+//    notes, references, external IDs and backlinks point at `Entity`, so they attach to
 //    any fact record the same way. Deleting the Entity row deletes the record (cascade);
 //    attachments that hold the curator's work use RESTRICT, so a delete or merge must move or
 //    delete them in the same changeset (item 45). The entity row also holds the one
@@ -19,7 +19,7 @@
 //    To create a record: create its Entity row (with its kind) and the record with that id,
 //    in one transaction (Prisma nested create: `entity: { create: { kind: SHOW } }`).
 //
-// 2. Records without an Entity row ("machinery", item 92): Citation, Note, NoteAttachment, TagAssignment,
+// 2. Records without an Entity row ("machinery", item 92): Citation, Note, NoteAttachment,
 //    ExternalId, Backlink, Address, Changeset, ChangesetItem, user accounts and the lookup
 //    lists. Also LineupInstrument, PersonInstrument and SourceCreator (details of the record
 //    they belong to; see the technical choices in docs/schema/migration-plan.md).
@@ -330,7 +330,6 @@ model Entity {
   referencesFrom Reference[]     @relation("ReferenceFrom")
   referencesTo   Reference[]     @relation("ReferenceTo")
   notes          NoteAttachment[]
-  tags           TagAssignment[]
   externalIds    ExternalId[]
   backlinks      Backlink[]
   addresses      Address[]
@@ -1327,11 +1326,14 @@ model Subject {
 
 /// A Zotero item (items 23, 34, 53, 68). Zotero owns the bibliographic part; this table
 /// holds a read-only cache of it, the extracted text and the archive-owned license fields.
+/// Item 108: the Zotero link is optional. An unlinked source has no zoteroKey, zoteroData or
+/// syncedAt, and the archive owns its title. When the curator sets the key of an unlinked source,
+/// the Zotero sync must fill that record and never create a second one.
 model Source {
   id     Int    @id
   entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
 
-  zoteroKey    String      @unique
+  zoteroKey    String?     @unique
   /// Item 42: short key ("gallagher-list") and other names, for "find source".
   key          String      @unique
   otherNames   String[]    @default([])
@@ -1340,8 +1342,8 @@ model Source {
 
   /// Read-only cache from Zotero (item 23): the title for search, the rest as received.
   title        String
-  zoteroData   Json
-  syncedAt     DateTime
+  zoteroData   Json?
+  syncedAt     DateTime?
   /// PRIVATE. Extracted text (OCR or a description for visual items). Never edited (section 6).
   extractedText String?
 
@@ -1562,37 +1564,6 @@ model Backlink {
   @@map("backlinks")
 }
 
-/// An editorial tag: the curator's judgment only (item 43).
-model Tag {
-  id          Int     @id @default(autoincrement())
-  name        String  @unique
-  description String?
-
-  rev       Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  assignments TagAssignment[]
-
-  @@map("tags")
-}
-
-model TagAssignment {
-  id       Int     @id @default(autoincrement())
-  tagId    Int
-  tag      Tag     @relation(fields: [tagId], references: [id], onDelete: Restrict)
-  entityId Int
-  entity   Entity  @relation(fields: [entityId], references: [id], onDelete: Restrict)
-  /// Why (item 43).
-  note     String?
-
-  rev       Int      @default(1)
-  createdAt DateTime @default(now())
-
-  @@unique([tagId, entityId])
-  @@map("tag_assignments")
-}
-
 /// Items 50, 54: a record's ID in an outside system. Only verified IDs are stored.
 model ExternalId {
   id           Int        @id @default(autoincrement())
@@ -1643,7 +1614,7 @@ model Changeset {
   path   ChangesetPath
   status ChangesetStatus @default(PREVIEWED)
 
-  /// Item 42: the evidence it names once; the server writes the citations from it. Any of a
+  /// Item 42, amended by item 109: the evidence it names once. The server writes no citation from it. Any of a
   /// source, a recording (item 29: "I listened") or a contributor (item 102). All empty only
   /// when the curator says it is his own knowledge (`ownKnowledge`).
   sourceId      Int?
@@ -1959,6 +1930,8 @@ model SubjectKind {
   name     String @unique
   position Int    @default(0)
   rev      Int    @default(1)
+  /// A short note on what the kind is for (item 110: "highlight").
+  description String?
 
   subjects Subject[]
 

@@ -1,7 +1,7 @@
 import { AppError } from "@/lib/errors";
 import type { Row } from "@/lib/changes/labels";
 import { isList, modelInfo, usesEntityPublicFlag } from "@/lib/content-access";
-import type { Evidence, FieldValue, ParsedEdit } from "@/lib/validation/content";
+import type { FieldValue, ParsedEdit } from "@/lib/validation/content";
 import { placeSegment } from "@/lib/data/changes/placement";
 import { delegateOf, readRow, type Tx } from "@/lib/data/changes/rows";
 
@@ -34,7 +34,7 @@ export class ConflictAbort extends Error {
 }
 
 function isRef(value: FieldValue): value is { ref: string } {
-  return value !== null && typeof value === "object" && !(value instanceof Date);
+  return value !== null && typeof value === "object" && !(value instanceof Date) && !Array.isArray(value);
 }
 
 /** Replace each `{ ref }` with the ID of the new record it names. */
@@ -102,6 +102,9 @@ async function createRecord(tx: Tx, index: number, edit: ParsedEdit, values: Rec
 async function updateRecord(tx: Tx, index: number, edit: ParsedEdit, values: Record<string, unknown>): Promise<AppliedItem> {
   const id = edit.id as number;
   const before = await readRow(tx, edit.type, id);
+  if (edit.type === "Source" && "title" in values && before?.zoteroKey != null) {
+    throw new AppError("invalid_input", `Edit ${index}: this source is linked to Zotero, so its title is read-only. Change the title in Zotero.`);
+  }
   const entityFlag = usesEntityPublicFlag(edit.type);
   const { isPublic, ...others } = values;
   const columns = entityFlag ? others : values;
@@ -134,28 +137,4 @@ export async function writeEdits(tx: Tx, edits: ParsedEdit[]): Promise<AppliedIt
     }
   }
   return items;
-}
-
-/**
- * Write one citation for every shared record the call created or changed (data-model item 42).
- * "Own knowledge" writes none. The citations join the changeset as new records.
- */
-export async function writeCitations(tx: Tx, items: AppliedItem[], evidence: Evidence, startIndex: number): Promise<AppliedItem[]> {
-  if (evidence.ownKnowledge) return [];
-  const out: AppliedItem[] = [];
-  for (const item of items) {
-    if (!modelInfo(item.type).entityKind) continue;
-    const row = await tx.citation.create({
-      data: {
-        entityId: item.id,
-        sourceId: evidence.sourceId,
-        recordingId: evidence.recordingId,
-        contributorId: evidence.contributorId,
-        place: evidence.place,
-      },
-    });
-    const after = JSON.parse(JSON.stringify(row)) as Row;
-    out.push({ index: startIndex + out.length, op: "create", type: "Citation", id: row.id, expectedRev: null, before: null, after });
-  }
-  return out;
 }
