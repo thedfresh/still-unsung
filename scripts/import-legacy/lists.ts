@@ -177,7 +177,7 @@ export async function seedLists(ctx: Ctx): Promise<void> {
   await ensureNames(ctx, PLACE_KINDS, (data) => db.placeKind.createMany({ data }));
   for (const row of await db.placeKind.findMany()) list.placeKind.set(row.name, row.id);
   await ensureNames(ctx, SOURCE_KINDS, (data) => db.sourceKind.createMany({ data }));
-  await ensureNames(ctx, SUBJECT_KINDS, (data) => db.subjectKind.createMany({ data }));
+  await ensureNames(ctx, SUBJECT_KINDS, (data) => db.subjectKind.createMany({ data, skipDuplicates: true }));
   await ensureNames(ctx, EVIDENCE_KINDS, (data) => db.evidenceKind.createMany({ data }));
   await ensureNames(ctx, INCOMPLETE_REASONS, (data) => db.incompleteReason.createMany({ data }));
 }

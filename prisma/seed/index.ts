@@ -41,7 +41,7 @@ export async function seedLists(db: Db): Promise<void> {
   await upsertAll(db.instrument, lists.instruments);
   await upsertAll(db.placeKind, lists.placeKinds.map((name) => ({ name })));
   await upsertAll(db.sourceKind, lists.sourceKinds.map((name) => ({ name })));
-  await upsertAll(db.subjectKind, lists.subjectKinds.map((name) => ({ name })));
+  await upsertAll(db.subjectKind, lists.subjectKinds);
   await upsertAll(db.incompleteReason, lists.incompleteReasons.map((name) => ({ name })));
   await upsertAll(db.evidenceKind, lists.evidenceKinds.map((name) => ({ name })));
 

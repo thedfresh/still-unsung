@@ -30,7 +30,7 @@ async function readSetlist(showId: number): Promise<Row[]> {
 
 /**
  * One record by ID or by legacy ID, with everything the agent may edit: private fields too. A
- * shared record comes with its citations, notes, tags and external IDs.
+ * shared record comes with its citations, notes and external IDs.
  */
 export async function getRecord(type: string, key: { id?: number; legacyId?: string }): Promise<Row> {
   assertReadable(type);
@@ -45,7 +45,6 @@ export async function getRecord(type: string, key: { id?: number; legacyId?: str
           include: {
             citations: true,
             notes: { include: { note: true } },
-            tags: { include: { tag: true } },
             externalIds: true,
           },
         },
@@ -57,8 +56,8 @@ export async function getRecord(type: string, key: { id?: number; legacyId?: str
   const { entity, ...rest } = row as Row & { entity?: Row & { isPublic: boolean } };
   if (!entity) return toJson(rest);
   const sets = type === "Show" ? await readSetlist(row.id as number) : undefined;
-  const { citations, notes, tags, externalIds, isPublic } = entity as Row & { isPublic: boolean };
-  return toJson({ ...rest, isPublic, ...(sets ? { sets } : {}), attachments: { citations, notes, tags, externalIds } });
+  const { citations, notes, externalIds, isPublic } = entity as Row & { isPublic: boolean };
+  return toJson({ ...rest, isPublic, ...(sets ? { sets } : {}), attachments: { citations, notes, externalIds } });
 }
 
 export interface SearchInput {

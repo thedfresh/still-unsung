@@ -63,7 +63,15 @@ export const placeKinds = ["stage", "hall", "campus", "park", "farm", "village",
 
 export const sourceKinds = ["ticket", "poster", "advertisement", "review", "tape list", "album", "book", "image"];
 
-export const subjectKinds = ["theme", "place", "character", "song form", "event of the day"];
+export const subjectKinds = [
+  { name: "theme" },
+  { name: "place" },
+  { name: "character" },
+  { name: "song form" },
+  { name: "event of the day" },
+  // Item 110: the curator's judgments. A record is marked by a "part of" reference to one.
+  { name: "highlight", description: "The curator's judgments, such as a notable show or an excellent version." },
+];
 
 export const incompleteReasons = ["assumed", "inferred from the tape", "reported"];
 
