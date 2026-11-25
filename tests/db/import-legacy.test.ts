@@ -48,6 +48,14 @@ describe("legacy import: accounting", () => {
     expect(unaccounted).toBe(0);
   });
 
+  it("leaves the highlight subject kind in place, after the other kinds (item 110)", async () => {
+    const kinds = await prisma.subjectKind.findMany({ orderBy: { position: "asc" } });
+    const highlight = kinds.find((kind) => kind.name === "highlight");
+    expect(highlight?.description).toBeTruthy();
+    expect(kinds[kinds.length - 1]).toBe(highlight);
+    expect(new Set(kinds.map((kind) => kind.position)).size).toBe(kinds.length);
+  });
+
   it("writes a report with no emails, banter text or raw entries", async () => {
     const report = await readFile(path.join(outputDir, "report.md"), "utf8");
     expect(report).toContain("Stress tests");
