@@ -267,6 +267,11 @@ npm run test:e2e   # when pages change
 - **Every admin page, action and route checks a role.** A page calls `AdminShell` (it checks
   `ADMIN`). An action uses `defineAction` with `roles`. A route uses `defineRoute` with `roles`.
   (review; tests cover the checks)
+- **Sign in before any data read.** An admin page calls `requireAdminPage()` before it reads
+  data, and before it awaits anything that reads data. `AdminShell` checks the role too, but it
+  renders after the page has loaded its data, so it is too late to protect the read. The
+  page's inner component starts with `await requireAdminPage();`. (review; e2e test for a
+  signed-out request)
 - **Sign-up is closed.** Only an email that has a `users` row signs in. Add users in the admin
   or with `npm run db:create-admin`. Auth.js never writes a user (`createClosedAdapter`). (test)
 - **Agent tokens.** Only the SHA-256 hash is stored. Only a user with the `AGENT` role has a

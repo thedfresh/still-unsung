@@ -56,6 +56,9 @@ generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
   importFileExtension = "ts"
+  // Lets a read ask for `relationLoadStrategy: "join"`: one query for a read with its relations
+  // (HSA-163, the show review page). It changes no table, so no migration.
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
