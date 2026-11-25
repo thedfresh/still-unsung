@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isUpdatable, MODEL, modelInfo, SYSTEM_FIELDS, writeRefusal } from "@/lib/content-access";
+import { AGENT_FORBIDDEN_FIELDS, isUpdatable, MODEL, modelInfo, SYSTEM_FIELDS, writeRefusal } from "@/lib/content-access";
 import type { FieldInfo } from "@/lib/content-model-types";
 import { AppError } from "@/lib/errors";
 
@@ -16,7 +16,7 @@ export interface RefValue {
   ref: string;
 }
 
-export type FieldValue = string | number | boolean | Date | null | RefValue;
+export type FieldValue = string | number | boolean | Date | null | RefValue | string[];
 
 export interface ParsedEdit {
   op: "create" | "update";
@@ -59,6 +59,7 @@ function scalarSchema(name: string, info: FieldInfo): z.ZodType {
 
 function fieldSchema(name: string, info: FieldInfo, forCreate: boolean): z.ZodType {
   let schema = scalarSchema(name, info);
+  if (info.list) schema = z.array(schema).max(100);
   if (info.fk) schema = z.union([schema, refSchema]);
   const nullable = !info.required;
   if (nullable) schema = schema.nullable();
@@ -144,6 +145,13 @@ export function parseEdits(input: unknown): ParsedEdit[] {
     if (op === "update" && !isUpdatable(type)) {
       return void (problems[`${prefix}.type`] = [`A ${type} record cannot be changed after it is created.`]);
     }
+    const forbidden = (AGENT_FORBIDDEN_FIELDS[type] ?? []).filter((name) => Object.hasOwn(edit.data.fields, name));
+    if (forbidden.length > 0) {
+      for (const name of forbidden) {
+        problems[`${prefix}.fields.${name}`] = [`The tools never set ${type}.${name}. Only the admin and the Zotero sync set it.`];
+      }
+      return;
+    }
     const fields = fieldsSchema(type, op).safeParse(edit.data.fields);
     if (!fields.success) return addIssues(problems, `${prefix}.fields`, fields.error);
     const values = fields.data as Record<string, FieldValue>;
@@ -175,7 +183,7 @@ function checkRefs(
   problems: Record<string, string[]>,
 ): void {
   for (const [name, value] of Object.entries(values)) {
-    if (value === null || typeof value !== "object" || value instanceof Date) continue;
+    if (value === null || typeof value !== "object" || value instanceof Date || Array.isArray(value)) continue;
     const target = modelInfo(type).fields[name]?.fk;
     const kind = created.get(value.ref);
     if (kind === undefined) problems[`${prefix}.${name}`] = [`No earlier new record has the ref "${value.ref}".`];

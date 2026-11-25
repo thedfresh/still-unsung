@@ -101,6 +101,9 @@ async function createRecord(tx: Tx, index: number, edit: ParsedEdit, values: Rec
 async function updateRecord(tx: Tx, index: number, edit: ParsedEdit, values: Record<string, unknown>): Promise<AppliedItem> {
   const id = edit.id as number;
   const before = await readRow(tx, edit.type, id);
+  if (edit.type === "Source" && "title" in values && before?.zoteroKey != null) {
+    throw new AppError("invalid_input", `Edit ${index}: this source is linked to Zotero, so its title is read-only. Change the title in Zotero.`);
+  }
   const entityFlag = usesEntityPublicFlag(edit.type);
   const { isPublic, ...others } = values;
   const columns = entityFlag ? others : values;

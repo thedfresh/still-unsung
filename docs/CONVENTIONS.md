@@ -292,6 +292,10 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   tokens, sessions, changesets, the `entities` table, backlinks or addresses. It never writes an
   editable list (item 91): a preview that needs a new list value stops and names it. It never
   deletes or merges. (test: `tests/db/agent-changes.test.ts`)
+- **Zotero fields.** A source may have no Zotero link (item 108). The tools may create a
+  source with `title`, `key`, `sourceKindId` and `otherNames`, and change them while it is
+  unlinked. They never set `zoteroKey`, `zoteroData` or `syncedAt` (`AGENT_FORBIDDEN_FIELDS`).
+  They never change the title of a linked source. (test: `tests/db/agent-changes.test.ts`)
 - **Validation is built once.** `src/lib/validation/content.ts` builds the checks for every
   content table from `src/lib/content-model.json`. The admin forms use the same checks. After a
   schema change, run `npm run db:content-model`; a unit test fails while the file is out of date.

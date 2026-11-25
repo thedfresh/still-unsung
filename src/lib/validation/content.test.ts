@@ -71,6 +71,16 @@ describe("parseEdits", () => {
     expect(problems([{ op: "create", type: "Source", fields: { zoteroData: {} } }])).toBeTruthy();
     expect(problems([])).toHaveProperty(["edits"]);
   });
+
+  it("creates a source with only a title and a key, and never sets the Zotero fields", () => {
+    const [edit] = parseEdits([{ op: "create", type: "Source", fields: { title: "An interview", key: "an-interview", sourceKindId: 3, otherNames: ["x"] } }]);
+    expect(edit.fields).toMatchObject({ title: "An interview", key: "an-interview" });
+    for (const name of ["zoteroKey", "zoteroData", "syncedAt"]) {
+      const fields = { title: "t", key: "k", [name]: name === "zoteroData" ? {} : "x" };
+      expect(problems([{ op: "create", type: "Source", fields }])).toHaveProperty([`edits.0.fields.${name}`]);
+      expect(problems([{ op: "update", type: "Source", id: 1, rev: 1, fields: { [name]: null } }])).toHaveProperty([`edits.0.fields.${name}`]);
+    }
+  });
 });
 
 describe("parseEvidence", () => {
