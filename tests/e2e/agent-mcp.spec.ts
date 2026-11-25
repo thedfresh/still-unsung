@@ -34,7 +34,9 @@ async function ensureImportRulesPage(): Promise<number> {
 }
 
 test.describe("the MCP endpoint", () => {
-  test("tells a new client to read the import rules, serves them, and shows an edit at once", async ({ context, baseURL, page, request }) => {
+  test("tells a new client to read the import rules, serves them, and shows an edit at once", async ({ context, baseURL, page, request }, testInfo) => {
+    // All projects edit the same page, so only the desktop project runs this test.
+    test.skip(testInfo.project.name !== "desktop", "The projects share one rules page.");
     const admin = await seedSignedInUser("ADMIN");
     const agent = await seedSignedInUser("AGENT");
     await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
@@ -63,10 +65,23 @@ test.describe("the MCP endpoint", () => {
       edits: [{ op: "update", type: "GuidePage", id: pageId, rev, fields: { body: words } }],
     });
     expect(preview.isError).toBe(false);
-    await callTool(request, token, "apply_changes", { token: /Apply token: (suprev_\S+)/.exec(preview.text)![1] });
+    const applied = await callTool(request, token, "apply_changes", { token: /Apply token: (suprev_\S+)/.exec(preview.text)![1] });
+    expect(applied.isError).toBe(false);
     const second = await callTool(request, token, "get_import_rules", {});
     expect(second.text).toContain(words);
     expect(second.text).toContain(`rev ${rev + 1}`);
+
+    // An agent cannot make the page public, rename it or delete it.
+    const refusedEdits = [
+      { op: "update", type: "GuidePage", id: pageId, rev: rev + 1, fields: { isPublic: true } },
+      { op: "update", type: "GuidePage", id: pageId, rev: rev + 1, fields: { slug: "other" } },
+      { op: "delete", type: "GuidePage", id: pageId, rev: rev + 1 },
+    ];
+    for (const edit of refusedEdits) {
+      const refused = await callTool(request, token, "preview_changes", { evidence: { ownKnowledge: true }, edits: [edit] });
+      expect(refused.text).toContain("The import rules page stays private");
+      expect(refused.text).not.toContain("Apply token");
+    }
 
     // The rules are on no public page, and the home page does not carry them.
     const home = await request.get("/");
@@ -84,6 +99,21 @@ test.describe("the MCP endpoint", () => {
       data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
     });
     expect(wrong.status()).toBe(401);
+  });
+
+  test("get_import_rules is refused with no token and with a wrong token", async ({ request }) => {
+    const call = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_import_rules", arguments: {} } };
+    expect((await request.post("/api/v1/mcp", { headers: HEADERS, data: call })).status()).toBe(401);
+    const wrong = await request.post("/api/v1/mcp", { headers: { ...HEADERS, Authorization: "Bearer suat_wrong" }, data: call });
+    expect(wrong.status()).toBe(401);
+  });
+
+  test("get_import_rules is refused with an admin session", async ({ context, baseURL }) => {
+    const admin = await seedSignedInUser("ADMIN");
+    await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
+    const call = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_import_rules", arguments: {} } };
+    const res = await context.request.post("/api/v1/mcp", { headers: HEADERS, data: call });
+    expect([401, 403]).toContain(res.status());
   });
 
   test("refuses an admin session cookie: only an agent token opens it", async ({ context, baseURL, request }) => {

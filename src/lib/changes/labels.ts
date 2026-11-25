@@ -103,6 +103,7 @@ export function isPrivateText(type: string, field: string, row: Row | null): boo
       return true;
     case "VersionPassage.wording":
       return row?.wordingPublic !== true;
+    case "GuidePage.body":
     case "Note.body":
       return row?.isPublic !== true;
     default:

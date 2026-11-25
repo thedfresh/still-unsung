@@ -5,7 +5,7 @@ import { previewChanges } from "@/lib/data/changes/preview";
 import { getImportRules, getPublicGuidePage, listPublicGuidePages } from "@/lib/data/guide-pages";
 import { addUser } from "@/lib/data/users";
 import { getPrisma } from "@/lib/db";
-import { IMPORT_RULES_PLACEHOLDER, IMPORT_RULES_SLUG } from "@/lib/import-rules";
+import { IMPORT_RULES_PLACEHOLDER, IMPORT_RULES_SLUG, MCP_INSTRUCTIONS } from "@/lib/import-rules";
 import { resetDatabase } from "../support/reset-database";
 
 const db = getPrisma();
@@ -60,5 +60,54 @@ describe("the import rules page", () => {
     expect(after.rev).toBe(before.rev + 1);
     const entity = await db.entity.findUniqueOrThrow({ where: { id: page.id } });
     expect(entity.isPublic).toBe(false);
+  });
+
+  it("refuses agent edits that expose, rename or delete the page", async () => {
+    await seedImportRulesPage(db);
+    const page = await db.guidePage.findUniqueOrThrow({ where: { slug: IMPORT_RULES_SLUG } });
+    const edits = [
+      { op: "update", type: "GuidePage", id: page.id, rev: page.rev, fields: { isPublic: true } },
+      { op: "update", type: "GuidePage", id: page.id, rev: page.rev, fields: { slug: "other" } },
+      { op: "delete", type: "GuidePage", id: page.id, rev: page.rev },
+    ];
+    for (const edit of edits) {
+      const preview = await previewChanges(agentId, { evidence: { ownKnowledge: true }, edits: [edit] });
+      expect(preview.token).toBeNull();
+      expect(preview.warnings.join(" ")).toContain("The import rules page stays private; only its body can change.");
+    }
+    expect((await db.entity.findUniqueOrThrow({ where: { id: page.id } })).isPublic).toBe(false);
+    expect((await getImportRules()).rev).toBe(page.rev);
+  });
+
+  it("keeps a change to the page private, whatever the caller passes", async () => {
+    await seedImportRulesPage(db);
+    const page = await db.guidePage.findUniqueOrThrow({ where: { slug: IMPORT_RULES_SLUG } });
+    const preview = await previewChanges(agentId, {
+      evidence: { ownKnowledge: true },
+      isPublic: true,
+      edits: [{ op: "update", type: "GuidePage", id: page.id, rev: page.rev, fields: { body: "More rules." } }],
+    });
+    expect(preview.isPublic).toBe(false);
+    const result = await applyChanges(agentId, preview.token as string, true);
+    expect(result.ok).toBe(true);
+    const changesets = await db.changeset.findMany();
+    expect(changesets.length).toBeGreaterThan(0);
+    expect(changesets.every((c) => c.isPublic === false)).toBe(true);
+  });
+
+  it("takes a body of 100,000 characters and refuses more", async () => {
+    await seedImportRulesPage(db);
+    const page = await db.guidePage.findUniqueOrThrow({ where: { slug: IMPORT_RULES_SLUG } });
+    const edit = (body: string) => ({ op: "update", type: "GuidePage", id: page.id, rev: page.rev, fields: { body } });
+    const ok = await previewChanges(agentId, { evidence: { ownKnowledge: true }, edits: [edit("a".repeat(100_000))] });
+    expect(ok.token).not.toBeNull();
+    await expect(previewChanges(agentId, { evidence: { ownKnowledge: true }, edits: [edit("a".repeat(100_001))] })).rejects.toThrow();
+  });
+
+  it("gives a plain error when the page is missing", async () => {
+    await db.guidePage.deleteMany({ where: { slug: IMPORT_RULES_SLUG } });
+    await expect(getImportRules()).rejects.toThrow(/import rules page does not exist/);
+    // The connect-time text is fixed: it does not read the page.
+    expect(MCP_INSTRUCTIONS).toContain("get_import_rules");
   });
 });

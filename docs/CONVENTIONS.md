@@ -296,7 +296,9 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   call `get_import_rules`, which reads the page on every call and returns the body and `rev`.
   Edit it with an agent `update` on `GuidePage`. `seedImportRulesPage` makes the page with a
   placeholder when it is missing (`npm run db:seed -- --import-rules-only`). Every public read of a
-  guide page goes through `src/lib/data/guide-pages.ts`, which leaves out private pages.
+  guide page goes through `src/lib/data/guide-pages.ts`, which leaves out private pages. No public
+  reader of guide pages exists yet. Any future one must use those `isPublic` helpers. The page
+  refuses an agent edit of `isPublic` or `slug`, and a delete. A change to it is always private.
   (test: `tests/db/import-rules.test.ts`, `tests/e2e/agent-mcp.spec.ts`)
 - **Five tools.** `preview_changes` and `apply_changes` write. `get_record`, `search_records`
   and `get_import_rules` read. One general edit tool covers every content table; add a task-specific tool only when a

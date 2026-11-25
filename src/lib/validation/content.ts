@@ -72,8 +72,15 @@ function sourceTextSchema(name: string, info: FieldInfo): z.ZodType | null {
   return null;
 }
 
+/** A guide page body may hold long text: the import rules page needs more than the default cap. */
+const GUIDE_BODY_MAX = 100_000;
+
 function fieldSchema(type: string, name: string, info: FieldInfo, forCreate: boolean): z.ZodType {
-  let schema = (type === "Source" && !info.list && sourceTextSchema(name, info)) || scalarSchema(name, info);
+  const longGuideBody = type === "GuidePage" && name === "body" && !info.list;
+  let schema =
+    (type === "Source" && !info.list && sourceTextSchema(name, info)) ||
+    (longGuideBody && z.string().max(GUIDE_BODY_MAX)) ||
+    scalarSchema(name, info);
   if (info.list) schema = z.array(schema).max(100);
   if (info.fk) schema = z.union([schema, refSchema]);
   const nullable = !info.required;
