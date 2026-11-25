@@ -1,0 +1,4809 @@
+{
+ "enums": {
+  "Certainty": [
+   "CONFIRMED",
+   "PROBABLE",
+   "POSSIBLE",
+   "UNKNOWN"
+  ],
+  "ShowStatus": [
+   "TOOK_PLACE",
+   "CANCELED",
+   "SPURIOUS",
+   "UNKNOWN"
+  ],
+  "Delivery": [
+   "SUNG",
+   "SUNG_A_CAPPELLA",
+   "PLAYED",
+   "SPOKEN"
+  ],
+  "Extent": [
+   "COMPLETE",
+   "PARTIAL",
+   "FRAGMENT",
+   "ABORTED"
+  ],
+  "Join": [
+   "STOPS",
+   "RUNS_INTO"
+  ],
+  "TitleStatus": [
+   "KNOWN",
+   "WORKING_TITLE"
+  ],
+  "VocalRole": [
+   "LEAD",
+   "HARMONY",
+   "BACKING"
+  ],
+  "BillRole": [
+   "HEADLINER",
+   "OPENER",
+   "CO_BILL"
+  ],
+  "MemberOverride": [
+   "MEMBER",
+   "GUEST"
+  ],
+  "CreditKind": [
+   "AS_CREDITED",
+   "ATTRIBUTED"
+  ],
+  "VersionOf": [
+   "WORDS",
+   "TUNE"
+  ],
+  "PassageKind": [
+   "FIXED",
+   "MOTIF"
+  ],
+  "PassageRole": [
+   "VERSE",
+   "CHORUS",
+   "REFRAIN",
+   "BRIDGE",
+   "OTHER"
+  ],
+  "PassageChange": [
+   "CHANGED",
+   "ADDED",
+   "LEFT_OUT"
+  ],
+  "SuiteStructure": [
+   "FIXED",
+   "VARIABLE"
+  ],
+  "CitationAspect": [
+   "SHOW_DATE",
+   "SHOW_TIME",
+   "SHOW_PLACE",
+   "SHOW_STATUS",
+   "SHOW_SETLIST",
+   "SHOW_LINEUP",
+   "SHOW_BILLING",
+   "SEGMENT_IDENTIFICATION",
+   "SEGMENT_WORDS",
+   "SEGMENT_EXTENT",
+   "SEGMENT_CUT_MARKS",
+   "SEGMENT_VERSION",
+   "WORK_CREDIT",
+   "WORK_DATE",
+   "VERSION_WORDING",
+   "VERSION_FIRST_KNOWN_FROM",
+   "VERSION_CHANGED_BY",
+   "VARIANT_FIRST_KNOWN_FROM",
+   "VARIANT_ORIGIN",
+   "RENDITION_FIRST_KNOWN_FROM",
+   "RENDITION_ORIGIN"
+  ],
+  "LinkPurpose": [
+   "LISTEN",
+   "WATCH",
+   "READ",
+   "IDENTIFY"
+  ],
+  "UserRole": [
+   "ADMIN",
+   "AGENT"
+  ],
+  "ChangesetPath": [
+   "ADMIN",
+   "MCP",
+   "IMPORT"
+  ],
+  "ChangesetStatus": [
+   "PREVIEWED",
+   "APPLIED",
+   "UNDONE"
+  ],
+  "ChangeAction": [
+   "CREATE",
+   "UPDATE",
+   "DELETE"
+  ],
+  "EntityKind": [
+   "SHOW",
+   "SET",
+   "SEGMENT",
+   "PORTION_ENTRY",
+   "SEGMENT_VARIANT",
+   "VOCAL_ENTRY",
+   "LINEUP_ENTRY",
+   "BILL_ENTRY",
+   "SHOW_GROUP",
+   "SHOW_GROUP_MEMBER",
+   "PERIOD",
+   "RECORDING",
+   "PLACE",
+   "PLACE_NAME",
+   "BAND",
+   "PERSON",
+   "WORK",
+   "WORK_SINGER",
+   "CREDIT",
+   "SUITE_PART",
+   "PASSAGE",
+   "VERSION",
+   "VERSION_BASIS",
+   "VERSION_PASSAGE",
+   "VARIANT",
+   "VARIANT_PASSAGE",
+   "RENDITION",
+   "APPEARANCE",
+   "REFERENCE",
+   "SUBJECT",
+   "SOURCE",
+   "SOURCE_WORK",
+   "GUIDE_PAGE"
+  ]
+ },
+ "models": {
+  "Entity": {
+   "delegate": "entity",
+   "table": "entities",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "kind": {
+     "type": "EntityKind",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "SHOW",
+      "SET",
+      "SEGMENT",
+      "PORTION_ENTRY",
+      "SEGMENT_VARIANT",
+      "VOCAL_ENTRY",
+      "LINEUP_ENTRY",
+      "BILL_ENTRY",
+      "SHOW_GROUP",
+      "SHOW_GROUP_MEMBER",
+      "PERIOD",
+      "RECORDING",
+      "PLACE",
+      "PLACE_NAME",
+      "BAND",
+      "PERSON",
+      "WORK",
+      "WORK_SINGER",
+      "CREDIT",
+      "SUITE_PART",
+      "PASSAGE",
+      "VERSION",
+      "VERSION_BASIS",
+      "VERSION_PASSAGE",
+      "VARIANT",
+      "VARIANT_PASSAGE",
+      "RENDITION",
+      "APPEARANCE",
+      "REFERENCE",
+      "SUBJECT",
+      "SOURCE",
+      "SOURCE_WORK",
+      "GUIDE_PAGE"
+     ]
+    },
+    "isPublic": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "Show": {
+   "delegate": "show",
+   "table": "shows",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "dateYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateAsWritten": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "timeLabel": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "scheduledTime": {
+     "type": "DateTime",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "dbType": "Time"
+    },
+    "orderOnDate": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "placeId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Place"
+    },
+    "placeNameId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "PlaceName"
+    },
+    "placeCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "billedAs": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "bandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "showTypeId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "ShowType"
+    },
+    "status": {
+     "type": "ShowStatus",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "TOOK_PLACE",
+      "CANCELED",
+      "SPURIOUS",
+      "UNKNOWN"
+     ]
+    },
+    "statusCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "hunterParticipationCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "slug": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "SHOW"
+  },
+  "Set": {
+   "delegate": "set",
+   "table": "sets",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "showId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Show"
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "setTypeId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "SetType"
+    },
+    "bandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "incompleteReasonId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "IncompleteReason"
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "SET"
+  },
+  "Segment": {
+   "delegate": "segment",
+   "table": "segments",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "setId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Set"
+    },
+    "parentId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Segment"
+    },
+    "sortKey": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "joinsNext": {
+     "type": "Join",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "STOPS",
+      "RUNS_INTO"
+     ]
+    },
+    "delivery": {
+     "type": "Delivery",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "SUNG",
+      "SUNG_A_CAPPELLA",
+      "PLAYED",
+      "SPOKEN"
+     ]
+    },
+    "workId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "workCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "wordsFromWorkId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "wordsFromCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "tuneFromWorkId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "tuneFromCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "wordsVersionId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Version"
+    },
+    "tuneVersionId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Version"
+    },
+    "extent": {
+     "type": "Extent",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "COMPLETE",
+      "PARTIAL",
+      "FRAGMENT",
+      "ABORTED"
+     ]
+    },
+    "portionNote": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "cutAtStart": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "cutAtEnd": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "hasGaps": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "deliveredById": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "deliveredByCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "wordsAsHeard": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "transcribedById": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "wordsPublic": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "SEGMENT"
+  },
+  "PortionEntry": {
+   "delegate": "portionEntry",
+   "table": "portion_entries",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "segmentId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Segment"
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "passageId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Passage"
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "PORTION_ENTRY"
+  },
+  "SegmentVariant": {
+   "delegate": "segmentVariant",
+   "table": "segment_variants",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "segmentId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Segment"
+    },
+    "variantId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Variant"
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": "SEGMENT_VARIANT"
+  },
+  "VocalEntry": {
+   "delegate": "vocalEntry",
+   "table": "vocal_entries",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "segmentId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Segment"
+    },
+    "personId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "role": {
+     "type": "VocalRole",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "LEAD",
+      "HARMONY",
+      "BACKING"
+     ]
+    },
+    "delivery": {
+     "type": "Delivery",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "SUNG",
+      "SUNG_A_CAPPELLA",
+      "PLAYED",
+      "SPOKEN"
+     ]
+    },
+    "passageId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Passage"
+    },
+    "scopeNote": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "VOCAL_ENTRY"
+  },
+  "LineupEntry": {
+   "delegate": "lineupEntry",
+   "table": "lineup_entries",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "bandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "showId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Show"
+    },
+    "setId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Set"
+    },
+    "segmentId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Segment"
+    },
+    "personId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "dateYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateAsWritten": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "absent": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "memberOverride": {
+     "type": "MemberOverride",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "MEMBER",
+      "GUEST"
+     ]
+    },
+    "sings": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "LINEUP_ENTRY"
+  },
+  "LineupInstrument": {
+   "delegate": "lineupInstrument",
+   "table": "lineup_instruments",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "lineupEntryId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "LineupEntry"
+    },
+    "instrumentId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Instrument"
+    }
+   },
+   "entityKind": null
+  },
+  "BillEntry": {
+   "delegate": "billEntry",
+   "table": "bill_entries",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "showId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Show"
+    },
+    "showGroupId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "ShowGroup"
+    },
+    "actBandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "actPersonId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "role": {
+     "type": "BillRole",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "HEADLINER",
+      "OPENER",
+      "CO_BILL"
+     ]
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "certainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "BILL_ENTRY"
+  },
+  "Recording": {
+   "delegate": "recording",
+   "table": "recordings",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "showId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Show"
+    },
+    "recordingTypeId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "RecordingType"
+    },
+    "description": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "taperId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "lengthMinutes": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "inCirculation": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "featured": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "featuredText": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "RECORDING"
+  },
+  "Place": {
+   "delegate": "place",
+   "table": "places",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "placeKindId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "PlaceKind"
+    },
+    "parentId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Place"
+    },
+    "slug": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "PLACE"
+  },
+  "PlaceName": {
+   "delegate": "placeName",
+   "table": "place_names",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "placeId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Place"
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "PLACE_NAME"
+  },
+  "ShowGroup": {
+   "delegate": "showGroup",
+   "table": "show_groups",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "showGroupKindId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "ShowGroupKind"
+    },
+    "slug": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "SHOW_GROUP"
+  },
+  "ShowGroupMember": {
+   "delegate": "showGroupMember",
+   "table": "show_group_members",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "showGroupId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "ShowGroup"
+    },
+    "showId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Show"
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": "SHOW_GROUP_MEMBER"
+  },
+  "Period": {
+   "delegate": "period",
+   "table": "periods",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateAsWritten": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "bandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "slug": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "PERIOD"
+  },
+  "Band": {
+   "delegate": "band",
+   "table": "bands",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "displayName": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "isHunterBand": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "slug": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "BAND"
+  },
+  "Person": {
+   "delegate": "person",
+   "table": "people",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "firstName": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "lastName": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "key": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "otherNames": {
+     "type": "String",
+     "required": false,
+     "list": true,
+     "hasDefault": true
+    },
+    "email": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "slug": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "PERSON"
+  },
+  "PersonInstrument": {
+   "delegate": "personInstrument",
+   "table": "person_instruments",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "personId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "instrumentId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Instrument"
+    }
+   },
+   "entityKind": null
+  },
+  "Work": {
+   "delegate": "work",
+   "table": "works",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "title": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "otherNames": {
+     "type": "String",
+     "required": false,
+     "list": true,
+     "hasDefault": true
+    },
+    "titleStatus": {
+     "type": "TitleStatus",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "KNOWN",
+      "WORKING_TITLE"
+     ]
+    },
+    "workKindId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "WorkKind"
+    },
+    "suiteStructure": {
+     "type": "SuiteStructure",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "FIXED",
+      "VARIABLE"
+     ]
+    },
+    "defaultDelivery": {
+     "type": "Delivery",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "SUNG",
+      "SUNG_A_CAPPELLA",
+      "PLAYED",
+      "SPOKEN"
+     ]
+    },
+    "writtenForBandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "writtenForPersonId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "writtenForCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "dateYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateAsWritten": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "placeWrittenId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Place"
+    },
+    "timeWritten": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "displayVersionId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Version"
+    },
+    "slug": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "WORK"
+  },
+  "WorkSinger": {
+   "delegate": "workSinger",
+   "table": "work_singers",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "workId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "bandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "personId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "WORK_SINGER"
+  },
+  "Credit": {
+   "delegate": "credit",
+   "table": "credits",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "workId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "versionId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Version"
+    },
+    "personId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "roleId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "CreditRole"
+    },
+    "kind": {
+     "type": "CreditKind",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "AS_CREDITED",
+      "ATTRIBUTED"
+     ]
+    },
+    "certainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "CREDIT"
+  },
+  "SuitePart": {
+   "delegate": "suitePart",
+   "table": "suite_parts",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "suiteWorkId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "partWorkId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "SUITE_PART"
+  },
+  "Passage": {
+   "delegate": "passage",
+   "table": "passages",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "workId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "kind": {
+     "type": "PassageKind",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "FIXED",
+      "MOTIF"
+     ]
+    },
+    "label": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "role": {
+     "type": "PassageRole",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "VERSE",
+      "CHORUS",
+      "REFRAIN",
+      "BRIDGE",
+      "OTHER"
+     ]
+    },
+    "motifKey": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "description": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "searchWords": {
+     "type": "String",
+     "required": false,
+     "list": true,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "PASSAGE"
+  },
+  "Version": {
+   "delegate": "version",
+   "table": "versions",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "workId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "versionOf": {
+     "type": "VersionOf",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "WORDS",
+      "TUNE"
+     ]
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "displayName": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateAsWritten": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "firstKnownFromId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "firstKnownFromBandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "firstKnownFromCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "changedById": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "changedByCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "evidenceKindId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "EvidenceKind"
+    },
+    "wordingReviewed": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "wordingPublic": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "VERSION"
+  },
+  "VersionBasis": {
+   "delegate": "versionBasis",
+   "table": "version_bases",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "versionId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Version"
+    },
+    "basedOnId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Version"
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": "VERSION_BASIS"
+  },
+  "VersionPassage": {
+   "delegate": "versionPassage",
+   "table": "version_passages",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "versionId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Version"
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "passageId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Passage"
+    },
+    "wording": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "startsStanza": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "VERSION_PASSAGE"
+  },
+  "Variant": {
+   "delegate": "variant",
+   "table": "variants",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "versionId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Version"
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "description": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "firstKnownFromId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "firstKnownFromBandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "originId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "originCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "VARIANT"
+  },
+  "VariantPassage": {
+   "delegate": "variantPassage",
+   "table": "variant_passages",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "variantId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Variant"
+    },
+    "passageId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Passage"
+    },
+    "change": {
+     "type": "PassageChange",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "CHANGED",
+      "ADDED",
+      "LEFT_OUT"
+     ]
+    },
+    "wording": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "VARIANT_PASSAGE"
+  },
+  "Rendition": {
+   "delegate": "rendition",
+   "table": "renditions",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "segmentId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Segment"
+    },
+    "passageId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Passage"
+    },
+    "portionEntryId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "PortionEntry"
+    },
+    "change": {
+     "type": "PassageChange",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "CHANGED",
+      "ADDED",
+      "LEFT_OUT"
+     ]
+    },
+    "description": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "wording": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "firstKnownFromId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "firstKnownFromBandId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Band"
+    },
+    "originId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "originCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "RENDITION"
+  },
+  "Appearance": {
+   "delegate": "appearance",
+   "table": "appearances",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "segmentId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Segment"
+    },
+    "passageId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Passage"
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": "APPEARANCE"
+  },
+  "Subject": {
+   "delegate": "subject",
+   "table": "subjects",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "otherNames": {
+     "type": "String",
+     "required": false,
+     "list": true,
+     "hasDefault": true
+    },
+    "subjectKindId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "SubjectKind"
+    },
+    "slug": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "SUBJECT"
+  },
+  "Source": {
+   "delegate": "source",
+   "table": "sources",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "zoteroKey": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "key": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "otherNames": {
+     "type": "String",
+     "required": false,
+     "list": true,
+     "hasDefault": true
+    },
+    "sourceKindId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "SourceKind"
+    },
+    "title": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "zoteroData": {
+     "type": "Json",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "syncedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "extractedText": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "licenseCode": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "licenseUrl": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rightsHolder": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "creditLine": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "sourceUrl": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "slug": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "SOURCE"
+  },
+  "SourceCreator": {
+   "delegate": "sourceCreator",
+   "table": "source_creators",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "sourceId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Source"
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "creatorType": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "personId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    }
+   },
+   "entityKind": null
+  },
+  "SourceWork": {
+   "delegate": "sourceWork",
+   "table": "source_works",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "sourceId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Source"
+    },
+    "workId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Work"
+    },
+    "versionId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Version"
+    },
+    "place": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "SOURCE_WORK"
+  },
+  "Reference": {
+   "delegate": "reference",
+   "table": "references",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "fromId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Entity"
+    },
+    "toId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Entity"
+    },
+    "referenceKindId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "ReferenceKind"
+    },
+    "certainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "saidById": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "dateYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndYear": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndMonth": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateEndDay": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateAsWritten": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "dateCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ]
+    },
+    "note": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "REFERENCE"
+  },
+  "Citation": {
+   "delegate": "citation",
+   "table": "citations",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "entityId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Entity"
+    },
+    "aspect": {
+     "type": "CitationAspect",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "SHOW_DATE",
+      "SHOW_TIME",
+      "SHOW_PLACE",
+      "SHOW_STATUS",
+      "SHOW_SETLIST",
+      "SHOW_LINEUP",
+      "SHOW_BILLING",
+      "SEGMENT_IDENTIFICATION",
+      "SEGMENT_WORDS",
+      "SEGMENT_EXTENT",
+      "SEGMENT_CUT_MARKS",
+      "SEGMENT_VERSION",
+      "WORK_CREDIT",
+      "WORK_DATE",
+      "VERSION_WORDING",
+      "VERSION_FIRST_KNOWN_FROM",
+      "VERSION_CHANGED_BY",
+      "VARIANT_FIRST_KNOWN_FROM",
+      "VARIANT_ORIGIN",
+      "RENDITION_FIRST_KNOWN_FROM",
+      "RENDITION_ORIGIN"
+     ]
+    },
+    "sourceId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Source"
+    },
+    "recordingId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Recording"
+    },
+    "place": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "contributorId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "citedOn": {
+     "type": "DateTime",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "dbType": "Date"
+    },
+    "excerpt": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "note": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": null
+  },
+  "Note": {
+   "delegate": "note",
+   "table": "notes",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "body": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "isPublic": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": null
+  },
+  "NoteAttachment": {
+   "delegate": "noteAttachment",
+   "table": "note_attachments",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "noteId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Note"
+    },
+    "entityId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Entity"
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "GuidePage": {
+   "delegate": "guidePage",
+   "table": "guide_pages",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isId": true,
+     "fk": "Entity"
+    },
+    "title": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "body": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "slug": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": "GUIDE_PAGE"
+  },
+  "Backlink": {
+   "delegate": "backlink",
+   "table": "backlinks",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "fromNoteId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Note"
+    },
+    "fromGuidePageId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "GuidePage"
+    },
+    "toEntityId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Entity"
+    },
+    "url": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    }
+   },
+   "entityKind": null
+  },
+  "Tag": {
+   "delegate": "tag",
+   "table": "tags",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "description": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": null
+  },
+  "TagAssignment": {
+   "delegate": "tagAssignment",
+   "table": "tag_assignments",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "tagId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Tag"
+    },
+    "entityId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Entity"
+    },
+    "note": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "ExternalId": {
+   "delegate": "externalId",
+   "table": "external_ids",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "entityId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Entity"
+    },
+    "linkSystemId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "LinkSystem"
+    },
+    "value": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "isActive": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "checkedAt": {
+     "type": "DateTime",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "legacyId": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": null
+  },
+  "Address": {
+   "delegate": "address",
+   "table": "addresses",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "path": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "entityId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Entity"
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "Changeset": {
+   "delegate": "changeset",
+   "table": "changesets",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "userId": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "User"
+    },
+    "path": {
+     "type": "ChangesetPath",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "ADMIN",
+      "MCP",
+      "IMPORT"
+     ]
+    },
+    "status": {
+     "type": "ChangesetStatus",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "PREVIEWED",
+      "APPLIED",
+      "UNDONE"
+     ]
+    },
+    "sourceId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Source"
+    },
+    "recordingId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Recording"
+    },
+    "contributorId": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Person"
+    },
+    "place": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "ownKnowledge": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "isPublic": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "summary": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "previewToken": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "plan": {
+     "type": "Json",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "previewExpiresAt": {
+     "type": "DateTime",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "appliedAt": {
+     "type": "DateTime",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "undoneAt": {
+     "type": "DateTime",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    }
+   },
+   "entityKind": null
+  },
+  "ChangesetItem": {
+   "delegate": "changesetItem",
+   "table": "changeset_items",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "changesetId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "Changeset"
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "tableName": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "recordId": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "action": {
+     "type": "ChangeAction",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "CREATE",
+      "UPDATE",
+      "DELETE"
+     ]
+    },
+    "expectedRev": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "before": {
+     "type": "Json",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "after": {
+     "type": "Json",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    }
+   },
+   "entityKind": null
+  },
+  "User": {
+   "delegate": "user",
+   "table": "users",
+   "fields": {
+    "id": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "email": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "emailVerified": {
+     "type": "DateTime",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "image": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "role": {
+     "type": "UserRole",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "ADMIN",
+      "AGENT"
+     ]
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": null
+  },
+  "Account": {
+   "delegate": "account",
+   "table": "accounts",
+   "fields": {
+    "userId": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "User"
+    },
+    "type": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "provider": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "providerAccountId": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "refresh_token": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "access_token": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "expires_at": {
+     "type": "Int",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "token_type": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "scope": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "id_token": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "session_state": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": null
+  },
+  "Session": {
+   "delegate": "session",
+   "table": "sessions",
+   "fields": {
+    "sessionToken": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "userId": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "User"
+    },
+    "expires": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "updatedAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "isUpdatedAt": true
+    }
+   },
+   "entityKind": null
+  },
+  "VerificationToken": {
+   "delegate": "verificationToken",
+   "table": "verification_tokens",
+   "fields": {
+    "identifier": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "token": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "expires": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    }
+   },
+   "entityKind": null
+  },
+  "Authenticator": {
+   "delegate": "authenticator",
+   "table": "authenticators",
+   "fields": {
+    "credentialID": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "userId": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "User"
+    },
+    "providerAccountId": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "credentialPublicKey": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "counter": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "credentialDeviceType": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "credentialBackedUp": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "transports": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    }
+   },
+   "entityKind": null
+  },
+  "AgentToken": {
+   "delegate": "agentToken",
+   "table": "agent_tokens",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "userId": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "fk": "User"
+    },
+    "label": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "tokenHash": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "createdAt": {
+     "type": "DateTime",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "lastUsedAt": {
+     "type": "DateTime",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "revokedAt": {
+     "type": "DateTime",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    }
+   },
+   "entityKind": null
+  },
+  "WorkKind": {
+   "delegate": "workKind",
+   "table": "work_kinds",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "tickedByDefault": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "SetType": {
+   "delegate": "setType",
+   "table": "set_types",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "displayName": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "includeInStats": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "ShowType": {
+   "delegate": "showType",
+   "table": "show_types",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "includeInStats": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "ShowGroupKind": {
+   "delegate": "showGroupKind",
+   "table": "show_group_kinds",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "CreditRole": {
+   "delegate": "creditRole",
+   "table": "credit_roles",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "ReferenceKind": {
+   "delegate": "referenceKind",
+   "table": "reference_kinds",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "ruleKey": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "LinkSystem": {
+   "delegate": "linkSystem",
+   "table": "link_systems",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "purpose": {
+     "type": "LinkPurpose",
+     "required": true,
+     "list": false,
+     "hasDefault": false,
+     "enum": [
+      "LISTEN",
+      "WATCH",
+      "READ",
+      "IDENTIFY"
+     ]
+    },
+    "urlTemplate": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "RecordingType": {
+   "delegate": "recordingType",
+   "table": "recording_types",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "description": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "Instrument": {
+   "delegate": "instrument",
+   "table": "instruments",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "displayName": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "PlaceKind": {
+   "delegate": "placeKind",
+   "table": "place_kinds",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "SourceKind": {
+   "delegate": "sourceKind",
+   "table": "source_kinds",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "SubjectKind": {
+   "delegate": "subjectKind",
+   "table": "subject_kinds",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "IncompleteReason": {
+   "delegate": "incompleteReason",
+   "table": "incomplete_reasons",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  },
+  "EvidenceKind": {
+   "delegate": "evidenceKind",
+   "table": "evidence_kinds",
+   "fields": {
+    "id": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "isId": true
+    },
+    "name": {
+     "type": "String",
+     "required": true,
+     "list": false,
+     "hasDefault": false
+    },
+    "position": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    },
+    "rev": {
+     "type": "Int",
+     "required": true,
+     "list": false,
+     "hasDefault": true
+    }
+   },
+   "entityKind": null
+  }
+ }
+}

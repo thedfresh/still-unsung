@@ -277,3 +277,34 @@ npm run test:e2e   # when pages change
   per-request nonce is not set yet. (test: e2e)
 - **No secrets in the repository.** Settings such as `AUTH_SECRET` come from the environment.
   `AUTH_GOOGLE_ISSUER` is for tests only: never set it on staging or prod. (review)
+
+## 11. Agent edits (the MCP server)
+
+An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
+(data-model items 16, 19, 40, 42, 87, 89). It never writes to the database directly.
+
+- **Sign-in.** The route accepts only an agent access token (role `AGENT`, `via: "token"`).
+  A session never opens it. (test: e2e)
+- **Four tools.** `preview_changes` and `apply_changes` write. `get_record` and `search_records`
+  read. One general edit tool covers every content table; add a task-specific tool only when a
+  job proves clumsy. (review)
+- **Which tables.** `src/lib/content-access.ts` decides. The agent never writes users, roles,
+  tokens, sessions, changesets, the `entities` table, backlinks or addresses. It never writes an
+  editable list (item 91): a preview that needs a new list value stops and names it. It never
+  deletes or merges. (test: `tests/db/agent-changes.test.ts`)
+- **Validation is built once.** `src/lib/validation/content.ts` builds the checks for every
+  content table from `src/lib/content-model.json`. The admin forms use the same checks. After a
+  schema change, run `npm run db:content-model`; a unit test fails while the file is out of date.
+  (test)
+- **Preview, then apply.** A preview runs the edits for real inside a transaction that it rolls
+  back, saves a `PREVIEWED` changeset and returns a one-time token (30 minutes). Apply claims
+  the token first, so it works once even when the apply then fails. It re-checks every `rev`
+  inside the write. If a record changed, nothing is written and both versions are returned.
+  (test)
+- **One formatter.** `src/lib/changes/preview-format.ts` writes the preview text. Change the
+  wording there only. (review)
+- **Every write path makes a changeset** (`src/lib/data/changes/`), linked to the user. The admin
+  edit screens reuse `writeEdits` and the changeset code with path `ADMIN`. The page
+  `/admin/changes` lists each change with who made it, its evidence and its previous state.
+- **Not built yet:** the call to the cache-refresh route after an apply (no cached page reads
+  content yet; section 5), and undo.
