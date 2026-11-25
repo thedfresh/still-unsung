@@ -165,7 +165,7 @@ jobs:
             echo "REWORK AFTER REVIEW. These instructions replace the push and PR steps below."
             echo "This ticket failed the user's review. Branch $BRANCH and its pull request ($pr) already"
             echo "exist, and the branch is checked out. Read the ticket's comments since your last hand-back"
-            echo "(and the PR's comments): they hold the review. Fix what the review asks, on this branch."
+            echo "(listJiraIssueComments): they hold the review. Fix what the review asks, on this branch."
             echo "Run the checks, commit, then run git push origin $BRANCH. Do NOT run scripts/open-pr.mjs:"
             echo "the pull request exists. In the executive summary, say what the review asked and what"
             echo "you changed in response."
@@ -302,7 +302,7 @@ jobs:
             --add-dir /tmp/reference
             --model ${{ env.MODEL }}
             --max-turns 200
-            --allowedTools "Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__atlassianUserInfo,mcp__jira__getJiraIssue,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment,mcp__jira__createJiraIssue"
+            --allowedTools "Read,Edit,Write,Glob,Grep,WebSearch,WebFetch,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git push origin ${{ env.BRANCH }}),Bash(ls:*),Bash(cat:*),mcp__jira__atlassianUserInfo,mcp__jira__getJiraIssue,mcp__jira__listJiraIssueComments,mcp__jira__searchJiraIssuesUsingJql,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment,mcp__jira__createJiraIssue"
 
       # The action hides Claude's messages (full output would expose private /tmp/reference content in
       # this public repo's logs). Print only what's needed to see why a run ended.
