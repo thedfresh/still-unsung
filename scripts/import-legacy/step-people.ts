@@ -14,6 +14,7 @@ interface NewPerson {
   oldId: number;
   table: "musicians" | "contributors";
   isPublic: boolean;
+  createdAt: Date | null;
 }
 
 async function writePeople(ctx: Ctx, people: NewPerson[], usedSlugs: Set<string>) {
@@ -40,7 +41,7 @@ async function writePeople(ctx: Ctx, people: NewPerson[], usedSlugs: Set<string>
         legacyId: item.person.legacyId,
       })),
     });
-  });
+  }, () => true, (row) => row.person.createdAt);
   return ids;
 }
 
@@ -76,6 +77,7 @@ export async function importPeople(ctx: Ctx): Promise<void> {
       oldId: id,
       table: "musicians",
       isPublic: true,
+      createdAt: dateOf(row, "created_at"),
     });
   }
   const musicianIds = await writePeople(ctx, toMake, usedSlugs);
@@ -106,6 +108,7 @@ export async function importPeople(ctx: Ctx): Promise<void> {
     oldId: Number(row.id),
     table: "contributors",
     isPublic: true,
+    createdAt: dateOf(row, "created_at"),
   }));
   const contributorIds = await writePeople(ctx, contributorPeople, usedSlugs);
   contributorPeople.forEach((person, index) => {
@@ -159,7 +162,7 @@ export async function importBands(ctx: Ctx): Promise<void> {
         legacyId: `bands:${item.id}`,
       })),
     });
-  });
+  }, () => true, (row) => dateOf(row, "created_at"));
   bands.forEach((row, index) => {
     ctx.bandByBand.set(Number(row.id), ids[index]);
     ctx.tally.mapped("bands", row.id);
@@ -200,7 +203,7 @@ export async function importBands(ctx: Ctx): Promise<void> {
         };
       }),
     });
-  });
+  }, () => true, (row) => dateOf(row, "created_at"));
   usable.forEach((row, index) => {
     ctx.lineupByBandMusician.set(Number(row.id), lineupIds[index]);
     ctx.tally.mapped("band_musicians", row.id);
@@ -247,6 +250,7 @@ interface PlaceInput {
   parentId: number | null;
   slug: string | null;
   legacyId: string;
+  createdAt?: Date | null;
 }
 
 async function makePlace(ctx: Ctx, input: PlaceInput, isPublic = true): Promise<{ placeId: number; nameId: number }> {
@@ -266,6 +270,8 @@ async function makePlace(ctx: Ctx, input: PlaceInput, isPublic = true): Promise<
   await ctx.db.placeName.create({
     data: { id: nameId, placeId, name: input.name, position: 1, legacyId: input.legacyId },
   });
+  ctx.stamp("PLACE", placeId, input.createdAt ?? null);
+  ctx.stamp("PLACE_NAME", nameId, input.createdAt ?? null);
   return { placeId, nameId };
 }
 
@@ -294,9 +300,12 @@ export async function importPlaces(ctx: Ctx): Promise<void> {
     if (country) parent = await ensure("country", country, parent, `venues:${id}:country`);
     if (region) parent = await ensure("region", region, parent, `venues:${id}:stateProvince`);
     if (city) parent = await ensure("city", city, parent, `venues:${id}:city`);
-    // The context (a campus, a park, a hotel) becomes a parent place with no kind. Whether it
-    // is a campus or a festival is the curator's call (plan section 4, Venue).
-    if (context) parent = await ensure(null, context, parent, `venues:${id}:context`);
+    // A context that names a festival becomes a show group of kind festival (made with the
+    // shows). Any other context (a campus, a park, a hotel) becomes a parent place with no
+    // kind: the curator sets the kind (plan section 4, Venue).
+    const isFestival = context !== null && /festival/i.test(context);
+    if (context && isFestival) ctx.festivalByVenue.set(id, context);
+    else if (context) parent = await ensure(null, context, parent, `venues:${id}:context`);
     const slug = str(row, "slug");
     const venueSlug = slug !== null && !usedSlugs.has(slug) ? slug : null;
     if (venueSlug) usedSlugs.add(venueSlug);
@@ -306,12 +315,19 @@ export async function importPlaces(ctx: Ctx): Promise<void> {
       parentId: parent,
       slug: venueSlug,
       legacyId: `venues:${id}`,
+      createdAt: dateOf(row, "created_at"),
     });
     ctx.placeByVenue.set(id, made);
     ctx.tally.mapped("venues", id);
     ctx.note(made.placeId, str(row, "public_notes"), true, `venues:${id}:publicNotes`);
     ctx.note(made.placeId, str(row, "private_notes"), false, `venues:${id}:privateNotes`);
     if (slug) ctx.addresses.push({ path: `/venue/${slug}`, entityId: made.placeId, slug });
-    if (context) ctx.line("Venue contexts", `venues:${id} has a context: made a parent place with no kind`);
+    if (context && !isFestival) ctx.line("Venue contexts", `venues:${id} has a context: made a parent place with no kind`);
+    if (isFestival) ctx.line("Festival venue contexts", `venues:${id}: its context becomes a show group of kind festival`);
+    // The Songwriters Hall of Fame row has its venue and its context reversed: list it.
+    if (/songwriters hall of fame/i.test(`${str(row, "name") ?? ""} ${context ?? ""}`)) {
+      ctx.line("Venues with the name and context possibly reversed (review)", `venues:${id}`);
+      ctx.propose("07-place-merges", { placeIds: String(made.placeId), names: "name and context may be reversed", reason: `venues:${id}` });
+    }
   }
 }

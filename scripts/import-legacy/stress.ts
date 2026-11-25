@@ -79,18 +79,34 @@ function groupBy(rows: Row[], field: string): Map<number, Row[]> {
   return out;
 }
 
-/** Test 2 (item 35): the suites, as songs and as suite members. */
+/** Test 2 (item 35): every suite performance, in the explicit view and in the compact view. */
 async function suites(ctx: Ctx): Promise<StressResult> {
   const suiteWorks = await ctx.db.work.findMany({ where: { workKind: { name: "suite" } }, select: { id: true, suiteStructure: true } });
   const lines: string[] = [];
+  let performances = 0;
   for (const suite of suiteWorks) {
     const parts = await ctx.db.reference.findMany({ where: { toId: suite.id, referenceKind: { ruleKey: "part-of" } }, select: { fromId: true } });
-    const memberIds = parts.map((row) => row.fromId);
-    const segments = await ctx.db.segment.count({ where: { workId: { in: memberIds } } });
+    const memberIds = new Set(parts.map((row) => row.fromId));
     const inherited = suite.suiteStructure === "FIXED" ? "0 inherited parts until the suite parts are proposed and applied" : "variable";
-    lines.push(`suite work ${suite.id} (${suite.suiteStructure}): ${memberIds.length} member works, ${segments} segments, ${inherited}`);
+    lines.push(`suite work ${suite.id} (${suite.suiteStructure}): ${memberIds.size} member works, ${inherited}`);
+    const segments = await ctx.db.segment.findMany({
+      where: { workId: { in: [...memberIds] } },
+      orderBy: [{ set: { showId: "asc" } }, { set: { position: "asc" } }, { sortKey: "asc" }],
+      select: { id: true, workId: true, setId: true, set: { select: { showId: true } } },
+    });
+    performances += segments.length;
+    // Explicit view: one line for each performance of a member work.
+    for (const segment of segments) {
+      lines.push(`  explicit: show ${segment.set.showId} set ${segment.setId} segment ${segment.id} work ${segment.workId}`);
+    }
+    // Compact view: each set that holds the suite's members shows once, with its segment count.
+    const bySet = new Map<number, number[]>();
+    for (const segment of segments) bySet.set(segment.setId, [...(bySet.get(segment.setId) ?? []), segment.id]);
+    for (const [setId, ids] of bySet) {
+      lines.push(`  compact: suite ${suite.id} in set ${setId}: ${ids.length} segment(s) (${ids.join(", ")})`);
+    }
   }
-  return { title: "2. Suites (item 35)", summary: `${suiteWorks.length} suites made.`, lines };
+  return { title: "2. Suites (item 35)", summary: `${suiteWorks.length} suites made; ${performances} suite performances printed in both views.`, lines };
 }
 
 /** Test 3 (item 36): the place chain of every show, against the old venue text. */
@@ -182,7 +198,29 @@ async function counts(ctx: Ctx): Promise<StressResult> {
   return { title: "4. Counts (item 80)", summary: `${oldCounts.size} songs compared; ${lines.length} differ.`, lines };
 }
 
-/** Test 5: the setlists of ten shows, old and new side by side, by id. */
+/** The longest run of segments joined by RUNS_INTO in one set: the "complicated set" of plan section 8. */
+async function longestMedleyShow(ctx: Ctx): Promise<number | null> {
+  const segments = await ctx.db.segment.findMany({
+    where: { workId: { not: null } },
+    orderBy: [{ setId: "asc" }, { sortKey: "asc" }],
+    select: { setId: true, joinsNext: true, set: { select: { showId: true } } },
+  });
+  let best = { length: 0, showId: null as number | null };
+  let run = 0;
+  let current = -1;
+  for (const segment of segments) {
+    if (segment.setId !== current) {
+      current = segment.setId;
+      run = 0;
+    }
+    run = segment.joinsNext === "RUNS_INTO" ? run + 1 : 0;
+    if (run + 1 > best.length) best = { length: run + 1, showId: segment.set.showId };
+  }
+  void ctx;
+  return best.length > 1 ? best.showId : null;
+}
+
+/** Test 5: the setlists of ten shows, old and new. The new setlist is printed in two views. */
 async function setlists(ctx: Ctx): Promise<StressResult> {
   const wanted = [[1978, 5, 23], [1983, 2, 22]];
   const shows = await ctx.db.show.findMany({
@@ -190,6 +228,10 @@ async function setlists(ctx: Ctx): Promise<StressResult> {
   });
   const picked: typeof shows = [];
   for (const [y, m, d] of wanted) picked.push(...shows.filter((s) => s.dateYear === y && s.dateMonth === m && s.dateDay === d));
+  // The complicated set: the show with the longest medley (a chain of segments that run into each other).
+  const medleyShow = await longestMedleyShow(ctx);
+  const medley = shows.find((s) => s.id === medleyShow);
+  if (medley && !picked.includes(medley)) picked.push(medley);
   const biggest = shows
     .filter((s) => !picked.includes(s))
     .sort((a, b) => b.sets.reduce((n, s) => n + s._count.segments, 0) - a.sets.reduce((n, s) => n + s._count.segments, 0));
@@ -200,7 +242,8 @@ async function setlists(ctx: Ctx): Promise<StressResult> {
   const lines: string[] = [];
   for (const show of picked.slice(0, 10)) {
     const oldEvent = Number(String(show.legacyId).split(":")[1]);
-    lines.push(`show ${show.id} (${show.legacyId})`);
+    const note = show.id === medleyShow ? " (the complicated set: the longest medley)" : "";
+    lines.push(`show ${show.id} (${show.legacyId})${note}`);
     const oldList: string[] = [];
     for (const set of (setsByEvent.get(oldEvent) ?? []).sort((a, b) => (num(a, "position") ?? 0) - (num(b, "position") ?? 0))) {
       for (const row of (performancesBySet.get(Number(set.id)) ?? []).sort((a, b) => (num(a, "performance_order") ?? 0) - (num(b, "performance_order") ?? 0))) {
@@ -210,13 +253,24 @@ async function setlists(ctx: Ctx): Promise<StressResult> {
     const segments = await ctx.db.segment.findMany({
       where: { set: { showId: show.id } },
       orderBy: [{ set: { position: "asc" } }, { sortKey: "asc" }],
-      select: { id: true, workId: true, delivery: true, joinsNext: true },
+      select: { id: true, workId: true, delivery: true, joinsNext: true, extent: true, workCertainty: true, setId: true },
     });
-    const newList = segments.map((s) => `segment ${s.id} work ${s.workId ?? "none"}${s.delivery ? ` ${s.delivery}` : ""}${s.joinsNext === "RUNS_INTO" ? " >" : ""}`);
-    const rows = Math.max(oldList.length, newList.length);
-    for (let i = 0; i < rows; i += 1) lines.push(`  ${(oldList[i] ?? "").padEnd(34)} | ${newList[i] ?? ""}`);
+    const explicit = segments.map(
+      (s) => `segment ${s.id} work ${s.workId ?? "none"}${s.delivery ? ` ${s.delivery}` : ""}${s.extent !== "COMPLETE" ? ` ${s.extent}` : ""}${s.workCertainty !== "CONFIRMED" ? ` ${s.workCertainty}` : ""}${s.joinsNext === "RUNS_INTO" ? " >" : ""}`,
+    );
+    lines.push("  old | new, explicit view");
+    const rows = Math.max(oldList.length, explicit.length);
+    for (let i = 0; i < rows; i += 1) lines.push(`  ${(oldList[i] ?? "").padEnd(34)} | ${explicit[i] ?? ""}`);
+    // Compact view: a set on one line; ">" joins segments that run into each other.
+    lines.push("  new, compact view");
+    const bySet = new Map<number, typeof segments>();
+    for (const s of segments) bySet.set(s.setId, [...(bySet.get(s.setId) ?? []), s]);
+    for (const [setId, list] of bySet) {
+      const text = list.map((s, i) => `${s.workId === null ? "[spoken]" : `work ${s.workId}`}${i < list.length - 1 ? (s.joinsNext === "RUNS_INTO" ? " > " : ", ") : ""}`).join("");
+      lines.push(`  set ${setId}: ${text}`);
+    }
   }
-  return { title: "5. Setlist views of ten shows", summary: `${Math.min(10, picked.length)} shows printed, old on the left, new on the right.`, lines };
+  return { title: "5. Setlist views of ten shows", summary: `${Math.min(10, picked.length)} shows printed: old with the new explicit view, then the new compact view.`, lines };
 }
 
 /** Test 6 (item 84): the lineup derived from members and exceptions, against today's lineup. */

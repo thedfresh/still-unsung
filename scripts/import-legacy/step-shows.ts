@@ -5,6 +5,7 @@ import {
   assignShowTiming,
   bool,
   contributorNamedIn,
+  dateOf,
   displayDateMatches,
   noteHints,
   normalizeName,
@@ -79,12 +80,16 @@ export async function importShows(ctx: Ctx): Promise<void> {
       await ctx.db.show.createMany({ data: batch.map(({ item, id }) => showData(ctx, item, id, timing, eventsWithUncertainSet)) });
     },
     (plan) => plan.row.is_public === undefined || bool(plan.row, "is_public"),
+    (plan) => dateOf(plan.row, "created_at"),
   );
   plans.forEach((plan, index) => afterShow(ctx, plan, ids[index], timing.get(Number(plan.row.id))));
   await writeScheduledTimes(ctx, kept, ids, timing);
   writeCitationsAndIds(ctx, plans, ids);
   await importSets(ctx, sets);
-  await importInterviews(ctx, plans);
+  for (const plan of plans.filter((p) => p.isInterview)) {
+    ctx.interviewShows.push({ oldId: Number(plan.row.id), displayDate: str(plan.row, "display_date"), showTypeId: plan.showTypeId });
+  }
+  await importFestivals(ctx);
 }
 
 function showData(
@@ -136,6 +141,8 @@ function afterShow(ctx: Ctx, plan: ShowPlan, showId: number, slot: TimingResult 
   ctx.eventBand.set(oldId, num(row, "primary_band_id"));
   ctx.tally.mapped("events", oldId);
   if (slot?.unpaired) ctx.line("Unpaired Early or Late shows", `events:${oldId}`);
+  if (slot?.unordered) ctx.line("Dates with several shows and no order (orderOnDate left empty)", `events:${oldId}`);
+  if (slot?.ambiguousTime) ctx.line("Show times that cannot be read (time left empty; label kept as written)", `events:${oldId}`);
   if (slot?.scheduledTime) ctx.line("Shows with a clock time", `events:${oldId} at ${slot.scheduledTime}: cite its source`);
   if (bool(row, "verified")) ctx.fieldDrop("events.verified: not migrated (item 29)");
   if (bool(row, "is_uncertain")) {
@@ -254,6 +261,7 @@ async function importSets(ctx: Ctx, sets: Row[]): Promise<void> {
       });
     },
     (row) => ctx.eventPublic.get(Number(row.event_id)) ?? true,
+    (row) => dateOf(row, "created_at"),
   );
   kept.forEach((row, index) => {
     const oldId = Number(row.id);
@@ -274,26 +282,61 @@ async function importSets(ctx: Ctx, sets: Row[]): Promise<void> {
 }
 
 /** Item 96: an interview show gets one interview work and one spoken segment. */
-async function importInterviews(ctx: Ctx, plans: ShowPlan[]): Promise<void> {
-  const interviews = plans.filter((plan) => plan.isInterview);
-  for (const plan of interviews) {
-    const oldId = Number(plan.row.id);
+export async function importInterviews(ctx: Ctx): Promise<void> {
+  for (const plan of ctx.interviewShows) {
+    const oldId = plan.oldId;
     const showId = ctx.showByEvent.get(oldId) as number;
-    const label = str(plan.row, "display_date") ?? `events:${oldId}`;
-    const [workId] = await newEntities(ctx.db, "WORK", [true]);
+    const label = plan.displayDate ?? `events:${oldId}`;
+    const isPublic = ctx.eventPublic.get(oldId) ?? true;
+    // The work takes the show's own public or private setting.
+    const [workId] = await newEntities(ctx.db, "WORK", [isPublic]);
     await ctx.db.work.create({
       data: { id: workId, title: `Interview (${label})`, workKindId: ctx.list.workKind.get("interview") as number, legacyId: `events:${oldId}:interview` },
     });
-    const [setId] = await newEntities(ctx.db, "SET", [ctx.eventPublic.get(oldId) ?? true]);
-    const last = await ctx.db.set.aggregate({ where: { showId }, _max: { position: true } });
-    await ctx.db.set.create({
-      data: { id: setId, showId, position: (last._max.position ?? 0) + 1, setTypeId: ctx.list.setType.get("Set") as number, legacyId: `events:${oldId}:interview` },
-    });
-    const [segmentId] = await newEntities(ctx.db, "SEGMENT", [ctx.eventPublic.get(oldId) ?? true]);
+    // Item 96: use the show's existing set. Make one only when the show has none.
+    let set = await ctx.db.set.findFirst({ where: { showId }, orderBy: { position: "asc" }, select: { id: true } });
+    if (!set) {
+      const [newSetId] = await newEntities(ctx.db, "SET", [isPublic]);
+      set = await ctx.db.set.create({
+        data: { id: newSetId, showId, position: 1, setTypeId: ctx.list.setType.get("Set") as number, legacyId: `events:${oldId}:interview` },
+        select: { id: true },
+      });
+    }
+    // The new segment goes last in the set: its key sorts after every key already there.
+    const last = await ctx.db.segment.findFirst({ where: { setId: set.id }, orderBy: { sortKey: "desc" }, select: { sortKey: true } });
+    const [segmentId] = await newEntities(ctx.db, "SEGMENT", [isPublic]);
     await ctx.db.segment.create({
-      data: { id: segmentId, setId, sortKey: "a0", delivery: "SPOKEN", workId, legacyId: `events:${oldId}:interview` },
+      data: { id: segmentId, setId: set.id, sortKey: last ? `${last.sortKey}V` : "a0", delivery: "SPOKEN", workId, legacyId: `events:${oldId}:interview` },
     });
     ctx.propose("17-interview-show-types", { showId, legacyId: `events:${oldId}`, currentShowTypeId: plan.showTypeId });
     ctx.line("Interview shows", `events:${oldId}: made work ${workId} and spoken segment ${segmentId}`);
   }
+}
+
+/** A festival context becomes a show group of kind festival, with each show at that venue as a member. */
+async function importFestivals(ctx: Ctx): Promise<void> {
+  const kind = ctx.list.showGroupKind.get("festival") as number;
+  const groupByName = new Map<string, number>();
+  const members: Array<{ groupId: number; showId: number; legacyId: string }> = [];
+  for (const [venueOld, name] of ctx.festivalByVenue) {
+    let groupId = groupByName.get(normalizeName(name));
+    if (groupId === undefined) {
+      const [id] = await newEntities(ctx.db, "SHOW_GROUP", [true]);
+      await ctx.db.showGroup.create({ data: { id, name, showGroupKindId: kind } });
+      groupByName.set(normalizeName(name), id);
+      groupId = id;
+      ctx.line("Show groups made from venue contexts", `show group ${id} (festival) from venues:${venueOld}:context`);
+    }
+    for (const [eventOld, row] of ctx.eventRow) {
+      const showId = ctx.showByEvent.get(eventOld);
+      if (showId !== undefined && num(row, "venue_id") === venueOld) {
+        members.push({ groupId, showId, legacyId: `events:${eventOld}:venueContext` });
+      }
+    }
+  }
+  await bulk(ctx, "SHOW_GROUP_MEMBER", members, async (batch) => {
+    await ctx.db.showGroupMember.createMany({
+      data: batch.map(({ item, id }) => ({ id, showGroupId: item.groupId, showId: item.showId })),
+    });
+  });
 }

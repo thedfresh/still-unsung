@@ -71,7 +71,12 @@ export async function seedLists(ctx: Ctx): Promise<void> {
   for (const row of oldSetTypes) {
     const seeded = seededSetType(str(row, "name") ?? "");
     if (seeded) stats.set(seeded, stats.get(seeded) !== false && bool(row, "include_in_stats"));
-    else extraSetTypes.push(str(row, "name") ?? `set type ${row.id}`);
+    else {
+      // A type the seed list does not name keeps its own old include_in_stats value.
+      const extra = str(row, "name") ?? `set type ${row.id}`;
+      extraSetTypes.push(extra);
+      stats.set(extra, bool(row, "include_in_stats"));
+    }
   }
   const setTypeRows = [...SET_TYPE_NAMES, ...extraSetTypes].map((name, position) => ({
     name,
@@ -97,7 +102,11 @@ export async function seedLists(ctx: Ctx): Promise<void> {
     if (normalizeName(name) === "errata") continue;
     const seeded = seededShowType(name);
     if (seeded) showStats.set(seeded, bool(row, "include_in_stats"));
-    else extraShowTypes.push(name || `event type ${row.id}`);
+    else {
+      const extra = name || `event type ${row.id}`;
+      extraShowTypes.push(extra);
+      showStats.set(extra, bool(row, "include_in_stats"));
+    }
   }
   await db.showType.createMany({
     data: [...SHOW_TYPE_NAMES, ...extraShowTypes].map((name, position) => ({

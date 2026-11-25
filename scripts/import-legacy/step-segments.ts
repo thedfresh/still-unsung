@@ -1,6 +1,6 @@
 import type { Delivery, Extent } from "@/generated/prisma/enums";
 import { bulk, type Ctx } from "./context.ts";
-import { bool, footnoteKinds, noteHints, num, sortKeys, str, type Row } from "./rules.ts";
+import { bool, dateOf, footnoteKinds, noteHints, num, sortKeys, str, type Row } from "./rules.ts";
 
 // Step 4, second half (plan section 4: Performance, ShowBanter): every performance becomes a
 // segment; every banter row becomes a spoken segment next to its performance (item 37).
@@ -85,6 +85,7 @@ export async function importSegments(ctx: Ctx): Promise<SoloSegment[]> {
       });
     },
     (item) => ctx.eventPublic.get(eventOfSet.get(item.setOld) ?? -1) ?? true,
+    (item) => dateOf(item.row, "created_at"),
   );
 
   items.forEach((item, index) => {
@@ -137,7 +138,8 @@ function segmentData(ctx: Ctx, item: Item, id: number, songs: Map<number, Row>) 
   const row = item.row;
   const song = songs.get(Number(row.song_id));
   const played = bool(row, "is_instrumental") || bool(row, "is_musical_fragment") || (song ? bool(song, "is_instrumental") : false);
-  const uncertain = bool(row, "is_uncertain") || ctx.uncertainSongs.has(Number(row.song_id));
+  // Only the performance's own flag counts (item 105). An uncertain song stays a work (list 02).
+  const uncertain = bool(row, "is_uncertain");
   return {
     id,
     setId,
@@ -160,7 +162,7 @@ function afterPerformance(ctx: Ctx, row: Row, segmentId: number): void {
   if (flags.length > 1) ctx.line("Performances with several extent flags", `performances:${oldId}: ${flags.join(", ")}; the first rule won`);
   if (bool(row, "is_medley")) ctx.fieldDrop("performances.is_medley: derived from the joins (plan, Performance)");
   if (bool(row, "is_musical_fragment")) ctx.propose("16-musical-fragments", { segmentId, legacyId: `performances:${oldId}` });
-  if (bool(row, "is_uncertain") || ctx.uncertainSongs.has(Number(row.song_id))) {
+  if (bool(row, "is_uncertain")) {
     ctx.propose("15-old-uncertain-flags", { segmentId, legacyId: `performances:${oldId}`, flag: "isUncertain", migratedTo: "workCertainty POSSIBLE" });
   }
   const lyrical = str(row, "lyrical_variation");

@@ -95,6 +95,20 @@ describe("assignShowTiming", () => {
     expect(out.get(3)).toMatchObject({ orderOnDate: 2, scheduledTime: "22:00:00" });
     expect(out.get(1)).toMatchObject({ orderOnDate: 3, scheduledTime: "24:00:00", timeLabel: "Midnight" });
   });
+  it("gives no order to several shows that no label or time orders", () => {
+    const out = assignShowTiming([show(1, null), show(2, null)]);
+    expect(out.get(1)).toMatchObject({ orderOnDate: null, unordered: true });
+    expect(out.get(2)).toMatchObject({ orderOnDate: null, unordered: true });
+    const mixed = assignShowTiming([show(1, "Early"), show(2, null)]);
+    expect(mixed.get(1)).toMatchObject({ orderOnDate: null, unordered: true });
+    const tie = assignShowTiming([show(1, "Early"), show(2, "Early")]);
+    expect(tie.get(1)?.orderOnDate).toBeNull();
+  });
+  it("does not read a time with no am or pm as morning", () => {
+    const out = assignShowTiming([show(1, "8:00")]);
+    expect(out.get(1)).toMatchObject({ scheduledTime: null, timeLabel: "8:00", ambiguousTime: true });
+    expect(assignShowTiming([show(1, "20:00")]).get(1)).toMatchObject({ scheduledTime: "20:00:00", ambiguousTime: false });
+  });
   it("keeps unknown text as the label", () => {
     const out = assignShowTiming([show(1, "Afternoon")]);
     expect(out.get(1)).toMatchObject({ timeLabel: "Afternoon", scheduledTime: null });
@@ -116,8 +130,10 @@ describe("small rules", () => {
   it("reads the vocal role", () => {
     expect(vocalRoleOf("Harmony")).toBe("HARMONY");
     expect(vocalRoleOf("backup")).toBe("BACKING");
-    expect(vocalRoleOf(null)).toBe("LEAD");
-    expect(vocalRoleOf("Unknown")).toBe("LEAD");
+    expect(vocalRoleOf("Lead")).toBe("LEAD");
+    expect(vocalRoleOf(null)).toBe("UNKNOWN");
+    expect(vocalRoleOf("Unknown")).toBe("UNKNOWN");
+    expect(vocalRoleOf("lead and harmony")).toBe("UNKNOWN");
   });
   it("finds the suite a tag names", () => {
     expect(suiteForTag("Alligator Moon")?.structure).toBe("FIXED");

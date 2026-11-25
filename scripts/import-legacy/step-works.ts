@@ -1,5 +1,5 @@
 import { bulk, uniqueKey, type Ctx } from "./context.ts";
-import { SUITES, isDroppedTag, normalizeName, num, slugify, splitCredit, str, suiteForTag } from "./rules.ts";
+import { SUITES, dateOf, isDroppedTag, normalizeName, num, slugify, splitCredit, str, suiteForTag, vocalRoleOf } from "./rules.ts";
 
 // Step 3 (plan section 4: Song, Tag): works, then credits, default singers and suites.
 
@@ -33,7 +33,7 @@ export async function importWorks(ctx: Ctx): Promise<void> {
         };
       }),
     });
-  });
+  }, () => true, (row) => dateOf(row, "created_at"));
   songs.forEach((row, index) => {
     const id = Number(row.id);
     const workId = ids[index];
@@ -51,7 +51,6 @@ export async function importWorks(ctx: Ctx): Promise<void> {
       ctx.propose("12-best-known-versions", { workId, legacyId: `songs:${id}`, bestKnown: artist });
     }
     if (bool01(row, "is_uncertain")) {
-      ctx.uncertainSongs.add(id);
       ctx.propose("02-uncertain-songs", { workId, legacyId: `songs:${id}`, title: str(row, "title") });
     }
     if (num(row, "parent_song_id") !== null) {
@@ -82,9 +81,14 @@ function bool01(row: Record<string, unknown>, key: string): boolean {
   return row[key] === true || row[key] === 1 || row[key] === "t";
 }
 
+/** The name forms (normalized) that always mean the seeded Robert Hunter in a credit. */
+const HUNTER_FORMS = new Set(["robert hunter", "hunter", "bob hunter", "robert c hunter", "robert c. hunter"]);
+
 /** A person for a name in credit text: an existing one with that name, or a new one. */
 async function personForName(ctx: Ctx, name: string, legacyId: string): Promise<number> {
   const normalized = normalizeName(name);
+  // Robert Hunter's usual name forms are the seeded person, never a new one.
+  if (HUNTER_FORMS.has(normalized)) return ctx.fixedPerson.hunter;
   const found = ctx.personByName.get(normalized);
   if (found !== undefined) return found;
   const [entity] = await ctx.db.entity.createManyAndReturn({ data: [{ kind: "PERSON" }], select: { id: true } });
@@ -93,6 +97,10 @@ async function personForName(ctx: Ctx, name: string, legacyId: string): Promise<
   });
   ctx.personByName.set(normalized, entity.id);
   ctx.line("People made from text", `person ${entity.id} from ${legacyId}`);
+  // Another name with "Hunter" in it may still be him: propose it, never merge it.
+  if (normalized.split(" ").includes("hunter")) {
+    ctx.propose("06-person-merges", { personIds: `${ctx.fixedPerson.hunter},${entity.id}`, legacyIds: `robert-hunter,${legacyId}`, name, reason: "near-match of Robert Hunter" });
+  }
   return entity.id;
 }
 
@@ -107,7 +115,7 @@ async function importCredits(ctx: Ctx, songs: Array<Record<string, unknown>>): P
       const names = splitCredit(text);
       if (!names) {
         // Safe default: keep the text as a public note and list it for review (item 98).
-        ctx.note(workId, `Credit (${field.replace("_", " ")}): ${text}`, true, `songs:${oldId}:${field}`);
+        ctx.note(workId, `Credit (${field.replace("_", " ")}): ${text}`, true, `songs:${oldId}:${camel(field)}`);
         ctx.propose("08-credit-splits", { workId, legacyId: `songs:${oldId}`, field, text });
         continue;
       }
@@ -167,6 +175,14 @@ async function importSingers(ctx: Ctx, songs: Array<Record<string, unknown>>): P
     if (lead !== null) add(Number(row.id), lead, `songs:${row.id}:leadVocals`);
   }
   for (const row of vocalists) {
+    // Item 33: only lead singers become default singers. Other rows are listed, not guessed.
+    const role = vocalRoleOf(str(row, "vocal_role"));
+    if (role !== "LEAD") {
+      const reason = role === "UNKNOWN" ? "the vocal role text names no single role" : "not a lead singer: only leads become default singers (item 33)";
+      ctx.tally.notMapped("song_vocalists", row.id, reason);
+      ctx.line(role === "UNKNOWN" ? "Unknown vocal role text" : "Song vocalists that are not leads", `song_vocalists:${row.id}: "${str(row, "vocal_role") ?? ""}"`);
+      continue;
+    }
     const musicianId = num(row, "musician_id");
     const unknown = musicianId === null || ctx.personByMusician.get(musicianId) === null;
     if (add(num(row, "song_id"), unknown ? null : musicianId, `song_vocalists:${row.id}`)) ctx.tally.mapped("song_vocalists", row.id);
@@ -188,15 +204,16 @@ async function importSuites(ctx: Ctx): Promise<void> {
   const partOf = ctx.list.referenceKind.get("part of") as number;
   const tagById = new Map(tags.map((row) => [Number(row.id), str(row, "name") ?? ""]));
 
-  const needed = new Set<string>();
+  // The first old tag that names a suite is the legacy id of the suite work.
+  const needed = new Map<string, number>();
   for (const row of songTags) {
     const suite = suiteForTag(tagById.get(Number(row.tag_id)) ?? "");
-    if (suite) needed.add(suite.match);
+    if (suite && !needed.has(suite.match)) needed.set(suite.match, Number(row.tag_id));
   }
   for (const suite of SUITES.filter((s) => needed.has(s.match))) {
     const [entity] = await ctx.db.entity.createManyAndReturn({ data: [{ kind: "WORK" }], select: { id: true } });
     await ctx.db.work.create({
-      data: { id: entity.id, title: suite.title, workKindId: workKind, suiteStructure: suite.structure, legacyId: `tags:${suite.match}` },
+      data: { id: entity.id, title: suite.title, workKindId: workKind, suiteStructure: suite.structure, legacyId: `tags:${needed.get(suite.match)}` },
     });
     suiteWork.set(suite.match, entity.id);
     ctx.line("Suites made by the script", `work ${entity.id} (${suite.structure})`);

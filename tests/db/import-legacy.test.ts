@@ -69,10 +69,14 @@ describe("legacy import: accounting", () => {
 });
 
 describe("legacy import: shows", () => {
-  it("leaves out the 2099 test show and everything under it", async () => {
-    expect(await prisma.show.count()).toBe(6);
+  it("leaves out the 2099 test show and everything under it, and counts every row under it as dropped", async () => {
+    expect(await prisma.show.count()).toBe(11);
     expect(await prisma.show.findFirst({ where: { dateYear: 2099 } })).toBeNull();
     expect(await prisma.recording.count()).toBe(2);
+    const json = JSON.parse(await readFile(path.join(outputDir, "report.json"), "utf8"));
+    for (const table of ["event_musicians", "set_musicians", "performance_musicians", "show_banter"]) {
+      expect(Object.keys(json.ledger[table].dropped)).toContain("test-show-2099-12-20");
+    }
   });
 
   it("orders an early and a late show on one date and keeps the date as written only when it differs", async () => {
@@ -81,6 +85,46 @@ describe("legacy import: shows", () => {
     expect(byLegacy(shows, "events:2")).toMatchObject({ timeLabel: "Late", orderOnDate: 2 });
     const lone = byLegacy(shows, "events:3");
     expect(lone).toMatchObject({ timeLabel: "Early", orderOnDate: null, dateAsWritten: "June 1st, 1975?" });
+  });
+
+  it("invents no order and no time: unlabelled shows on one date and a time with no am or pm", async () => {
+    const shows = await prisma.show.findMany();
+    expect(byLegacy(shows, "events:10")).toMatchObject({ orderOnDate: null });
+    expect(byLegacy(shows, "events:11")).toMatchObject({ orderOnDate: null });
+    const unclear = byLegacy(shows, "events:12");
+    expect(unclear).toMatchObject({ timeLabel: "8:00", orderOnDate: null });
+    const [{ time }] = await prisma.$queryRaw<Array<{ time: string | null }>>`SELECT "scheduledTime"::text AS time FROM shows WHERE id = ${unclear.id}`;
+    expect(time).toBeNull();
+    const report = await readFile(path.join(outputDir, "report.md"), "utf8");
+    expect(report).toContain("Dates with several shows and no order");
+    expect(report).toContain("Show times that cannot be read");
+  });
+
+  it("carries the old creation date to the record and its entity row", async () => {
+    const show = byLegacy(await prisma.show.findMany(), "events:1");
+    const entity = await prisma.entity.findUniqueOrThrow({ where: { id: show.id } });
+    expect(show.createdAt.toISOString()).toBe("2001-02-03T04:05:06.000Z");
+    expect(entity.createdAt.toISOString()).toBe("2001-02-03T04:05:06.000Z");
+    const work = byLegacy(await prisma.work.findMany(), "songs:1");
+    expect(work.createdAt.toISOString()).toBe("2002-03-04T05:06:07.000Z");
+    const person = byLegacy(await prisma.person.findMany(), "musicians:2");
+    expect(person.createdAt.toISOString()).toBe("2003-04-05T06:07:08.000Z");
+    const segment = byLegacy(await prisma.segment.findMany(), "performances:1");
+    expect(segment.createdAt.toISOString()).toBe("2004-05-06T07:08:09.000Z");
+    const venue = byLegacy(await prisma.place.findMany(), "venues:1");
+    expect(venue.createdAt.toISOString()).toBe("2005-06-07T08:09:10.000Z");
+  });
+
+  it("makes a festival context a show group of kind festival, not a parent place", async () => {
+    const show = byLegacy(await prisma.show.findMany(), "events:8");
+    const members = await prisma.showGroupMember.findMany({ where: { showId: show.id }, include: { showGroup: { include: { showGroupKind: true } } } });
+    expect(members).toHaveLength(1);
+    expect(members[0].showGroup).toMatchObject({ name: "Summer Test Festival" });
+    expect(members[0].showGroup.showGroupKind.name).toBe("festival");
+    const place = await prisma.place.findUniqueOrThrow({ where: { id: show.placeId as number }, include: { parent: { include: { names: true } } } });
+    expect(place.parent?.names[0].name).toBe("Testville");
+    const report = await readFile(path.join(outputDir, "report.md"), "utf8");
+    expect(report).toContain("Venues with the name and context possibly reversed");
   });
 
   it("maps the uncertain flags to certainty, and the 1975 rule to the date", async () => {
@@ -128,9 +172,20 @@ describe("legacy import: shows", () => {
 
   it("maps interview shows to an interview work and a spoken segment", async () => {
     const show = byLegacy(await prisma.show.findMany(), "events:6");
-    const segment = await prisma.segment.findFirstOrThrow({ where: { set: { showId: show.id } }, include: { work: { include: { workKind: true } } } });
+    const segment = await prisma.segment.findFirstOrThrow({ where: { set: { showId: show.id }, legacyId: "events:6:interview" }, include: { work: { include: { workKind: true } } } });
     expect(segment.delivery).toBe("SPOKEN");
     expect(segment.work?.workKind.name).toBe("interview");
+  });
+
+  it("puts an interview in the show's existing set, and gives its work the show's private setting", async () => {
+    const show = byLegacy(await prisma.show.findMany(), "events:6");
+    expect(await prisma.set.count({ where: { showId: show.id } })).toBe(1);
+    const segments = await prisma.segment.findMany({ where: { set: { showId: show.id } }, orderBy: { sortKey: "asc" } });
+    expect(segments.map((s) => s.legacyId)).toEqual(["performances:10", "events:6:interview"]);
+    const privateShow = byLegacy(await prisma.show.findMany(), "events:9");
+    const privateSegment = await prisma.segment.findFirstOrThrow({ where: { set: { showId: privateShow.id } } });
+    const work = await prisma.entity.findUniqueOrThrow({ where: { id: privateSegment.workId as number } });
+    expect(work.isPublic).toBe(false);
   });
 
   it("maps set types, with a partial set proposed for review", async () => {
@@ -140,6 +195,7 @@ describe("legacy import: shows", () => {
     expect(byLegacy(sets, "sets:3").setType.name).toBe("Set");
     expect(byLegacy(sets, "sets:3").incompleteReasonId).toBeNull();
     expect(byLegacy(sets, "sets:6").setType.name).toBe("Weird Type");
+    expect(byLegacy(sets, "sets:6").setType.includeInStats).toBe(false);
     const proposal = JSON.parse(await readFile(path.join(outputDir, "proposals", "10-incomplete-setlists.json"), "utf8"));
     expect(proposal.rows).toHaveLength(1);
   });
@@ -168,6 +224,18 @@ describe("legacy import: segments", () => {
     expect(byLegacy(all, "performances:4").extent).toBe("ABORTED");
   });
 
+  it("keeps an uncertain song as a work and leaves its other segments' certainty alone (item 105)", async () => {
+    const all = await prisma.segment.findMany();
+    // Song 2 is flagged uncertain; performance 9 of it carries no flag of its own.
+    expect(byLegacy(all, "performances:9")).toMatchObject({ workCertainty: "CONFIRMED" });
+    expect(byLegacy(all, "performances:9").workId).not.toBeNull();
+    const list02 = JSON.parse(await readFile(path.join(outputDir, "proposals", "02-uncertain-songs.json"), "utf8"));
+    expect(list02.rows).toHaveLength(1);
+    const list15 = JSON.parse(await readFile(path.join(outputDir, "proposals", "15-old-uncertain-flags.json"), "utf8"));
+    expect(list15.rows.some((r: { legacyId: string }) => r.legacyId === "performances:9")).toBe(false);
+    expect(list15.rows.some((r: { legacyId: string }) => r.legacyId === "performances:2")).toBe(true);
+  });
+
   it("writes lead and other singers, and an unknown singer as no person", async () => {
     const segment = byLegacy(await prisma.segment.findMany(), "performances:1");
     const entries = await prisma.vocalEntry.findMany({ where: { segmentId: segment.id } });
@@ -175,14 +243,29 @@ describe("legacy import: segments", () => {
     expect(entries.find((e) => e.role === "HARMONY")?.personId).toBeNull();
   });
 
+  it("does not turn unknown vocal role text into a lead; it lists the row", async () => {
+    const segment = byLegacy(await prisma.segment.findMany(), "performances:2");
+    expect(await prisma.vocalEntry.count({ where: { segmentId: segment.id } })).toBe(0);
+    const report = await readFile(path.join(outputDir, "report.md"), "utf8");
+    expect(report).toContain("performance_vocalists:3");
+    expect(report).toContain("song_vocalists:3");
+  });
+
   it("drops a lineup row that repeats the band, keeps an exception, and marks the others absent for solo Hunter", async () => {
     const entries = await prisma.lineupEntry.findMany();
     expect(entries.filter((e) => e.legacyId === "event_musicians:1")).toHaveLength(0);
     expect(entries.filter((e) => e.legacyId === "event_musicians:2")).toHaveLength(1);
+    // A row that differs in vocals, or carries notes, is not a repeat: it is kept (item 84).
+    expect(entries.filter((e) => e.legacyId === "event_musicians:3")).toHaveLength(1);
+    expect(entries.find((e) => e.legacyId === "event_musicians:3")?.sings).toBe(true);
+    expect(entries.filter((e) => e.legacyId === "event_musicians:4")).toHaveLength(1);
+    const kept4 = byLegacy(entries, "event_musicians:4");
+    const notes = await prisma.note.findMany({ where: { attachments: { some: { entityId: kept4.id } } } });
+    expect(notes.map((n) => n.body)).toEqual(["Lineup row remark"]);
     expect(entries.filter((e) => e.legacyId === "performance_musicians:1")).toHaveLength(0);
     const kept = byLegacy(entries, "performance_musicians:2");
     expect(await prisma.lineupInstrument.count({ where: { lineupEntryId: kept.id } })).toBe(1);
-    const solo = entries.filter((e) => e.legacyId?.startsWith("performances:solo:"));
+    const solo = entries.filter((e) => e.legacyId === "performances:3:isSoloHunter");
     expect(solo.length).toBeGreaterThan(0);
     expect(solo.every((e) => e.absent)).toBe(true);
   });
@@ -204,6 +287,20 @@ describe("legacy import: works, people and places", () => {
     expect(split.rows).toHaveLength(1);
   });
 
+  it("gives a credit to Hunter to the seeded Robert Hunter, and proposes other near-matches", async () => {
+    const terrapin = byLegacy(await prisma.work.findMany(), "songs:4");
+    const hunter = await prisma.person.findUniqueOrThrow({ where: { key: "robert-hunter" } });
+    const credits = await prisma.credit.findMany({ where: { workId: terrapin.id } });
+    expect(credits.map((c) => c.personId)).toEqual([hunter.id]);
+    expect(await prisma.person.count({ where: { name: "Hunter" } })).toBe(0);
+    const gamma = byLegacy(await prisma.work.findMany(), "songs:3");
+    const near = await prisma.credit.findFirstOrThrow({ where: { workId: gamma.id }, include: { person: true } });
+    expect(near.person.name).toBe("Hunter Smith");
+    expect(near.legacyId).toBe("songs:3:musicBy");
+    const merges = JSON.parse(await readFile(path.join(outputDir, "proposals", "06-person-merges.json"), "utf8"));
+    expect(merges.rows.some((r: { reason?: string }) => r.reason === "near-match of Robert Hunter")).toBe(true);
+  });
+
   it("keeps the original artist as a public note and proposes a best-known version", async () => {
     const work = byLegacy(await prisma.work.findMany(), "songs:1");
     const notes = await prisma.note.findMany({ where: { attachments: { some: { entityId: work.id } } } });
@@ -218,6 +315,7 @@ describe("legacy import: works, people and places", () => {
     const refs = await prisma.reference.findMany({ where: { toId: suite.id }, include: { referenceKind: true } });
     expect(refs).toHaveLength(1);
     expect(refs[0].referenceKind.name).toBe("part of");
+    expect(suite.legacyId).toBe("tags:1");
   });
 
   it("writes default singers, with an unknown singer as no person", async () => {
@@ -225,6 +323,17 @@ describe("legacy import: works, people and places", () => {
     const beta = byLegacy(await prisma.work.findMany(), "songs:2");
     expect((await prisma.workSinger.findMany({ where: { workId: alpha.id } })).every((s) => s.personId !== null)).toBe(true);
     expect((await prisma.workSinger.findMany({ where: { workId: beta.id } })).map((s) => s.personId)).toEqual([null]);
+  });
+
+  it("makes only lead singers default singers, and lists harmony, backing and unknown role rows", async () => {
+    const alpha = byLegacy(await prisma.work.findMany(), "songs:1");
+    const gamma = byLegacy(await prisma.work.findMany(), "songs:3");
+    // Song 1 has a lead (musician 4) from its own field and a harmony row for musician 2.
+    expect((await prisma.workSinger.findMany({ where: { workId: alpha.id } })).map((s) => s.legacyId)).toEqual(["songs:1:leadVocals"]);
+    expect(await prisma.workSinger.count({ where: { workId: gamma.id } })).toBe(0);
+    const report = await readFile(path.join(outputDir, "report.md"), "utf8");
+    expect(report).toContain("Song vocalists that are not leads");
+    expect(report).toContain("song_vocalists:2");
   });
 
   it("keeps the fixed people, makes contributors separate, and proposes the merge", async () => {
@@ -236,7 +345,7 @@ describe("legacy import: works, people and places", () => {
     expect(people.filter((p) => p.name === "Test Guitarist")).toHaveLength(2);
     expect(people.find((p) => p.legacyId === "contributors:1")?.email).toBe("contrib@example.test");
     const merges = JSON.parse(await readFile(path.join(outputDir, "proposals", "06-person-merges.json"), "utf8"));
-    expect(merges.rows).toHaveLength(1);
+    expect(merges.rows.filter((r: { reason?: string }) => r.reason === undefined)).toHaveLength(1);
     expect(new Set(people.map((p) => p.key)).size).toBe(people.length);
   });
 
@@ -279,6 +388,9 @@ describe("legacy import: recordings and links", () => {
     const ids = await prisma.externalId.findMany({ include: { linkSystem: true } });
     expect(ids.some((i) => i.linkSystem.name === "Wikipedia" && i.legacyId === "links:1")).toBe(true);
     expect(ids.find((i) => i.legacyId === "links:5")?.value).toBe("zyxwvutsrqp");
+    // The old column is "isActive": an inactive link stays inactive.
+    expect(ids.find((i) => i.legacyId === "links:5")?.isActive).toBe(false);
+    expect(ids.find((i) => i.legacyId === "links:1")?.isActive).toBe(true);
     expect(ids.some((i) => i.legacyId === "links:4")).toBe(false);
     expect(ids.some((i) => i.legacyId === "links:3")).toBe(false);
     const whitegum = byLegacy(await prisma.citation.findMany({ include: { source: true } }), "links:2");
@@ -289,6 +401,12 @@ describe("legacy import: recordings and links", () => {
   it("does not repeat a citation that a contributor line already made", async () => {
     const citations = await prisma.citation.findMany({ where: { legacyId: { startsWith: "event_contributors:" } } });
     expect(citations.map((c) => c.legacyId)).toEqual(["event_contributors:2"]);
+  });
+
+  it("keeps the notes of a contributor row whose citation repeats another", async () => {
+    const note = await prisma.note.findFirst({ where: { legacyId: "event_contributors:1:privateNotes" } });
+    expect(note?.body).toBe("Contributor row remark");
+    expect(note?.isPublic).toBe(false);
   });
 });
 
