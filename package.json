@@ -9,10 +9,13 @@
     "lint": "eslint --max-warnings=0",
     "build": "npm run typecheck && npm run lint && next build",
     "start": "next start",
-    "test": "vitest run",
+    "test": "npm run test:unit && npm run test:db",
+    "test:unit": "vitest run --project unit",
+    "test:db": "vitest run --project db",
     "test:e2e": "playwright test",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "db:deploy:test": "node --env-file=.env.test node_modules/prisma/build/index.js migrate deploy",
     "check": "npm run build && npm run test && npm run test:e2e"
   },
   "dependencies": {
