@@ -67,8 +67,6 @@ export const AGENT_WRITABLE_TYPES = [
   "Note",
   "NoteAttachment",
   "GuidePage",
-  "Tag",
-  "TagAssignment",
   "ExternalId",
 ] as const;
 

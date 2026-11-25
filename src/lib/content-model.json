@@ -3602,97 +3602,6 @@
    },
    "entityKind": null
   },
-  "Tag": {
-   "delegate": "tag",
-   "table": "tags",
-   "fields": {
-    "id": {
-     "type": "Int",
-     "required": true,
-     "list": false,
-     "hasDefault": true,
-     "isId": true
-    },
-    "name": {
-     "type": "String",
-     "required": true,
-     "list": false,
-     "hasDefault": false
-    },
-    "description": {
-     "type": "String",
-     "required": false,
-     "list": false,
-     "hasDefault": false
-    },
-    "rev": {
-     "type": "Int",
-     "required": true,
-     "list": false,
-     "hasDefault": true
-    },
-    "createdAt": {
-     "type": "DateTime",
-     "required": true,
-     "list": false,
-     "hasDefault": true
-    },
-    "updatedAt": {
-     "type": "DateTime",
-     "required": true,
-     "list": false,
-     "hasDefault": false,
-     "isUpdatedAt": true
-    }
-   },
-   "entityKind": null
-  },
-  "TagAssignment": {
-   "delegate": "tagAssignment",
-   "table": "tag_assignments",
-   "fields": {
-    "id": {
-     "type": "Int",
-     "required": true,
-     "list": false,
-     "hasDefault": true,
-     "isId": true
-    },
-    "tagId": {
-     "type": "Int",
-     "required": true,
-     "list": false,
-     "hasDefault": false,
-     "fk": "Tag"
-    },
-    "entityId": {
-     "type": "Int",
-     "required": true,
-     "list": false,
-     "hasDefault": false,
-     "fk": "Entity"
-    },
-    "note": {
-     "type": "String",
-     "required": false,
-     "list": false,
-     "hasDefault": false
-    },
-    "rev": {
-     "type": "Int",
-     "required": true,
-     "list": false,
-     "hasDefault": true
-    },
-    "createdAt": {
-     "type": "DateTime",
-     "required": true,
-     "list": false,
-     "hasDefault": true
-    }
-   },
-   "entityKind": null
-  },
   "ExternalId": {
    "delegate": "externalId",
    "table": "external_ids",
@@ -4748,6 +4657,12 @@
      "required": true,
      "list": false,
      "hasDefault": true
+    },
+    "description": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
     }
    },
    "entityKind": null

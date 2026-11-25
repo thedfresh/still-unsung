@@ -124,6 +124,37 @@ describe("preview and apply", () => {
   });
 });
 
+describe("highlights (item 110)", () => {
+  it("marks a show with a part-of reference to a highlight subject, with a note", async () => {
+    const show = await makeShow();
+    const kind = await db.subjectKind.findUniqueOrThrow({ where: { name: "highlight" } });
+    const partOf = await db.referenceKind.findUniqueOrThrow({ where: { name: "part of" } });
+    // A reference points at an Entity, so the subject is made first and the reference names its id.
+    const subjectPreview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Subject", fields: { name: "Notable show", subjectKindId: kind.id } }],
+    });
+    await applyChanges(agentId, subjectPreview.token as string);
+    const subject = await db.subject.findFirstOrThrow();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [
+        {
+          op: "create",
+          type: "Reference",
+          fields: { fromId: show.id, toId: subject.id, referenceKindId: partOf.id, note: "The first night of the run." },
+        },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    await applyChanges(agentId, preview.token as string);
+    const reference = await db.reference.findFirstOrThrow({ include: { referenceKind: true, to: { include: { subject: true } } } });
+    expect(reference).toMatchObject({ fromId: show.id, note: "The first night of the run." });
+    expect(reference.referenceKind.name).toBe("part of");
+    expect(reference.to.subject?.subjectKindId).toBe(kind.id);
+  });
+});
+
 describe("version check", () => {
   it("refuses an apply when the record changed after the preview, and shows both versions", async () => {
     const show = await makeShow();

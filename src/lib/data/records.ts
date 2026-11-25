@@ -57,7 +57,7 @@ async function readProvenance(type: string, id: number): Promise<Row[]> {
 
 /**
  * One record by ID or by legacy ID, with everything the agent may edit: private fields too. A
- * shared record comes with its citations, notes, tags and external IDs. Every record comes with
+ * shared record comes with its citations, notes and external IDs. Every record comes with
  * the evidence of the changes that made and changed it (`whereThisCameFrom`, data-model item 109).
  */
 export async function getRecord(type: string, key: { id?: number; legacyId?: string }): Promise<Row> {
@@ -73,7 +73,6 @@ export async function getRecord(type: string, key: { id?: number; legacyId?: str
           include: {
             citations: true,
             notes: { include: { note: true } },
-            tags: { include: { tag: true } },
             externalIds: true,
           },
         },
@@ -86,8 +85,8 @@ export async function getRecord(type: string, key: { id?: number; legacyId?: str
   const whereThisCameFrom = await readProvenance(type, row.id as number);
   if (!entity) return toJson({ ...rest, whereThisCameFrom });
   const sets = type === "Show" ? await readSetlist(row.id as number) : undefined;
-  const { citations, notes, tags, externalIds, isPublic } = entity as Row & { isPublic: boolean };
-  return toJson({ ...rest, isPublic, ...(sets ? { sets } : {}), attachments: { citations, notes, tags, externalIds }, whereThisCameFrom });
+  const { citations, notes, externalIds, isPublic } = entity as Row & { isPublic: boolean };
+  return toJson({ ...rest, isPublic, ...(sets ? { sets } : {}), attachments: { citations, notes, externalIds }, whereThisCameFrom });
 }
 
 export interface SearchInput {

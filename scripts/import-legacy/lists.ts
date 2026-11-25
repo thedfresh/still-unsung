@@ -40,7 +40,16 @@ const SOURCE_KINDS = [
   "album", "article", "book", "tape list", "ticket", "poster", "advertisement", "review", "website",
   "letter", "email", "image",
 ];
-const SUBJECT_KINDS = ["theme", "place", "character", "song form", "event"];
+// Keep this list in step with `subjectKinds` in `prisma/seed/lists.ts`. "highlight" (item 110)
+// must stay: the import empties `subject_kinds` first, so a missing row would delete the kind.
+const SUBJECT_KINDS: Array<{ name: string; description?: string }> = [
+  { name: "theme" },
+  { name: "place" },
+  { name: "character" },
+  { name: "song form" },
+  { name: "event of the day" },
+  { name: "highlight", description: "The curator's judgments, such as a notable show or an excellent version." },
+];
 const EVIDENCE_KINDS = ["studio", "live and lasting", "published text"];
 const INCOMPLETE_REASONS = ["assumed", "inferred from the tape", "reported"];
 
@@ -177,7 +186,10 @@ export async function seedLists(ctx: Ctx): Promise<void> {
   await ensureNames(ctx, PLACE_KINDS, (data) => db.placeKind.createMany({ data }));
   for (const row of await db.placeKind.findMany()) list.placeKind.set(row.name, row.id);
   await ensureNames(ctx, SOURCE_KINDS, (data) => db.sourceKind.createMany({ data }));
-  await ensureNames(ctx, SUBJECT_KINDS, (data) => db.subjectKind.createMany({ data }));
+  await db.subjectKind.createMany({
+    data: SUBJECT_KINDS.map((kind, position) => ({ ...kind, position })),
+    skipDuplicates: true,
+  });
   await ensureNames(ctx, EVIDENCE_KINDS, (data) => db.evidenceKind.createMany({ data }));
   await ensureNames(ctx, INCOMPLETE_REASONS, (data) => db.incompleteReason.createMany({ data }));
 }
