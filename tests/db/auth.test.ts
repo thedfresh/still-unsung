@@ -142,6 +142,13 @@ describe("agent access tokens", () => {
     expect(await resolveUser({ ...noSession, authorization: "Bearer suat_wrong" })).toBeNull();
     expect(await resolveUser({ authorization: "Bearer suat_wrong", sessionUserId: admin.id, clientKey: "c" })).toBeNull();
     expect(await resolveUser({ ...noSession, authorization: "Basic abc" })).toBeNull();
+    expect(await resolveUser({ authorization: "Bearer", sessionUserId: admin.id, clientKey: "c" })).toBeNull();
+  });
+
+  it("ignores a non-Bearer header, such as a proxy's Basic Auth, and reads the session", async () => {
+    const admin = await makeAdmin();
+    const user = await resolveUser({ authorization: "Basic YXJjaGl2ZTpzZWNyZXQ=", sessionUserId: admin.id, clientKey: "c" });
+    expect(user).toMatchObject({ id: admin.id, role: "ADMIN", via: "session" });
   });
 
   it("limits wrong tokens for each client, then refuses even a valid one", async () => {

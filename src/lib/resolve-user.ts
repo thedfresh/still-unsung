@@ -3,10 +3,10 @@ import { findCurrentUser } from "@/lib/data/users";
 import { AppError } from "@/lib/errors";
 import { tokenFailureLimiter, type RateLimiter } from "@/lib/rate-limit";
 import type { CurrentUser } from "@/lib/roles";
-import { bearerToken } from "@/lib/tokens";
+import { bearerToken, isBearerHeader } from "@/lib/tokens";
 
 export interface RequestIdentity {
-  /** The `Authorization` header, if any. */
+  /** The `Authorization` header, if any. Only a Bearer header is read; any other is ignored. */
   authorization: string | null;
   /** The user id of the Auth.js session, if the request has a valid session. */
   sessionUserId: string | null;
@@ -20,6 +20,7 @@ export interface RequestIdentity {
  *
  * - A request with an `Authorization: Bearer` header uses the token only. A wrong token never
  *   falls back to a session. A valid token acts as its AGENT user, never as ADMIN.
+ * - Any other `Authorization` scheme (a proxy's Basic Auth, as on staging) is ignored (HSA-160).
  * - Otherwise the session decides. The role is read from the database on each request, so a
  *   removed user or a changed role takes effect at once.
  * - After too many wrong tokens from one client, token checks are refused with `rate_limited`.
@@ -28,7 +29,7 @@ export async function resolveUser(
   identity: RequestIdentity,
   limiter: RateLimiter = tokenFailureLimiter(),
 ): Promise<CurrentUser | null> {
-  if (identity.authorization !== null) {
+  if (isBearerHeader(identity.authorization)) {
     const token = bearerToken(identity.authorization);
     if (!limiter.allowed(identity.clientKey)) throw new AppError("rate_limited");
     const user = token ? await verifyAgentToken(token) : null;
