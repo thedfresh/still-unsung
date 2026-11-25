@@ -394,9 +394,12 @@ jobs:
       AGENT_TMP: /tmp/agent
 
     steps:
+      # No GITHUB_TOKEN credential kept: a push must use the Claude GitHub App's token, which
+      # starts CI at once. A GITHUB_TOKEN push waits for approval (HSA-146).
       - uses: actions/checkout@v7
         with:
           fetch-depth: 20
+          persist-credentials: false
 
       # The private rules (Jira workflow, contact rules) live in the planning repo, not here.
       - name: Check out the planning repo read-only
@@ -427,14 +430,39 @@ jobs:
           node scripts/write-jira-mcp-config.mjs
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_bun_executable: ${{ env.BUN_PATH }}
           # Keep the Jira ticket in step: after the fix, a short note on the ticket named in the PR's
           # "Refs:" line. No tag and no status change; the ticket's hand-back stays the summary.
+          # The Jira config goes inline: in this job the action adds its own inline MCP config and
+          # then drops any config given as a file (HSA-146; docs/agent-workflow.md).
           claude_args: |
-            --mcp-config ${{ env.AGENT_TMP }}/mcp.json
+            --mcp-config '${{ env.JIRA_MCP_CONFIG }}'
             --add-dir /tmp/reference
             --max-turns 100
             --append-system-prompt "Read CLAUDE.md, then /tmp/reference/CLAUDE.md (the private planning repo, read-only: its Jira workflow, contact and writing rules apply here; its old-app sections and prod freeze do not). Never copy private material from /tmp/reference into this public repo. After you push your fix, find the Jira key in the pull request description's 'Refs: HSA-n' line. Add one short comment to that ticket (Jira site dfresh.atlassian.net, jira MCP tools) that starts 'Fix from a PR comment:', says in one or two plain sentences what was asked and what you changed, and ends with the pull request link. Do not tag the user and do not change the ticket's status. If there is no Refs line, skip this."
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(git add:*),Bash(git commit:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),mcp__jira__getJiraIssue,mcp__jira__addOrEditJiraIssueComment"
+
+      # Same report as the ticket job: shows the MCP servers and why the run ended.
+      - name: Report how Claude's run ended
+        if: always() && steps.claude.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          node -e '
+            const msgs = JSON.parse(require("fs").readFileSync(process.env.EXECUTION_FILE, "utf8"));
+            const init = msgs.find(m => m.type === "system" && m.subtype === "init") || {};
+            const result = msgs.find(m => m.type === "result") || {};
+            const tools = (init.tools || []).filter(t => t.startsWith("mcp__"));
+            const lines = [
+              "MCP servers: " + JSON.stringify(init.mcp_servers || "not reported"),
+              "MCP tools available: " + (tools.length ? tools.join(", ") : "none"),
+              "Model: " + (init.model || "not reported"),
+              "Turns: " + result.num_turns + ", error: " + result.is_error,
+              "Final message: " + String(result.result || "").slice(0, 1500),
+            ];
+            console.log(lines.join("\n"));
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, "### Claude run\n```\n" + lines.join("\n") + "\n```\n");
+          '
