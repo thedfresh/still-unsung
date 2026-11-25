@@ -28,8 +28,10 @@ cache handler.
 | `src/components/admin/` | Admin-only components. |
 | `tests/e2e/` | Playwright and axe tests. |
 | `tests/db/` | Tests that need a real database. |
+| `tests/support/` | Shared test helpers: the test-database guard, fakes, factories. |
 
-- Unit tests sit next to their source as `*.test.ts`. (test: Vitest finds them)
+- Unit tests sit next to their source as `*.test.ts`. (test: Vitest finds them) Test layers,
+  mocks and test data: [TESTING.md](TESTING.md).
 - File names are kebab-case: `event-card.tsx`, `sort-date.ts`. Components export PascalCase
   names. (build: `eslint-plugin-check-file` for file names; review for the exports)
 - Import with the `@/` alias, not long relative paths (more than one `../`).
@@ -250,6 +252,9 @@ Run these. All must pass.
 
 ```bash
 npm run build      # type check, lint (no warnings allowed), production build
-npm test           # unit and database tests
+npm test           # unit tests, then database tests (needs the test database)
 npm run test:e2e   # when pages change
 ```
+
+`npm run test:unit` and `npm run test:db` run each part alone. Which tests a change needs:
+[TESTING.md](TESTING.md).
