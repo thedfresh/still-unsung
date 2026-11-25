@@ -195,7 +195,7 @@ describe("links from the Changes page", () => {
       data: items.map((item, index) => ({ changesetId, position: index + 1, action: "CREATE" as const, ...item })),
     });
     const { listChangesets } = await import("@/lib/data/changes/list");
-    const [change] = await listChangesets();
+    const [change] = (await listChangesets()).changes;
     expect(change.shows).toEqual([
       { id: showId, label: "Show 1980-11-14, Test Radio Studio" },
       { id: otherShow, label: "Show 1981-02-03, Test Radio Studio" },

@@ -1668,6 +1668,9 @@ model ChangesetItem {
   /// What the record was called when it changed, for the Changes page. It survives a later
   /// rename or delete. Null for items stored before this column existed.
   label       String?
+  /// What the Changes page needs to read the item in words: the names of the records its fields
+  /// point at, and the record it belongs under. Null for items stored before this column existed.
+  detail      Json?
 
   @@unique([changesetId, position])
   @@index([tableName, recordId])

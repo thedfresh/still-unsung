@@ -3988,6 +3988,12 @@
      "required": false,
      "list": false,
      "hasDefault": false
+    },
+    "detail": {
+     "type": "Json",
+     "required": false,
+     "list": false,
+     "hasDefault": false
     }
    },
    "entityKind": null

@@ -310,17 +310,38 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   the token first, so it works once even when the apply then fails. It re-checks every `rev`
   inside the write. If a record changed, nothing is written and both versions are returned.
   (test)
-- **One formatter.** `src/lib/changes/preview-format.ts` writes the preview text. Change the
-  wording there only. It shows a field of a new record only when the value differs from the
-  column default. `src/lib/changes/labels.ts` and `labelRow` write the record labels, also used
-  by the Changes page. A link shows as `ID (name)`, or `(new) Type "name"` for a record made in
-  the same call. Public text (a public note body, a segment summary) shows in full; other long
-  text is cut. The apply step stores each item's label, so the Changes page runs no label queries.
-  (review)
+- **One readout.** `src/lib/changes/readout.ts` words a set of changes, for the preview and for
+  the Changes page. Change the wording there only. `src/lib/changes/preview-format.ts` adds only
+  the warnings, the evidence and the apply token. The readout has the counts first, then the
+  unusual lines (new people, places, works, bands, subjects and sources; a value changed from
+  one value to another; certainty below CONFIRMED), then one heading per parent (show, work,
+  person) with one plain line per record. It never prints raw flags or system fields: it says
+  who can see a record in words. It shows a field of a new record only when the value differs
+  from the column default. `src/lib/changes/labels.ts` and `labelRow` write the record labels.
+  Each record is a card: a title line, then its fields as a list. A changed text or value reads
+  on two lines (`was:` and `now:`), cut at about 100 characters. A link shows the name only, never
+  the ID, or `(new) Type "name"` for a record made in the same call. An ID shows only when
+  there is no name: `(deleted record N)` when the record is gone, `(record N, name not found)`
+  otherwise. Private text shows like any other text, because only the admin and the agent see
+  the readout (a public change log, later, shows summaries only). `isPrivateText` lists the
+  fields that the schema marks PRIVATE, and the readout puts "(private)" after their names: words
+  as heard, a citation excerpt, a private note body, and the `wording` of a rendition, version
+  passage or variant passage. It cuts private text at about 100 characters, like other text. A
+  private note is titled by the start of its body, with "(private)" after it. A cut ends with
+  one "…" character. A card says "Moved" only for a change of parent or order (`MOVE_FIELDS`
+  in the readout, including `Segment.parentId`). `Credit.versionId` is the credited subject, so
+  a change to it reads "Changed".
+  `describeItems` (`src/lib/data/changes/describe.ts`) finds the names and the parent. It caches
+  each lookup per call (one key per set). The preview and the apply step run it inside a
+  transaction with a 30-second limit. The apply step stores the names with each item (`label`, `detail`), so the
+  Changes page runs no label queries for new changes. For a change stored before that, the page
+  runs one batched lookup per record type (`src/lib/data/changes/earlier.ts`).
+  (test: `src/lib/changes/readout.test.ts`, `tests/db/agent-changes.test.ts`)
 - **Insert by position.** A new segment takes `before` or `after` (a segment ID or a ref)
   instead of `sortKey`. `placeSegment` makes the key between the neighbours. (test)
 - **Every write path makes a changeset** (`src/lib/data/changes/`), linked to the user. The admin
   edit screens reuse `writeEdits` and the changeset code with path `ADMIN`. The page
-  `/admin/changes` lists each change with who made it, its evidence and its previous state.
+  `/admin/changes` is a log, newest first, 50 to a page: one line for each change (the counts
+  sentence, who made it, its evidence and the time). Opening a line shows the readout.
 - **Not built yet:** the call to the cache-refresh route after an apply (no cached page reads
   content yet; section 5), and undo.
