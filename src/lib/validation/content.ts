@@ -230,7 +230,8 @@ function checkRefs(
     const target = modelInfo(type).fields[name]?.fk;
     const kind = created.get(value.ref);
     if (kind === undefined) problems[`${prefix}.${name}`] = [`No earlier new record has the ref "${value.ref}".`];
-    else if (kind !== target) problems[`${prefix}.${name}`] = [`The ref "${value.ref}" is a ${kind}, not a ${target}.`];
+    // Every record with an `entities` row is an Entity, so a ref to any such new record fits.
+    else if (kind !== target && !(target === "Entity" && modelInfo(kind).entityKind !== null)) problems[`${prefix}.${name}`] = [`The ref "${value.ref}" is a ${kind}, not a ${target}.`];
   }
 }
 
