@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { formatPreview } from "@/lib/changes/preview-format";
-import { readableTypes, writableTypes } from "@/lib/content-access";
+import { isList, LIST_TABLES, readableTypes, writableTypes } from "@/lib/content-access";
 import { applyChanges } from "@/lib/data/changes/apply";
 import { previewChanges } from "@/lib/data/changes/preview";
 import { getRecord, searchRecords } from "@/lib/data/records";
@@ -24,10 +24,12 @@ async function run(work: () => Promise<string>): Promise<ToolResult> {
   }
 }
 
-const EDIT_HELP = `Each edit is { op: "create", type, ref?, fields } or { op: "update", type, id, rev, fields }.
-Give "rev" as you read it. A field that points at a new record in the same call takes { "ref": "<that record's ref>" }.
+const EDIT_HELP = `Each edit is { op: "create", type, ref?, fields }, { op: "update", type, id, rev, fields } or { op: "delete", type, id, rev }.
+Give "rev" as you read it.
+A delete removes one record. The version check, the preview and the apply token work as for any edit. The changeset keeps the full deleted row. A record that still has attachments or links (citations, notes, references, external IDs, or children such as the segments of a set) is refused, and the message names what is still attached. Delete the attachments in the same call, or move them with an update, and then delete the record: deletes run after creates and updates in the call, in the order you give them. A type with no "rev" takes a delete without "rev". There is no merge tool. A field that points at a new record in the same call takes { "ref": "<that record's ref>" }.
 A new Segment takes "before": <segment id or { "ref" }> or "after": the same, next to the segment it goes beside. "before" and "after" sit beside "fields" in the edit, never inside it. Example: { "op": "create", "type": "Segment", "after": 4152, "fields": { "workId": 1485 } }. The server makes the sort key and takes the set from that segment. Send "sortKey" and "setId" only for the first segment of an empty set.
-Writable types: ${writableTypes().join(", ")}. Lists (such as SetType) are not writable: ask the user to add a value.`;
+Writable types: ${writableTypes().filter((type) => !isList(type)).join(", ")}.
+Editable lists (${LIST_TABLES.join(", ")}): you may only create a value, with op "create". A new value can be used by a ref in the same call (a new SubjectKind, then a Subject with that kind). Update and delete of a list value are refused: ask the user to change list values in the admin.`;
 
 /**
  * The app's MCP server. It serves one signed-in agent user (the caller checks the token and the

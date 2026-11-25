@@ -19,7 +19,7 @@ export interface RefValue {
 export type FieldValue = string | number | boolean | Date | null | RefValue | string[];
 
 export interface ParsedEdit {
-  op: "create" | "update";
+  op: "create" | "update" | "delete";
   type: string;
   /** A name other edits in the same call use to point at this new record. */
   ref?: string;
@@ -120,6 +120,7 @@ const editShape = {
 const neighbourSchema = z.union([z.number().int().positive(), refSchema]);
 
 const editSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("delete"), type: z.string().min(1).max(60), id: z.number().int().positive(), rev: z.number().int().positive().optional() }).strict(),
   z.object({ op: z.literal("create"), ...editShape, before: neighbourSchema.optional(), after: neighbourSchema.optional() }).strict(),
   z.object({
     op: z.literal("update"),
@@ -157,13 +158,25 @@ export function parseEdits(input: unknown): ParsedEdit[] {
     const prefix = `edits.${index}`;
     const edit = editSchema.safeParse(raw);
     if (!edit.success) return addIssues(problems, prefix, edit.error);
-    const { op, type } = edit.data;
-    const refusal = writeRefusal(type);
+    const { type } = edit.data;
+    const refusal = writeRefusal(type, edit.data.op);
     if (refusal) return void (problems[`${prefix}.type`] = [refusal]);
+    if (edit.data.op === "delete") {
+      const { id, rev } = edit.data;
+      if (!("id" in modelInfo(type).fields)) return void (problems[`${prefix}.type`] = [`A ${type} record cannot be deleted with this tool.`]);
+      if (isUpdatable(type) && rev === undefined) return void (problems[`${prefix}.rev`] = ["Give rev as you read it."]);
+      if (!isUpdatable(type) && rev !== undefined) return void (problems[`${prefix}.rev`] = [`A ${type} record has no version number: leave out rev.`]);
+      if (updated.has(`${type}:${id}`)) return void (problems[`${prefix}.id`] = [`${type} ${id} is changed or deleted twice in one call.`]);
+      updated.add(`${type}:${id}`);
+      parsed.push({ op: "delete", type, id, rev, fields: {} });
+      return;
+    }
+    const op = edit.data.op;
     if (op === "update" && !isUpdatable(type)) {
       return void (problems[`${prefix}.type`] = [`A ${type} record cannot be changed after it is created.`]);
     }
-    const forbidden = (AGENT_FORBIDDEN_FIELDS[type] ?? []).filter((name) => Object.hasOwn(edit.data.fields, name));
+    const sent = edit.data.fields;
+    const forbidden = (AGENT_FORBIDDEN_FIELDS[type] ?? []).filter((name) => Object.hasOwn(sent, name));
     if (forbidden.length > 0) {
       for (const name of forbidden) {
         problems[`${prefix}.fields.${name}`] = [`The tools never set ${type}.${name}. Only the admin and the Zotero sync set it.`];
@@ -184,7 +197,7 @@ export function parseEdits(input: unknown): ParsedEdit[] {
     checkRefs(values, type, created, `${prefix}.fields`, problems);
     if (edit.data.op === "update") {
       const key = `${type}:${edit.data.id}`;
-      if (updated.has(key)) problems[`${prefix}.id`] = [`${type} ${edit.data.id} is changed twice in one call. Merge the two edits.`];
+      if (updated.has(key)) problems[`${prefix}.id`] = [`${type} ${edit.data.id} is changed or deleted twice in one call. Merge the two edits.`];
       updated.add(key);
     }
     if (edit.data.ref !== undefined) {

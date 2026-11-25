@@ -80,12 +80,40 @@ test.describe("the MCP endpoint", () => {
 
     const applied = await callTool(request, token, "apply_changes", { token: token2 });
     expect(applied.text).toContain("Applied as changeset");
+
+    // The agent cites the new show, then previews a delete of the citation, sees "Deleted" and applies it.
+    const found = JSON.parse((await callTool(request, token, "search_records", { type: "Show", date: `${year}-03-04` })).text);
+    const showId = found[0].id as number;
+    const cite = await callTool(request, token, "preview_changes", {
+      evidence: { ownKnowledge: true },
+      edits: [
+        { op: "create", type: "Source", ref: "src", fields: { key: `e2e-${year}-${Date.now()}`, title: "A test notebook" } },
+        { op: "create", type: "Citation", fields: { entityId: showId, sourceId: { ref: "src" }, place: "page 1" } },
+      ],
+    });
+    expect(cite.isError).toBe(false);
+    await callTool(request, token, "apply_changes", { token: /Apply token: (suprev_\S+)/.exec(cite.text)![1] });
+    const shown = JSON.parse((await callTool(request, token, "get_record", { type: "Show", id: showId })).text);
+    const citation = shown.attachments.citations[0];
+    const removal = await callTool(request, token, "preview_changes", {
+      evidence: { ownKnowledge: true },
+      edits: [{ op: "delete", type: "Citation", id: citation.id, rev: citation.rev }],
+    });
+    expect(removal.isError).toBe(false);
+    expect(removal.text).toContain("Deleted · Citation");
+    await callTool(request, token, "apply_changes", { token: /Apply token: (suprev_\S+)/.exec(removal.text)![1] });
+    const after = JSON.parse((await callTool(request, token, "get_record", { type: "Show", id: showId })).text);
+    expect(after.attachments.citations).toHaveLength(0);
+
     const again = await callTool(request, token, "apply_changes", { token: token2 });
     expect(again.isError).toBe(true);
 
     await page.goto("/admin/changes");
     await expect(page.getByRole("heading", { level: 1, name: "Changes" })).toBeVisible();
-    const change = page.locator("details", { hasText: agent.email }).first();
+    const removed = page.locator("details", { hasText: agent.email }).filter({ hasText: "Deleted 1 citation." }).first();
+    await removed.locator("summary").click();
+    await expect(removed).toContainText("Deleted · Citation");
+    const change = page.locator("details", { hasText: agent.email }).filter({ hasText: "Added 1 show." }).first();
     await change.locator("summary").click();
     await expect(change.locator("summary")).toContainText("Added 1 show.");
     await expect(change).toContainText(`New · Show ${year}-03-04`);

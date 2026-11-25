@@ -270,7 +270,9 @@ describe("storedReadoutItem", () => {
   it("reads a delete as a delete", () => {
     const stored = storedReadoutItem({ type: "Note", label: "Note \"x\"", action: "DELETE", before: { id: 1, body: "x", isPublic: true }, after: null, detail: null });
     const text = formatReadout([stored]);
-    expect(text).toContain("Deleted Note");
+    expect(text).toContain("Look at these first:");
+    expect(text).toContain("Deleted · Note");
+    expect(text).toContain("who can see it: public note");
     expect(text).not.toContain("Changed");
   });
 });

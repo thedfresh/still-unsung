@@ -23,10 +23,27 @@ describe("parseEdits", () => {
   });
 
   it("refuses types an agent may not write, and says why", () => {
-    expect(problems([{ op: "create", type: "SetType", fields: { name: "x", displayName: "x" } }])["edits.0.type"][0]).toContain("Ask the user");
+    expect(problems([{ op: "update", type: "SetType", id: 1, rev: 1, fields: { name: "x" } }])["edits.0.type"][0]).toContain("Ask the user");
+    expect(problems([{ op: "delete", type: "SetType", id: 1, rev: 1 }])["edits.0.type"][0]).toContain("Ask the user");
     for (const type of ["User", "Changeset", "AgentToken", "Entity", "Nope"]) {
       expect(problems([{ op: "create", type, fields: {} }])).toHaveProperty(["edits.0.type"]);
     }
+  });
+
+  it("checks a delete: it needs the version, and no fields", () => {
+    expect(parseEdits([{ op: "delete", type: "Citation", id: 4, rev: 2 }])).toEqual([{ op: "delete", type: "Citation", id: 4, rev: 2, fields: {} }]);
+    expect(problems([{ op: "delete", type: "Citation", id: 4 }])).toHaveProperty(["edits.0.rev"]);
+    expect(problems([{ op: "delete", type: "Citation", id: 4, rev: 2, fields: {} }])).toHaveProperty(["edits.0"]);
+    expect(problems([{ op: "delete", type: "User", id: 4, rev: 2 }])).toHaveProperty(["edits.0.type"]);
+    expect(problems([{ op: "delete", type: "NoteAttachment", id: 4, rev: 2 }])).toHaveProperty(["edits.0.rev"]);
+    expect(parseEdits([{ op: "delete", type: "NoteAttachment", id: 4 }])[0].rev).toBeUndefined();
+  });
+
+  it("refuses a record that is deleted twice, or changed and deleted", () => {
+    const twice = [{ op: "delete", type: "Citation", id: 4, rev: 2 }, { op: "delete", type: "Citation", id: 4, rev: 2 }];
+    expect(problems(twice)).toHaveProperty(["edits.1.id"]);
+    const both = [{ op: "update", type: "Citation", id: 4, rev: 2, fields: { place: "x" } }, { op: "delete", type: "Citation", id: 4, rev: 2 }];
+    expect(problems(both)).toHaveProperty(["edits.1.id"]);
   });
 
   it("refuses fields the server owns", () => {
