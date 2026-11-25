@@ -14,13 +14,13 @@ afterAll(async () => {
 
 describe("database round trip", () => {
   it("writes, reads back and deletes a row", async () => {
-    const note = `round-trip ${Date.now()}`;
-    const created = await prisma.systemCheck.create({ data: { note } });
+    const created = await prisma.entity.create({ data: { kind: "PERSON" } });
     try {
-      const found = await prisma.systemCheck.findUnique({ where: { id: created.id } });
-      expect(found?.note).toBe(note);
+      const found = await prisma.entity.findUnique({ where: { id: created.id } });
+      expect(found?.kind).toBe("PERSON");
+      expect(found?.isPublic).toBe(true);
     } finally {
-      await prisma.systemCheck.delete({ where: { id: created.id } });
+      await prisma.entity.delete({ where: { id: created.id } });
     }
   });
 
