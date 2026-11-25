@@ -174,6 +174,31 @@ test.describe("admin behind a reverse proxy", () => {
       await context.close();
     }
   });
+
+  // Staging's nginx Basic Auth makes the browser send `Authorization: Basic …` on every request.
+  // That header is not an agent token, so the session must still decide (HSA-160).
+  test("a proxy's Basic Auth header does not hide the session; a wrong Bearer token does", async ({ browser, baseURL }) => {
+    const admin = await seedSignedInUser("ADMIN");
+    for (const [authorization, signedIn] of [
+      ["Basic YXJjaGl2ZTpzZWNyZXQ=", true],
+      ["Bearer suat_wrong", false],
+    ] as const) {
+      const context = await browser.newContext({ baseURL, extraHTTPHeaders: { authorization } });
+      try {
+        await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
+        const page = await context.newPage();
+        await page.goto("/admin");
+        if (signedIn) {
+          await expect(page).toHaveURL(/\/admin$/);
+          await expect(page.getByText(`Signed in as ${admin.email}`)).toBeVisible();
+        } else {
+          await expect(page).toHaveURL(/\/admin\/sign-in/);
+        }
+      } finally {
+        await context.close();
+      }
+    }
+  });
 });
 
 test.describe("Google sign-in (Google is a fake)", () => {

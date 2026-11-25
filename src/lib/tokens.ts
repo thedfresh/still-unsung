@@ -16,6 +16,14 @@ export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/**
+ * True when an `Authorization` header uses the Bearer scheme, the only one that carries an agent
+ * token. Any other scheme (for example a proxy's Basic Auth) is not ours, so the session decides.
+ */
+export function isBearerHeader(header: string | null | undefined): header is string {
+  return !!header && /^Bearer(\s|$)/i.test(header.trim());
+}
+
 /** Read the token from an `Authorization: Bearer <token>` header, or null. */
 export function bearerToken(header: string | null | undefined): string | null {
   if (!header) return null;

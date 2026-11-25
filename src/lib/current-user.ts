@@ -6,6 +6,7 @@ import { AppError } from "@/lib/errors";
 import { clientKey } from "@/lib/rate-limit";
 import { resolveUser } from "@/lib/resolve-user";
 import { assertRole, type CurrentUser, type Role } from "@/lib/roles";
+import { isBearerHeader } from "@/lib/tokens";
 
 /**
  * The one server function that returns the signed-in user, with the role. It reads a session
@@ -19,8 +20,9 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   try {
     const requestHeaders = await headers();
     const authorization = requestHeaders.get("authorization");
-    // A request that carries a token never reads the session cookie.
-    const session = authorization === null ? await auth() : null;
+    // A request that carries a token never reads the session cookie. Only a Bearer header is a
+    // token: a proxy's Basic Auth header (staging) must not hide the session (HSA-160).
+    const session = isBearerHeader(authorization) ? null : await auth();
     return await resolveUser({
       authorization,
       sessionUserId: session?.user?.id ?? null,
