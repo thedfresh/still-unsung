@@ -1653,8 +1653,12 @@ model Changeset {
   /// Item 20: changes marked public go in the public list of recent changes.
   isPublic Boolean @default(false)
   summary  String
-  /// Item 40: preview, then apply with a token.
-  previewToken String? @unique
+  /// Item 40: preview, then apply with a token. Only the hash of the token is stored.
+  previewToken     String?   @unique
+  /// The edits a preview holds until it is applied or expires (HSA-26). Cleared at apply.
+  plan             Json?
+  /// A preview token works until this time (30 minutes after the preview).
+  previewExpiresAt DateTime?
 
   createdAt DateTime  @default(now())
   appliedAt DateTime?

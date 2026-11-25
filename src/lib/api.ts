@@ -22,6 +22,8 @@ export function defineRoute(config: {
     try {
       const user = await requireUser(config.roles);
       const data = await config.handler(user, request);
+      // A handler may build its own response (the MCP server does).
+      if (data instanceof Response) return data;
       return Response.json(data, { headers: { "Cache-Control": "no-store" } });
     } catch (err) {
       return errorResponse(err);
