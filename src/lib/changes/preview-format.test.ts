@@ -20,7 +20,7 @@ describe("formatPreview", () => {
   it("shows a change as before → after", () => {
     const text = formatPreview({
       ...base,
-      items: [{ op: "update", type: "Show", label: "Show 1978-05-23, Keystone", before: { id: 1, rev: 1, timeLabel: null }, after: { id: 1, rev: 2, timeLabel: "Late" }, attachesTo: [] }],
+      items: [{ op: "update", type: "Show", label: "Show 1978-05-23, Keystone", before: { id: 1, rev: 1, timeLabel: null }, after: { id: 1, rev: 2, timeLabel: "Late" }, attachesTo: [], links: { before: {}, after: {} } }],
     });
     expect(text).toContain("CHANGE Show 1978-05-23, Keystone");
     expect(text).toContain('timeLabel: (empty) → "Late"');
@@ -29,7 +29,7 @@ describe("formatPreview", () => {
   it("shows a new record with its fields and where it attaches", () => {
     const text = formatPreview({
       ...base,
-      items: [{ op: "create", type: "Set", label: "Set #3", before: null, after: { id: 3, position: 1, showId: 7, notes: null }, attachesTo: ["Show 1978"] }],
+      items: [{ op: "create", type: "Set", label: "Set #3", before: null, after: { id: 3, position: 1, showId: 7, notes: null }, attachesTo: ["Show 1978"], links: { before: {}, after: { showId: "Show 1978" } } }],
     });
     expect(text).toContain("NEW Set #3");
     expect(text).toContain("position: 1");
