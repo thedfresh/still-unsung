@@ -170,6 +170,49 @@ describe("getShowReview", () => {
     expect(third.origin).toBe('Added by the agent on 2026-11-26 from the source "Synthetic notebook" (page 9)');
   });
 
+  it("takes the header line from the change that created the show, even when a later change made more records", async () => {
+    const showId = await makeShow({ year: 1978, month: 4, day: 15 });
+    const set = await makeSet(showId, 1);
+    const talk = await makeSegment(set, "a", { summary: "Introduces the song." });
+    await recordCreated("shows", showId);
+    // Grooming later adds more records (references) than the import made.
+    const grooming = await db.changeset.create({
+      data: { userId, path: "MCP", status: "APPLIED", ownKnowledge: true, summary: "Grooming", appliedAt: new Date("2026-11-26T12:00:00Z") },
+    });
+    for (let i = 0; i < 3; i++) {
+      const refId = await entity("REFERENCE");
+      await db.reference.create({ data: { id: refId, fromId: talk, toId: personId, referenceKindId: kindId } });
+      await db.changesetItem.create({ data: { changesetId: grooming.id, position: i + 1, tableName: "references", recordId: refId, action: "CREATE" } });
+    }
+
+    const show = await getShowReview(showId, counting);
+    expect(show!.origin).toBe('Added by the agent on 2026-11-25 from the source "Synthetic notebook" (page 4)');
+    const refs = show!.sets[0].segments[0].attachments.references;
+    expect(refs).toHaveLength(3);
+    expect(refs.every((ref) => ref.origin === "Added by the agent on 2026-11-26 from own knowledge")).toBe(true);
+  });
+
+  it("has no header line when the show's creation is not stored, and each record keeps its own", async () => {
+    const showId = await makeShow({ year: 1990, month: 11, day: 6 });
+    const set = await makeSet(showId, 1);
+    const talk = await makeSegment(set, "a", { summary: "Talk." });
+    const refId = await entity("REFERENCE");
+    await db.reference.create({ data: { id: refId, fromId: talk, toId: personId, referenceKindId: kindId } });
+    await db.changesetItem.create({ data: { changesetId, position: 1, tableName: "references", recordId: refId, action: "CREATE" } });
+
+    const show = await getShowReview(showId, counting);
+    expect(show!.origin).toBeNull();
+    expect(show!.sets[0].segments[0].attachments.references[0].origin).toBe('Added by the agent on 2026-11-25 from the source "Synthetic notebook" (page 4)');
+  });
+
+  it("writes a bill entry as its role, a colon and a space, then the act", async () => {
+    const showId = await makeShow({ year: 1990, month: 11, day: 6 });
+    const billId = await entity("BILL_ENTRY");
+    await db.billEntry.create({ data: { id: billId, showId, actBandId: bandId, role: "OPENER", position: 1 } });
+    const show = await getShowReview(showId, counting);
+    expect(show!.bill.map((line) => line.text)).toEqual(["opener: Test Band"]);
+  });
+
   it("names every kind of reference target, and a citation of this show's own recording is short", async () => {
     const showId = await makeShow({ year: 1980, month: 11, day: 14 });
     const set = await makeSet(showId, 1);

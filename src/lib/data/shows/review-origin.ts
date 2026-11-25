@@ -12,7 +12,7 @@ export type OriginLookup = (type: OriginType, id: number) => string | null;
 export interface Origins {
   /** Only a record whose origin differs from `main` gets a line. */
   lookup: OriginLookup;
-  /** The origin of the change that created most of the page's records: shown once, under the show header. */
+  /** The origin of the change that created the show record: shown once, under the show header. */
   main: string | null;
 }
 
@@ -20,14 +20,15 @@ export interface Origins {
  * Where each record came from (data-model item 109): the changeset that created it, with its
  * evidence, as one short line. One query for the whole page. A record with no stored creation,
  * for example one made before changesets existed, has no line. The page shows the line of the
- * change that created most records once; a record shows its own line only when it differs
- * (another change, other evidence or another date). `showId` is the show of the page.
+ * change that created the show record once, under the header; a record shows its own line only
+ * when it differs (another change, other evidence or another date). A show with no stored
+ * creation has no header line, and every record shows its own. Later changes (grooming that adds
+ * references, for example) never stand in for the show's origin. `showId` is the show of the page.
  */
 export async function loadOrigins(db: PrismaClient, wanted: Map<OriginType, number[]>, showId: number): Promise<Origins> {
   const tableOf = (type: OriginType) => MODEL.models[type].table;
   const clauses = [...wanted].filter(([, ids]) => ids.length > 0).map(([type, ids]) => ({ tableName: tableOf(type), recordId: { in: ids } }));
   const lines = new Map<string, string>();
-  const counts = new Map<number, { line: string; count: number }>();
   if (clauses.length > 0) {
     const items = await db.changesetItem.findMany({
       ...JOIN,
@@ -36,7 +37,6 @@ export async function loadOrigins(db: PrismaClient, wanted: Map<OriginType, numb
       select: {
         tableName: true,
         recordId: true,
-        changesetId: true,
         changeset: {
           select: {
             path: true,
@@ -52,7 +52,7 @@ export async function loadOrigins(db: PrismaClient, wanted: Map<OriginType, numb
         },
       },
     });
-    for (const { tableName, recordId, changesetId, changeset } of items) {
+    for (const { tableName, recordId, changeset } of items) {
       const recording = changeset.recording;
       const line = describeOrigin({
         path: changeset.path,
@@ -66,13 +66,10 @@ export async function loadOrigins(db: PrismaClient, wanted: Map<OriginType, numb
         ownShowRecording: recording && recording.showId === showId ? { description: recording.description } : null,
       });
       lines.set(`${tableName}:${recordId}`, line);
-      counts.set(changesetId, { line, count: (counts.get(changesetId)?.count ?? 0) + 1 });
     }
   }
-  // The most records wins; the earlier change (first seen) wins a tie.
-  let main: { line: string; count: number } | null = null;
-  for (const entry of counts.values()) if (!main || entry.count > main.count) main = entry;
-  const mainLine = main?.line ?? null;
+  // The change that created the show record, if one is stored.
+  const mainLine = lines.get(`${tableOf("Show")}:${showId}`) ?? null;
   return {
     main: mainLine,
     lookup: (type, id) => {

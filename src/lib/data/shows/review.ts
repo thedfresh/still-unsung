@@ -12,7 +12,7 @@ function showLines(show: ShowRow, origin: Maps["origin"]): Pick<ReviewShow, "bil
       const name = entry.actBand?.name ?? entry.actPerson?.name ?? "Unnamed act";
       return {
         key: `bill-${entry.id}`,
-        text: `${entry.role.toLowerCase().replaceAll("_", "-")}:${name}${certaintyNote(entry.certainty)}`,
+        text: `${entry.role.toLowerCase().replaceAll("_", "-")}: ${name}${certaintyNote(entry.certainty)}`,
         origin: origin("BillEntry", entry.id),
       };
     }),
@@ -93,7 +93,7 @@ export async function getShowReview(id: number, db: PrismaClient = getPrisma()):
   return {
     id,
     title: `Show ${[shortDate(show), placeName].filter(Boolean).join(", ")}`,
-    // The one origin line of the page: the change that created most of the show.
+    // The one origin line of the page: the change that created the show itself.
     origin: origins.main,
     date: dateInWords(show),
     place: show.place ? `${placeNameOf(show.place) ?? "Place with no name"}${certaintyNote(show.placeCertainty)}` : null,
