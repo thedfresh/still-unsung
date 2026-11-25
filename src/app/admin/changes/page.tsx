@@ -15,7 +15,7 @@ function ItemLines({ item }: { item: ChangesetRow["items"][number] }) {
   return (
     <li>
       <span className="font-semibold">
-        {item.action} {item.tableName} #{item.recordId}
+        {item.action} {item.label}
       </span>
       <ul className="ml-4 list-disc break-words">
         {fields.map((line) => (

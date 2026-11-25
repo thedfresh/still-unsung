@@ -1,9 +1,11 @@
+import { modelInfo } from "@/lib/content-access";
+
 export type Row = Record<string, unknown>;
 
 const NAME_FIELDS = ["name", "title", "displayName", "label", "slug", "value", "body"] as const;
 const HIDDEN_FIELDS = new Set(["id", "rev", "createdAt", "updatedAt"]);
 
-function datePart(row: Row): string | null {
+export function datePart(row: Row): string | null {
   const { dateYear, dateMonth, dateDay } = row;
   if (typeof dateYear !== "number") return typeof row.dateAsWritten === "string" ? row.dateAsWritten : null;
   const two = (n: number) => String(n).padStart(2, "0");
@@ -34,6 +36,23 @@ export function describeRecord(type: string, row: Row | null, extra?: string | n
   return withId && typeof row.id === "number" ? `${type} #${row.id}` : type;
 }
 
+/** A segment as its work title (or "[spoken]") and the date of its show, for example `Ripple, 1978-05-23`. */
+export function segmentLabel(workTitle: string | null, showDate: string | null): string {
+  const title = workTitle ?? "[spoken]";
+  return showDate ? `${title}, ${showDate}` : title;
+}
+
+/** A set as the date of its show and its position, for example `1978-05-23, set 1`. */
+export function setLabel(row: Row, showDate: string | null): string | null {
+  if (typeof row.position !== "number") return null;
+  return [showDate, `set ${row.position}`].filter(Boolean).join(", ");
+}
+
+/** A label for a list or a message: starts with the type unless the label already does. */
+export function withType(type: string, label: string): string {
+  return label === type || label.startsWith(`${type} `) ? label : `${type}: ${label}`;
+}
+
 /** Plain words for enum values that the raw name would make hard to read. */
 const PLAIN_VALUES: Record<string, string> = { RECORDING_PLAYED: "recording played" };
 
@@ -55,7 +74,16 @@ export function changedFields(before: Row, after: Row): Array<[string, unknown, 
   return out;
 }
 
-/** The fields of a new record that hold a value, for the preview. */
-export function filledFields(after: Row): Array<[string, unknown]> {
-  return Object.entries(after).filter(([key, value]) => !HIDDEN_FIELDS.has(key) && value !== null && value !== undefined);
+/**
+ * The fields of a new record, for the preview. A field is left out when it is empty or equals
+ * the column default: a default is not worth a line (admin notes, "Defaults are not stored").
+ */
+export function filledFields(type: string, after: Row): Array<[string, unknown]> {
+  const fields = modelInfo(type)?.fields ?? {};
+  return Object.entries(after).filter(([key, value]) => {
+    if (HIDDEN_FIELDS.has(key) || value === null || value === undefined) return false;
+    // The public mark of a shared record lives on its `entities` row and defaults to true.
+    const fallback = key === "isPublic" && !fields[key] ? true : fields[key]?.default;
+    return fallback === undefined || JSON.stringify(fallback) !== JSON.stringify(value);
+  });
 }

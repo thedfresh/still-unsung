@@ -1,5 +1,7 @@
 import { getPrisma } from "@/lib/db";
-import type { Row } from "@/lib/changes/labels";
+import { withType, type Row } from "@/lib/changes/labels";
+import { MODEL } from "@/lib/content-access";
+import { labelRow } from "@/lib/data/changes/rows";
 
 export interface ChangesetRow {
   id: number;
@@ -14,7 +16,7 @@ export interface ChangesetRow {
   userRole: string;
   /** The evidence, in words. */
   evidence: string;
-  items: Array<{ position: number; tableName: string; recordId: number; action: string; before: Row | null; after: Row | null }>;
+  items: Array<{ position: number; tableName: string; label: string; recordId: number; action: string; before: Row | null; after: Row | null }>;
 }
 
 /** The latest changesets with who made each one, their evidence and every stored change. */
@@ -31,7 +33,15 @@ export async function listChangesets(limit = 50): Promise<ChangesetRow[]> {
       items: { orderBy: { position: "asc" } },
     },
   });
-  return rows.map((row) => {
+  const db = getPrisma();
+  const typeOfTable = (table: string) => Object.keys(MODEL.models).find((type) => MODEL.models[type].table === table);
+  /** The readable name of the record, from its stored state; the table and ID when that is not possible. */
+  const labelOf = async (item: (typeof rows)[number]["items"][number]): Promise<string> => {
+    const type = typeOfTable(item.tableName);
+    const state = (item.after ?? item.before) as Row | null;
+    return type && state ? withType(type, await labelRow(db, type, state)) : `${item.tableName} #${item.recordId}`;
+  };
+  return Promise.all(rows.map(async (row) => {
     const parts: string[] = [];
     if (row.ownKnowledge) parts.push("own knowledge");
     if (row.source) parts.push(`source "${row.source.title}"`);
@@ -49,14 +59,17 @@ export async function listChangesets(limit = 50): Promise<ChangesetRow[]> {
       userEmail: row.user.email,
       userRole: row.user.role,
       evidence: parts.join(", ") || "none",
-      items: row.items.map((item) => ({
-        position: item.position,
-        tableName: item.tableName,
-        recordId: item.recordId,
-        action: item.action,
-        before: item.before as Row | null,
-        after: item.after as Row | null,
-      })),
+      items: await Promise.all(
+        row.items.map(async (item) => ({
+          position: item.position,
+          tableName: item.tableName,
+          label: await labelOf(item),
+          recordId: item.recordId,
+          action: item.action,
+          before: item.before as Row | null,
+          after: item.after as Row | null,
+        })),
+      ),
     };
-  });
+  }));
 }

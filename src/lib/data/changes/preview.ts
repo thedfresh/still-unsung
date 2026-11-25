@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
-import { defaultPublicMark, MODEL, modelInfo } from "@/lib/content-access";
+import { defaultPublicMark, isList, MODEL, modelInfo } from "@/lib/content-access";
 import { getPrisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
-import type { Row } from "@/lib/changes/labels";
+import { withType, type Row } from "@/lib/changes/labels";
 import type { PreviewData, PreviewItem } from "@/lib/changes/preview-format";
 import { hashToken } from "@/lib/tokens";
 import { MAX_EDITS, parseEdits, parseEvidence, type Evidence, type ParsedEdit } from "@/lib/validation/content";
@@ -77,7 +77,7 @@ async function describeItems(tx: Tx, items: AppliedItem[], citations: AppliedIte
     const attachesTo: string[] = [];
     if (item.op === "create") {
       // A record that points at a shared record (a note attachment) attaches to that record.
-      const fields = Object.entries(modelInfo(item.type).fields).filter(([name, f]) => name !== "id" && f.fk);
+      const fields = Object.entries(modelInfo(item.type).fields).filter(([name, f]) => name !== "id" && f.fk && !isList(f.fk));
       const toEntity = fields.filter(([, f]) => f.fk === "Entity");
       for (const [name] of toEntity.length > 0 ? toEntity : fields) if (links.after[name]) attachesTo.push(links.after[name]);
     }
@@ -114,7 +114,7 @@ async function describeEvidence(tx: Tx, evidence: Evidence): Promise<string> {
 function summarize(items: PreviewItem[]): string {
   const created = items.filter((i) => i.op === "create").length;
   const changed = items.length - created;
-  return `Agent edit: ${created} new, ${changed} changed. ${items.map((i) => i.label).slice(0, 3).join("; ")}`.slice(0, 500);
+  return `Agent edit: ${created} new, ${changed} changed. ${items.map((i) => withType(i.type, i.label)).slice(0, 3).join("; ")}`.slice(0, 500);
 }
 
 async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<PreviewData["warnings"]> {

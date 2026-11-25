@@ -302,7 +302,11 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   inside the write. If a record changed, nothing is written and both versions are returned.
   (test)
 - **One formatter.** `src/lib/changes/preview-format.ts` writes the preview text. Change the
-  wording there only. (review)
+  wording there only. It shows a field of a new record only when the value differs from the
+  column default. `src/lib/changes/labels.ts` and `labelRow` write the record labels, also used
+  by the Changes page. (review)
+- **Insert by position.** A new segment takes `before` or `after` (a segment ID or a ref)
+  instead of `sortKey`. `placeSegment` makes the key between the neighbours. (test)
 - **Every write path makes a changeset** (`src/lib/data/changes/`), linked to the user. The admin
   edit screens reuse `writeEdits` and the changeset code with path `ADMIN`. The page
   `/admin/changes` lists each change with who made it, its evidence and its previous state.

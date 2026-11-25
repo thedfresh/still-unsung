@@ -4,6 +4,8 @@ export interface FieldInfo {
   required: boolean;
   list: boolean;
   hasDefault: boolean;
+  /** The column default when it is a plain value (not `now()` or a generated ID). */
+  default?: string | number | boolean | never[];
   /** The model a foreign key column points at. */
   fk?: string;
   /** The values of an enum type. */

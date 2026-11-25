@@ -1,4 +1,4 @@
-import { changedFields, filledFields, showValue, type Row } from "@/lib/changes/labels";
+import { changedFields, filledFields, showValue, withType, type Row } from "@/lib/changes/labels";
 
 export interface PreviewItem {
   op: "create" | "update";
@@ -41,11 +41,11 @@ export function formatPreview(preview: PreviewData): string {
   }
   for (const item of preview.items) {
     if (item.op === "create") {
-      lines.push(`NEW ${item.label}`);
-      for (const [field, value] of filledFields(item.after)) lines.push(`  ${field}: ${showField(value, item.links.after[field])}`);
+      lines.push(`NEW ${withType(item.type, item.label)}`);
+      for (const [field, value] of filledFields(item.type, item.after)) lines.push(`  ${field}: ${showField(value, item.links.after[field])}`);
       for (const target of item.attachesTo) lines.push(`  attaches to: ${target}`);
     } else {
-      lines.push(`CHANGE ${item.label}`);
+      lines.push(`CHANGE ${withType(item.type, item.label)}`);
       for (const [field, from, to] of changedFields(item.before ?? {}, item.after)) {
         lines.push(`  ${field}: ${showField(from, item.links.before[field])} → ${showField(to, item.links.after[field])}`);
       }

@@ -4,7 +4,7 @@ import { getPrisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { hashToken } from "@/lib/tokens";
 import { parseEdits, type Evidence } from "@/lib/validation/content";
-import type { Row } from "@/lib/changes/labels";
+import { withType, type Row } from "@/lib/changes/labels";
 import { labelRow } from "@/lib/data/changes/rows";
 import {
   ConflictAbort,
@@ -96,7 +96,7 @@ export async function applyChanges(userId: string, token: string, isPublic?: boo
         data: { status: "APPLIED", appliedAt: new Date(), plan: Prisma.DbNull, previewExpiresAt: null },
       });
       const applied = [];
-      for (const item of items) applied.push({ op: item.op, record: await labelRow(tx, item.type, item.after) });
+      for (const item of items) applied.push({ op: item.op, record: withType(item.type, await labelRow(tx, item.type, item.after)) });
       return { ok: true as const, changesetId: changeset.id, applied };
     });
   } catch (err) {

@@ -2,6 +2,7 @@ import { AppError } from "@/lib/errors";
 import type { Row } from "@/lib/changes/labels";
 import { isList, modelInfo, usesEntityPublicFlag } from "@/lib/content-access";
 import type { Evidence, FieldValue, ParsedEdit } from "@/lib/validation/content";
+import { placeSegment } from "@/lib/data/changes/placement";
 import { delegateOf, readRow, type Tx } from "@/lib/data/changes/rows";
 
 export interface AppliedItem {
@@ -123,7 +124,8 @@ export async function writeEdits(tx: Tx, edits: ParsedEdit[]): Promise<AppliedIt
   const items: AppliedItem[] = [];
   for (const [index, edit] of edits.entries()) {
     try {
-      const values = resolveRefs(edit.fields, refIds);
+      const resolved = resolveRefs(edit.fields, refIds);
+      const values = edit.placement ? await placeSegment(tx, index, edit.placement, resolved, refIds) : resolved;
       const item = edit.op === "create" ? await createRecord(tx, index, edit, values) : await updateRecord(tx, index, edit, values);
       if (edit.ref !== undefined) refIds.set(edit.ref, item.id);
       items.push(item);

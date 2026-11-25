@@ -1,7 +1,7 @@
 import { isReadable, modelInfo } from "@/lib/content-access";
 import { getPrisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
-import type { Row } from "@/lib/changes/labels";
+import { withType, type Row } from "@/lib/changes/labels";
 import { delegateOf, labelRow, toJson } from "@/lib/data/changes/rows";
 
 const NAME_FIELDS = ["name", "title", "displayName", "label", "slug", "value", "body"];
@@ -55,10 +55,11 @@ export async function getRecord(type: string, key: { id?: number; legacyId?: str
   const row = await delegateOf(db, type).findFirst({ where, ...(include ? { include } : {}) });
   if (!row) throw new AppError("not_found");
   const { entity, ...rest } = row as Row & { entity?: Row & { isPublic: boolean } };
-  if (!entity) return toJson(rest);
+  const label = withType(type, await labelRow(db, type, toJson(rest)));
+  if (!entity) return toJson({ label, ...rest });
   const sets = type === "Show" ? await readSetlist(row.id as number) : undefined;
   const { citations, notes, tags, externalIds, isPublic } = entity as Row & { isPublic: boolean };
-  return toJson({ ...rest, isPublic, ...(sets ? { sets } : {}), attachments: { citations, notes, tags, externalIds } });
+  return toJson({ label, ...rest, isPublic, ...(sets ? { sets } : {}), attachments: { citations, notes, tags, externalIds } });
 }
 
 export interface SearchInput {
@@ -126,7 +127,7 @@ export async function searchRecords(input: SearchInput): Promise<SearchHit[]> {
     hits.push({
       id: typeof row.id === "number" ? row.id : null,
       rev: typeof row.rev === "number" ? row.rev : null,
-      label: await labelRow(db, input.type, toJson(row)),
+      label: withType(input.type, await labelRow(db, input.type, toJson(row))),
       legacyId: typeof row.legacyId === "string" ? row.legacyId : null,
     });
   }
