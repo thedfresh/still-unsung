@@ -33,7 +33,7 @@ export class ConflictAbort extends Error {
 }
 
 function isRef(value: FieldValue): value is { ref: string } {
-  return value !== null && typeof value === "object" && !(value instanceof Date);
+  return value !== null && typeof value === "object" && !(value instanceof Date) && !Array.isArray(value);
 }
 
 /** Replace each `{ ref }` with the ID of the new record it names. */

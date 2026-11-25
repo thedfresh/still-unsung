@@ -57,8 +57,21 @@ function scalarSchema(name: string, info: FieldInfo): z.ZodType {
   }
 }
 
-function fieldSchema(name: string, info: FieldInfo, forCreate: boolean): z.ZodType {
-  let schema = scalarSchema(name, info);
+/** Extra rules for single fields: a source needs a real title and a short key like "gallagher-list". */
+function sourceTextSchema(name: string, info: FieldInfo): z.ZodType | null {
+  if (name === "title") return z.string().trim().min(1, "Give a title.").max(info.maxLength ?? 20000);
+  if (name === "key") {
+    return z
+      .string()
+      .min(1, "Give a short key.")
+      .max(info.maxLength ?? 20000)
+      .regex(/^[a-z0-9-]+$/, "Use a short key of lower-case letters, digits and hyphens, like gallagher-list.");
+  }
+  return null;
+}
+
+function fieldSchema(type: string, name: string, info: FieldInfo, forCreate: boolean): z.ZodType {
+  let schema = (type === "Source" && !info.list && sourceTextSchema(name, info)) || scalarSchema(name, info);
   if (info.list) schema = z.array(schema).max(100);
   if (info.fk) schema = z.union([schema, refSchema]);
   const nullable = !info.required;
@@ -87,7 +100,7 @@ function fieldsSchema(type: string, op: "create" | "update"): z.ZodType {
   if (cached) return cached;
   const shape: Record<string, z.ZodType> = {};
   for (const [name, field] of Object.entries(editableFields(type))) {
-    const schema = fieldSchema(name, field, op === "create");
+    const schema = fieldSchema(type, name, field, op === "create");
     shape[name] = op === "update" ? schema.optional() : schema;
   }
   const schema = z.object(shape).strict();

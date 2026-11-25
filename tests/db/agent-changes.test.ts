@@ -341,6 +341,19 @@ describe("sources without a Zotero link (item 108)", () => {
     expect(source).toMatchObject({ zoteroKey: null, zoteroData: null, syncedAt: null, title: "Synthetic interview" });
   });
 
+  it("stores the other names on create and on update", async () => {
+    const source = await makeUnlinked();
+    expect(source.otherNames).toEqual(["the interview"]);
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Source", id: source.id, rev: source.rev, fields: { otherNames: ["the interview", "radio talk"] } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    const after = await db.source.findUniqueOrThrow({ where: { id: source.id } });
+    expect(after.otherNames).toEqual(["the interview", "radio talk"]);
+    expect(after.rev).toBe(source.rev + 1);
+  });
+
   it("changes the title of an unlinked source", async () => {
     const source = await makeUnlinked();
     const preview = await previewChanges(agentId, {

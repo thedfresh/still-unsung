@@ -102,7 +102,7 @@ export const SYSTEM_FIELDS = new Set(["id", "rev", "createdAt", "updatedAt", "le
  * the Zotero sync and to the admin, who sets the key. The tools refuse them on create and update.
  */
 export const AGENT_FORBIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  Source: ["zoteroKey", "zoteroData", "syncedAt"],
+  Source: ["zoteroKey", "zoteroData", "syncedAt", "extractedText"],
 };
 
 /** Types that count as setlist information for the public mark (data-model item 20). */
