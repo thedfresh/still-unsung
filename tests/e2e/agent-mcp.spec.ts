@@ -66,7 +66,8 @@ test.describe("the MCP endpoint", () => {
       edits: [{ op: "create", type: "Show", fields: { dateYear: year, dateMonth: 3, dateDay: 4 } }],
     });
     expect(preview.isError).toBe(false);
-    expect(preview.text).toContain(`NEW Show ${year}-03-04`);
+    expect(preview.text.startsWith("Added 1 show.")).toBe(true);
+    expect(preview.text).toContain(`New Show ${year}-03-04`);
     const token2 = /Apply token: (suprev_\S+)/.exec(preview.text)![1];
 
     // A forbidden table is refused.
@@ -86,7 +87,8 @@ test.describe("the MCP endpoint", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Changes" })).toBeVisible();
     const change = page.locator("details", { hasText: agent.email }).first();
     await change.locator("summary").click();
-    await expect(change).toContainText(`CREATE Show ${year}-03-04`);
+    await expect(change.locator("summary")).toContainText("Added 1 show.");
+    await expect(change).toContainText(`New Show ${year}-03-04`);
     await expect(change).toContainText("own knowledge");
     const results = await new AxeBuilder({ page }).withTags(WCAG).analyze();
     expect(results.violations).toEqual([]);

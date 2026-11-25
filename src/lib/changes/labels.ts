@@ -63,7 +63,7 @@ export function setLabel(row: Row, showDate: string | null): string | null {
 
 /** A label for a list or a message: starts with the type unless the label already does. */
 export function withType(type: string, label: string): string {
-  return label === type || label.startsWith(`${type} `) ? label : `${type}: ${label}`;
+  return label === type || label.startsWith(`${type} `) || label.startsWith(`${type}: `) ? label : `${type}: ${label}`;
 }
 
 /** Plain words for enum values that the raw name would make hard to read. */
@@ -88,7 +88,7 @@ export function isPublicText(type: string, field: string, row: Row | null): bool
 
 /** A record label without its type, for example `Work "Ripple"` becomes `Ripple`. */
 export function bareLabel(type: string, label: string): string {
-  const rest = label.startsWith(`${type} `) ? label.slice(type.length + 1) : label;
+  const rest = label.startsWith(`${type}: `) ? label.slice(type.length + 2) : label.startsWith(`${type} `) ? label.slice(type.length + 1) : label;
   return /^".*"$/.test(rest) ? rest.slice(1, -1) : rest;
 }
 

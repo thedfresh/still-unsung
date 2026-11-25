@@ -48,7 +48,7 @@ describe("preview and apply", () => {
     });
     expect(preview.warnings).toEqual([]);
     expect(preview.token).toMatch(/^suprev_/);
-    expect(formatPreview(preview)).toContain('timeLabel: (empty) → "Late"');
+    expect(formatPreview(preview)).toContain('time label: (empty) → "Late"');
     expect((await db.show.findUniqueOrThrow({ where: { id: show.id } })).timeLabel).toBeNull();
 
     const result = await applyChanges(agentId, preview.token as string);
@@ -57,7 +57,7 @@ describe("preview and apply", () => {
     expect(after.timeLabel).toBe("Late");
     expect(after.rev).toBe(show.rev + 1);
 
-    const [change] = await listChangesets();
+    const [change] = (await listChangesets()).changes;
     expect(change).toMatchObject({ path: "MCP", status: "APPLIED", userEmail: "agent@example.test", userRole: "AGENT" });
     expect(change.evidence).toContain("Synthetic notebook");
     const item = change.items.find((i) => i.tableName === "shows");
@@ -79,7 +79,9 @@ describe("preview and apply", () => {
     });
     expect(preview.warnings).toEqual([]);
     expect(preview.items.map((i) => i.type)).toEqual(["Show", "Set", "Segment"]);
-    expect(preview.items[1].attachesTo[0]).toContain("Show 1980-02");
+    // Every record of the show sits under the show's heading.
+    expect(preview.items.map((i) => i.parent?.type)).toEqual(["Show", "Show", "Show"]);
+    expect(preview.items[1].parent?.label).toContain("Show 1980-02");
     expect(preview.isPublic).toBe(true);
     expect(await db.show.count()).toBe(0);
     await applyChanges(agentId, preview.token as string);
@@ -102,6 +104,8 @@ describe("preview and apply", () => {
     const text = formatPreview(preview);
     expect(text).toContain("delivery: recording played");
     expect(text).toContain('summary: "A tape of the band plays on air."');
+    expect(text).toContain("public: summary and references · words: private");
+    expect(text).not.toContain("wordsPublic");
     await applyChanges(agentId, preview.token as string);
     expect(await db.segment.findFirstOrThrow()).toMatchObject({ delivery: "RECORDING_PLAYED", summary: "A tape of the band plays on air." });
   });
@@ -178,6 +182,47 @@ describe("highlights (item 110)", () => {
     expect(reference).toMatchObject({ fromId: show.id, note: "The first night of the run." });
     expect(reference.referenceKind.name).toBe("part of");
     expect(reference.to.subject?.subjectKindId).toBe(kind.id);
+  });
+});
+
+describe("readout (HSA-159)", () => {
+  it("gives the preview and the Changes page the same text, with names for links", async () => {
+    const partOf = await db.referenceKind.findUniqueOrThrow({ where: { name: "part of" } });
+    const edits = [
+      { op: "create", type: "Show", ref: "show", fields: { dateYear: 1980, dateMonth: 11, dateDay: 14 } },
+      { op: "create", type: "Set", ref: "set", fields: { showId: { ref: "show" }, position: 1, setTypeId } },
+      { op: "create", type: "Work", ref: "work", fields: { title: "Ripple", workKindId: (await db.workKind.findFirstOrThrow()).id } },
+      { op: "create", type: "Segment", ref: "talk", fields: { setId: { ref: "set" }, sortKey: "a", delivery: "SPOKEN", summary: "Hunter talks.", workId: { ref: "work" }, workCertainty: "PROBABLE" } },
+      { op: "create", type: "Reference", fields: { fromId: { ref: "talk" }, toId: { ref: "work" }, referenceKindId: partOf.id, certainty: "POSSIBLE" } },
+    ];
+    for (let i = 0; i < 40; i++) edits.push({ op: "create", type: "Segment", fields: { setId: { ref: "set" }, sortKey: `b${String(i).padStart(2, "0")}` } } as never);
+    const preview = await previewChanges(agentId, { evidence: evidence(), edits });
+    expect(preview.warnings).toEqual([]);
+    const previewReadout = formatPreview(preview).split("\n\nEvidence:")[0];
+    await applyChanges(agentId, preview.token as string);
+    const [change] = (await listChangesets()).changes;
+    expect(change.readout).toBe(previewReadout);
+    expect(change.counts).toBe(previewReadout.split("\n")[0]);
+    expect(change.counts).toContain("Added 1 show, 1 set, 1 work, 41 segments and 1 reference");
+    expect(change.readout).toContain("New work: Ripple");
+    expect(change.readout).toContain("Not confirmed");
+    // One heading for the show: every record sits under it, none by raw IDs alone.
+    expect(change.readout.split("\n").filter((l) => l.startsWith("Show 1980-11-14"))).toHaveLength(1);
+    expect(change.readout).toContain("New Reference: Hunter talks., 1980-11-14 part of Ripple");
+  });
+
+  it("pages the log, newest first", async () => {
+    for (const year of [1990, 1991, 1992]) {
+      const preview = await previewChanges(agentId, { evidence: { ownKnowledge: true }, edits: [{ op: "create", type: "Show", fields: { dateYear: year } }] });
+      await applyChanges(agentId, preview.token as string);
+    }
+    const first = await listChangesets(1, 2);
+    const second = await listChangesets(2, 2);
+    expect(first.total).toBe(3);
+    expect(first.changes).toHaveLength(2);
+    expect(second.changes).toHaveLength(1);
+    expect(first.changes[0].readout).toContain("1992");
+    expect(second.changes[0].readout).toContain("1990");
   });
 });
 
@@ -320,8 +365,8 @@ describe("preview wording", () => {
       ],
     });
     const text = formatPreview(preview);
-    expect(text).toMatch(/entityId: \d+ \(1978-05-23\)/);
-    expect(text).toContain("attaches to: Show 1978-05-23");
+    expect(text).toMatch(/entity: \d+ \(1978-05-23\)/);
+    expect(text).toContain("\nShow 1978-05-23\n- New NoteAttachment");
     expect(text).not.toMatch(/#\d+/);
     expect(text).toContain("Listed in recent changes:");
     expect(text).not.toContain("Public mark");
@@ -331,7 +376,7 @@ describe("preview wording", () => {
       evidence: { ownKnowledge: true },
       edits: [{ op: "update", type: "Note", id: note.id, rev: note.rev, fields: { body: "New words" } }],
     });
-    expect(formatPreview(edit)).toContain('CHANGE Note "Old words"');
+    expect(formatPreview(edit)).toContain('Changed Note "Old words"');
   });
 });
 
@@ -375,10 +420,10 @@ describe("labels, defaults and position", () => {
     });
     expect(preview.warnings).toEqual([]);
     const text = formatPreview(preview);
-    expect(text).toContain("NEW Segment: Man Of Constant Sorrow, 2002-04-30");
-    expect(text).toMatch(/setId: \d+ \(2002-04-30, set 1\)/);
-    expect(text).toMatch(/workId: \d+ \(Man Of Constant Sorrow\)/);
-    for (const word of ["joinsNext", "workCertainty", "cutAtStart", "cutAtEnd", "extent", "isPublic"]) {
+    expect(text).toContain("New Segment: Man Of Constant Sorrow, 2002-04-30");
+    expect(text).toMatch(/set: \d+ \(2002-04-30, set 1\)/);
+    expect(text).toMatch(/work: \d+ \(Man Of Constant Sorrow\)/);
+    for (const word of ["joinsNext", "workCertainty", "cutAtStart", "cutAtEnd", "extent", "isPublic", "wordsPublic"]) {
       expect(text).not.toContain(word);
     }
     expect(await db.segment.count()).toBe(3);
@@ -388,7 +433,7 @@ describe("labels, defaults and position", () => {
     const workKindId = (await db.workKind.findFirstOrThrow()).id;
     const preview = await previewChanges(agentId, { evidence: evidence(), edits: [{ op: "create", type: "Work", fields: { title: "Ripple", workKindId } }] });
     const text = formatPreview(preview);
-    expect(text).toContain('workKindId:');
+    expect(text).toContain("work kind: 1 (song)");
     expect(text).not.toContain("attaches to");
   });
 
@@ -446,7 +491,7 @@ describe("labels, defaults and position", () => {
     expect(await getRecord("Set", { id: setId })).toMatchObject({ label: "Set: 2002-04-30, set 1" });
     const hits = await searchRecords({ type: "Work", query: "Constant" });
     expect(hits[0].label).toBe('Work "Man Of Constant Sorrow"');
-    const [change] = await listChangesets();
+    const [change] = (await listChangesets()).changes;
     expect(change.items[0].label).toBe("Segment: Man Of Constant Sorrow, 2002-04-30");
   });
 });

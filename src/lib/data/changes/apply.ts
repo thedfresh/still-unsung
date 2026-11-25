@@ -5,7 +5,7 @@ import { AppError } from "@/lib/errors";
 import { hashToken } from "@/lib/tokens";
 import { parseEdits } from "@/lib/validation/content";
 import { withType, type Row } from "@/lib/changes/labels";
-import { labelRow } from "@/lib/data/changes/rows";
+import { describeItems, itemDetail } from "@/lib/data/changes/describe";
 import {
   ConflictAbort,
   findConflicts,
@@ -69,14 +69,13 @@ export async function applyChanges(userId: string, token: string, isPublic?: boo
       const conflicts = await findConflicts(tx, edits);
       if (conflicts.length > 0) throw new ConflictAbort(conflicts);
       const items = await writeEdits(tx, edits);
-      // A changed record is named by its stored value before the change, a new one by its own.
-      const labels: string[] = [];
-      for (const item of items) {
-        labels.push(withType(item.type, await labelRow(tx, item.type, item.op === "update" && item.before ? item.before : item.after)));
-      }
+      // The same description as the preview: names, links and grouping, saved for the Changes page.
+      const described = await describeItems(tx, items);
+      const labels = described.map((item) => withType(item.type, item.label));
       await tx.changesetItem.createMany({
         data: items.map((item, position) => ({
           label: labels[position],
+          detail: itemDetail(described[position]) as unknown as Prisma.InputJsonValue,
           changesetId: changeset.id,
           position,
           tableName: modelInfo(item.type).table,

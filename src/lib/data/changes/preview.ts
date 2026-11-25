@@ -1,14 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
-import { defaultPublicMark, isList, MODEL, modelInfo } from "@/lib/content-access";
+import { defaultPublicMark } from "@/lib/content-access";
 import { getPrisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
-import { bareLabel, withType, type Row } from "@/lib/changes/labels";
-import type { LinkInfo, PreviewData, PreviewItem } from "@/lib/changes/preview-format";
+import { withType } from "@/lib/changes/labels";
+import type { PreviewData, PreviewItem } from "@/lib/changes/preview-format";
+import { countsSentence } from "@/lib/changes/readout";
 import { hashToken } from "@/lib/tokens";
 import { MAX_EDITS, parseEdits, parseEvidence, type Evidence, type ParsedEdit } from "@/lib/validation/content";
-import { labelRow, readRow, type Tx } from "@/lib/data/changes/rows";
-import { findConflicts, findMissingListValues, writeEdits, type AppliedItem } from "@/lib/data/changes/write-edits";
+import { describeItems } from "@/lib/data/changes/describe";
+import type { Tx } from "@/lib/data/changes/rows";
+import { findConflicts, findMissingListValues, writeEdits } from "@/lib/data/changes/write-edits";
 
 /** A preview token works once and for 30 minutes. */
 export const PREVIEW_MINUTES = 30;
@@ -29,66 +31,6 @@ export interface PreviewInput {
 
 export interface PreviewResult extends PreviewData {
   changesetId: number | null;
-}
-
-/** The model whose records have this shared-record kind. */
-function typeOfKind(kind: string): string | null {
-  return Object.keys(MODEL.models).find((type) => MODEL.models[type].entityKind === kind) ?? null;
-}
-
-async function describeItems(tx: Tx, items: AppliedItem[]) {
-  const labels = new Map<string, string>();
-  const keyOf = (type: string, id: number) => `${type}:${id}`;
-  // A changed record is named by its stored value; a new record is named without its trial ID.
-  for (const item of items) {
-    const label =
-      item.op === "update" && item.before ? await labelRow(tx, item.type, item.before) : await labelRow(tx, item.type, item.after, false);
-    labels.set(keyOf(item.type, item.id), label);
-  }
-  const nameOf = async (type: string, id: number): Promise<string> => {
-    const known = labels.get(keyOf(type, id));
-    if (known) return known;
-    const found = await readRow(tx, type, id);
-    const label = found ? await labelRow(tx, type, found) : `${type} #${id}`;
-    labels.set(keyOf(type, id), label);
-    return label;
-  };
-  /** The name of the record a field points at, or null when the field is not a link. */
-  const linkTo = async (type: string, id: number): Promise<LinkInfo> => {
-    const label = await nameOf(type, id);
-    const isNew = items.some((i) => i.op === "create" && i.type === type && i.id === id);
-    return { type, label, name: bareLabel(type, label), isNew };
-  };
-  const linkLabel = async (type: string, field: string, value: unknown): Promise<LinkInfo | null> => {
-    const target = modelInfo(type).fields[field]?.fk;
-    if (field === "id" || !target || typeof value !== "number") return null;
-    if (target !== "Entity") return linkTo(target, value);
-    const entity = await tx.entity.findUnique({ where: { id: value }, select: { kind: true } });
-    const entityType = entity ? typeOfKind(entity.kind) : null;
-    return entityType ? linkTo(entityType, value) : null;
-  };
-  const linksOf = async (type: string, row: Row | null): Promise<Record<string, LinkInfo>> => {
-    const out: Record<string, LinkInfo> = {};
-    for (const [field, value] of Object.entries(row ?? {})) {
-      const label = await linkLabel(type, field, value);
-      if (label) out[field] = label;
-    }
-    return out;
-  };
-  const described: PreviewItem[] = [];
-  for (const item of items) {
-    const label = labels.get(keyOf(item.type, item.id)) as string;
-    const links = { before: await linksOf(item.type, item.before), after: await linksOf(item.type, item.after) };
-    const attachesTo: string[] = [];
-    if (item.op === "create") {
-      // A record that points at a shared record (a note attachment) attaches to that record.
-      const fields = Object.entries(modelInfo(item.type).fields).filter(([name, f]) => name !== "id" && f.fk && !isList(f.fk));
-      const toEntity = fields.filter(([, f]) => f.fk === "Entity");
-      for (const [name] of toEntity.length > 0 ? toEntity : fields) if (links.after[name]) attachesTo.push(links.after[name].label);
-    }
-    described.push({ op: item.op, type: item.type, label, before: item.before, after: item.after, attachesTo, links });
-  }
-  return { items: described };
 }
 
 /** The place in a source, a recording or a contributor, in words, for the preview. */
@@ -113,10 +55,10 @@ async function describeEvidence(tx: Tx, evidence: Evidence): Promise<string> {
   return parts.join(", ") + (evidence.place ? ` (${evidence.place})` : "");
 }
 
+/** The stored summary of a change: the counts sentence, then the first records. */
 function summarize(items: PreviewItem[]): string {
-  const created = items.filter((i) => i.op === "create").length;
-  const changed = items.length - created;
-  return `Agent edit: ${created} new, ${changed} changed. ${items.map((i) => withType(i.type, i.label)).slice(0, 3).join("; ")}`.slice(0, 500);
+  const names = items.map((i) => withType(i.type, i.label)).slice(0, 3).join("; ");
+  return `${countsSentence(items)} ${names}`.slice(0, 500);
 }
 
 async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<PreviewData["warnings"]> {
@@ -156,7 +98,7 @@ export async function previewChanges(userId: string, input: PreviewInput): Promi
       warnings = await trialRun(tx, edits);
       if (warnings.length > 0) return;
       const items = await writeEdits(tx, edits);
-      throw new Rollback(await describeItems(tx, items));
+      throw new Rollback({ items: await describeItems(tx, items) });
     });
   } catch (err) {
     if (!(err instanceof Rollback)) throw err;
