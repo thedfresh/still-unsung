@@ -52,8 +52,10 @@ export async function lookUpNames(states: StoredState[]): Promise<Array<{ links:
     }
   }
   const typeOfEntity = new Map<number, string>();
+  const entityExists = new Set<number>();
   if (entityIds.size > 0) {
     for (const entity of await getPrisma().entity.findMany({ where: { id: { in: [...entityIds] } }, select: { id: true, kind: true } })) {
+      entityExists.add(entity.id);
       const type = typeOfKind(entity.kind);
       if (type) {
         typeOfEntity.set(entity.id, type);
@@ -90,6 +92,8 @@ export async function lookUpNames(states: StoredState[]): Promise<Array<{ links:
       const targetType = target === "Entity" ? typeOfEntity.get(id) : target;
       const label = targetType ? labelOf(targetType, id) : null;
       if (targetType && label) out[field] = { type: targetType, label, name: bareLabel(targetType, label), isNew: false };
+      // The record is gone when its row is missing. An unknown kind has no link: the readout says "name not found".
+      else if (targetType || (target === "Entity" && !entityExists.has(id))) out[field] = { type: targetType ?? "Entity", label: "", name: "", isNew: false, deleted: true };
     }
     return out;
   };

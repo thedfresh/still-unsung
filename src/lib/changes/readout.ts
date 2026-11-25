@@ -1,5 +1,5 @@
 import { modelInfo } from "@/lib/content-access";
-import { bareLabel, changedFields, filledFields, isPrivateText, isPublicText, showValue, withType, type Row } from "@/lib/changes/labels";
+import { bareLabel, changedFields, filledFields, isPrivateText, showValue, titleLabel, withType, type Row } from "@/lib/changes/labels";
 
 /**
  * The readout: one plain-words view of what a set of changes adds and changes. The MCP preview
@@ -20,6 +20,8 @@ export interface LinkInfo {
   name: string;
   /** True when the record is created in the same call: it has no final ID yet. */
   isNew: boolean;
+  /** True when the record is gone: the lookup ran and found nothing. Then `label` and `name` are empty. */
+  deleted?: boolean;
 }
 
 /** The record that an item is grouped under: its show, its work, its person. */
@@ -81,6 +83,8 @@ const EARLIER: ParentInfo = { key: EARLIER_KEY, type: "Earlier change", label: "
 const NEW_RECORD_TYPES = new Set(["Person", "Place", "Work", "Band", "Subject", "Source"]);
 /** Fields that are not worth a line: system values, and flags that the readout words itself. */
 const SKIPPED_FIELDS = new Set(["sortKey", "legacyId", "isPublic", "wordsPublic"]);
+/** Fields that say where a record sits: its parent and its order. */
+const MOVE_FIELDS = new Set(["segmentId", "setId", "showId", "entityId", "lineupEntryId", "versionId", "fromId", "sortKey", "position"]);
 const MAX_UNUSUAL = 25;
 /** Text values are cut at this length. */
 const TEXT_MAX = 100;
@@ -112,9 +116,9 @@ function tally(types: string[]): Map<string, number> {
 const isEmpty = (value: unknown) => value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
 
 /** A value as plain text. An all-capitals enum value reads as words: `CO_BILL` is `co bill`. */
-function plainValue(value: unknown, full: boolean): string {
+function plainValue(value: unknown): string {
   if (typeof value === "string" && /^[A-Z][A-Z0-9_]+$/.test(value)) return value.toLowerCase().replace(/_/g, " ");
-  return showValue(value, full, TEXT_MAX);
+  return showValue(value, false, TEXT_MAX);
 }
 
 /** The field name in words: `workId` reads `work`, `timeLabel` reads `time label`. */
@@ -128,18 +132,19 @@ function targetType(type: string, field: string): string | null {
 }
 
 /**
- * A field value as text. A link shows the ID with the name of the record, `1485 (Beedle Um Bum)`;
- * a link to a shared record shows its type too. A link to a record made in the same call reads
- * `(new) Note "..."`. A link whose record is gone reads `(deleted record 14180)`: a bare ID never
- * stands alone.
+ * A field value as text. A link shows the name of the record, never its ID: `Beedle Um Bum`. A
+ * link to a shared record shows its type too. A link to a record made in the same call reads
+ * `(new) Note "..."`. An ID shows only when there is no name: `(deleted record 14180)` when the
+ * record is gone, `(record 14180, name not found)` when the lookup found no name for another reason.
  */
-function showField(type: string, field: string, value: unknown, link: LinkInfo | undefined, full: boolean): string {
+function showField(type: string, field: string, value: unknown, link: LinkInfo | undefined): string {
+  if (link?.deleted) return `(deleted record ${String(value)})`;
   if (link) {
     if (link.isNew) return `(new) ${withType(link.type, link.label)}`;
-    return targetType(type, field) === "Entity" ? `${withType(link.type, link.label)} (${String(value)})` : `${String(value)} (${link.name})`;
+    return targetType(type, field) === "Entity" ? withType(link.type, link.label) : link.name;
   }
-  if (typeof value === "number" && targetType(type, field)) return `(deleted record ${value})`;
-  return plainValue(value, full);
+  if (typeof value === "number" && targetType(type, field)) return `(record ${value}, name not found)`;
+  return plainValue(value);
 }
 
 /** Who can see a record, in words. Null when the type has no public flag, or the row has no value for it. */
@@ -169,10 +174,11 @@ function fillFields(item: ReadoutItem, skip: Set<string>): ReadoutField[] {
     // The label already says a name, title or short body: do not print it twice.
     if (SKIPPED_FIELDS.has(field) || skip.has(field) || value === bareLabel(item.type, item.label)) continue;
     const name = fieldName(field);
+    // Private text is never printed, however short.
     if (typeof value === "string" && isPrivateText(item.type, field, item.after)) {
-      fields.push({ name, value: value.length <= TEXT_MAX ? showValue(value, true) : `(private; ${value.length} characters)` });
+      fields.push({ name, value: `added (private; ${value.length} characters)` });
     } else {
-      fields.push({ name, value: showField(item.type, field, value, item.links.after[field], isPublicText(item.type, field, item.after)) });
+      fields.push({ name, value: showField(item.type, field, value, item.links.after[field]) });
     }
   }
   const seen = visibility(item.type, item.after);
@@ -189,13 +195,11 @@ function textChange(item: ReadoutItem, field: string, from: unknown, to: unknown
   if (isPrivateText(item.type, field, item.after)) {
     const small = fromText.length <= TEXT_MAX && toText.length <= TEXT_MAX;
     if (small) return { name: `${name} (private)`, was: showValue(from, true), now: showValue(to, true), overwrite: !isEmpty(from) };
-    const detail = isEmpty(from) ? `(private; ${toText.length} characters)` : `changed (private; ${fromText.length} → ${toText.length} characters)`;
+    const detail = isEmpty(from) ? `added (private; ${toText.length} characters)` : `changed (private; ${fromText.length} → ${toText.length} characters)`;
     return { name, value: detail, overwrite: !isEmpty(from) };
   }
-  if (isEmpty(from)) return { name, value: plainValue(to, isPublicText(item.type, field, item.after)) };
-  // Public text goes live: the user reads the new value whole. Other text is cut.
-  const full = isPublicText(item.type, field, item.after);
-  return { name, was: showValue(from, false, TEXT_MAX), now: showValue(to, full, TEXT_MAX), overwrite: true };
+  if (isEmpty(from)) return { name, value: plainValue(to) };
+  return { name, was: showValue(from, false, TEXT_MAX), now: showValue(to, false, TEXT_MAX), overwrite: true };
 }
 
 /** The fields of a changed record, as before → after. */
@@ -210,11 +214,14 @@ function changeFields(item: ReadoutItem): ReadoutField[] {
     if (longText) {
       fields.push(textChange(item, field, from, to));
     } else if (isEmpty(from)) {
-      fields.push({ name, value: showField(item.type, field, to, item.links.after[field], isPublicText(item.type, field, item.after)) });
-    } else {
-      const was = showField(item.type, field, from, item.links.before[field], false);
-      const now = showField(item.type, field, to, item.links.after[field], false);
+      fields.push({ name, value: showField(item.type, field, to, item.links.after[field]) });
+    } else if (targetType(item.type, field)) {
+      // A moved link reads on one line, in names.
+      const was = showField(item.type, field, from, item.links.before[field]);
+      const now = showField(item.type, field, to, item.links.after[field]);
       fields.push({ name, value: `${was} → ${now}`, overwrite: true });
+    } else {
+      fields.push({ name, was: plainValue(from), now: plainValue(to), overwrite: true });
     }
   }
   const was = visibility(item.type, item.before);
@@ -223,7 +230,8 @@ function changeFields(item: ReadoutItem): ReadoutField[] {
   return fields;
 }
 
-const nameOf = (link: LinkInfo | undefined, fallback: unknown) => link?.name ?? String(fallback);
+const nameOf = (link: LinkInfo | undefined, fallback: unknown) =>
+  link?.deleted ? `(deleted record ${String(fallback)})` : (link?.name ?? `(record ${String(fallback)}, name not found)`);
 
 /** A reference reads as a sentence: `Ripple mentions San Francisco Bay`. */
 function referenceHead(item: ReadoutItem): { head: string; skip: Set<string> } | null {
@@ -238,7 +246,7 @@ function referenceHead(item: ReadoutItem): { head: string; skip: Set<string> } |
 function billHead(item: ReadoutItem): { head: string; skip: Set<string> } | null {
   const act = item.links.after.actBandId ?? item.links.after.actPersonId;
   if (item.type !== "BillEntry" || !act || typeof item.after.role !== "string") return null;
-  return { head: `${act.name} (${plainValue(item.after.role, false)})`, skip: new Set(["actBandId", "actPersonId", "role"]) };
+  return { head: `${act.name} (${plainValue(item.after.role)})`, skip: new Set(["actBandId", "actPersonId", "role"]) };
 }
 
 /** The record's name for a card title: a reference reads as its sentence, a bill entry as its act. */
@@ -247,7 +255,7 @@ function recordTitle(item: ReadoutItem): { title: string; skip: Set<string> } {
   if (reference) return { title: `Reference: ${reference.head}`, skip: reference.skip };
   const bill = billHead(item);
   if (bill) return { title: `Bill: ${bill.head}`, skip: bill.skip };
-  return { title: withType(item.type, item.label), skip: new Set() };
+  return { title: titleLabel(item.type, item.label, item.after), skip: new Set() };
 }
 
 /** One card for one record. */
@@ -258,22 +266,22 @@ function recordCard(item: ReadoutItem): ReadoutCard {
     return { action: "New", title, fields: fillFields(item, skip) };
   }
   const fields = changeFields(item);
-  const changed = changedFields(item.before ?? {}, item.after).filter(([field]) => !SKIPPED_FIELDS.has(field));
-  // A record whose only change is where it points was moved.
-  const moved = changed.length > 0 && changed.every(([field]) => targetType(item.type, field) !== null);
+  const changed = changedFields(item.before ?? {}, item.after);
+  // Moved means a change of place only: the parent or the order. A changed work or subject is a change.
+  const moved = changed.length > 0 && changed.every(([field]) => MOVE_FIELDS.has(field));
   return { action: moved ? "Moved" : "Changed", title, fields };
 }
 
 /** The sentence a "not confirmed" line is about: a reference as its sentence, else the record. */
 function aboutRecord(item: ReadoutItem): string {
-  return referenceHead(item)?.head ?? withType(item.type, item.label);
+  return referenceHead(item)?.head ?? titleLabel(item.type, item.label, item.after);
 }
 
 /** The cards worth the user's eye: new shared records, overwritten values, doubtful certainty, deletes. */
 function unusualCards(items: ReadoutItem[]): ReadoutCard[] {
   const cards: ReadoutCard[] = [];
   for (const item of items) {
-    const name = withType(item.type, item.label);
+    const name = titleLabel(item.type, item.label, item.after);
     if (item.op === "create" && NEW_RECORD_TYPES.has(item.type)) {
       cards.push({ action: "", title: `New ${words(item.type)}: ${bareLabel(item.type, item.label)}`, fields: [] });
     }
@@ -284,7 +292,7 @@ function unusualCards(items: ReadoutItem[]): ReadoutCard[] {
     const before = item.before ?? {};
     for (const [field, value] of inModelOrder(item.type, Object.entries(item.after))) {
       if (!/certainty$/i.test(field) || isEmpty(value) || value === "CONFIRMED" || before[field] === value) continue;
-      cards.push({ action: "", title: `Not confirmed: ${aboutRecord(item)} · ${fieldName(field)}: ${plainValue(value, false)}`, fields: [] });
+      cards.push({ action: "", title: `Not confirmed: ${aboutRecord(item)} · ${fieldName(field)}: ${plainValue(value)}`, fields: [] });
     }
   }
   return cards;
@@ -320,7 +328,7 @@ function groupItems(items: ReadoutItem[]): Array<{ heading: string; items: Reado
   const groups = new Map<string, { heading: string; items: ReadoutItem[] }>();
   for (const item of items) {
     const key = item.parent?.key ?? `${item.type}:${String(item.after.id)}`;
-    const heading = item.parent ? withType(item.parent.type, item.parent.label) : withType(item.type, item.label);
+    const heading = item.parent ? withType(item.parent.type, item.parent.label) : titleLabel(item.type, item.label, item.after);
     const group = groups.get(key) ?? { heading, items: [] };
     group.items.push(item);
     groups.set(key, group);

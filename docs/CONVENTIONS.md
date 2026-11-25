@@ -313,16 +313,24 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   person) with one plain line per record. It never prints raw flags or system fields: it says
   who can see a record in words. It shows a field of a new record only when the value differs
   from the column default. `src/lib/changes/labels.ts` and `labelRow` write the record labels.
-  A link shows as `ID (name)`, or `(new) Type "name"` for a record made in the same call. Public
-  text (a public note body, a segment summary) shows in full; other long text is cut.
-  `describeItems` (`src/lib/data/changes/describe.ts`) finds the names and the parent. The apply
-  step stores them with each item (`label`, `detail`), so the Changes page runs no label queries.
+  Each record is a card: a title line, then its fields as a list. A changed text or value reads
+  on two lines (`was:` and `now:`), cut at about 100 characters. A link shows the name only, never
+  the ID, or `(new) Type "name"` for a record made in the same call. An ID shows only when
+  there is no name: `(deleted record N)` when the record is gone, `(record N, name not found)`
+  otherwise. Private text (a private note body, words as heard, a citation excerpt) is never
+  printed for a new record: it reads `added (private; N characters)`. A private note's title is
+  `Private note #N`. A card says "Moved" only for a change of parent or order.
+  `describeItems` (`src/lib/data/changes/describe.ts`) finds the names and the parent. It caches
+  each lookup per call (one key per set), and the apply step runs it inside a transaction with a
+  30-second limit. The apply step stores the names with each item (`label`, `detail`), so the
+  Changes page runs no label queries for new changes. For a change stored before that, the page
+  runs one batched lookup per record type (`src/lib/data/changes/earlier.ts`).
   (test: `src/lib/changes/readout.test.ts`, `tests/db/agent-changes.test.ts`)
 - **Insert by position.** A new segment takes `before` or `after` (a segment ID or a ref)
   instead of `sortKey`. `placeSegment` makes the key between the neighbours. (test)
 - **Every write path makes a changeset** (`src/lib/data/changes/`), linked to the user. The admin
   edit screens reuse `writeEdits` and the changeset code with path `ADMIN`. The page
-  `/admin/changes` is a log, newest first, 20 to a page: one line for each change (the counts
+  `/admin/changes` is a log, newest first, 50 to a page: one line for each change (the counts
   sentence, who made it, its evidence and the time). Opening a line shows the readout.
 - **Not built yet:** the call to the cache-refresh route after an apply (no cached page reads
   content yet; section 5), and undo.

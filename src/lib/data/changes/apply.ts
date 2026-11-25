@@ -93,7 +93,7 @@ export async function applyChanges(userId: string, token: string, isPublic?: boo
       const applied = [];
       for (const [position, item] of items.entries()) applied.push({ op: item.op, record: labels[position] });
       return { ok: true as const, changesetId: changeset.id, applied };
-    });
+    }, { timeout: 30_000 }); // describing the items runs many small queries: allow 30 seconds, not 5
   } catch (err) {
     if (err instanceof ConflictAbort) return { ok: false, reason: "conflict", conflicts: await report(err.conflicts) };
     throw err;

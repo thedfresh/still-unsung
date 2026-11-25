@@ -74,7 +74,8 @@ describe("formatReadout", () => {
     const unusual = lines.slice(lines.indexOf("Look at these first:") + 1, unusualEnd).join("\n");
     expect(unusual).toContain("- New person: Walter Scott");
     expect(unusual).toContain("- Changed value in Show 1980-11-14");
-    expect(unusual).toContain("time label: “Early” → “Late”");
+    expect(unusual).toContain("was: “Early”");
+    expect(unusual).toContain("now: “Late”");
     expect(unusual).toContain("work certainty: possible");
     expect(unusual).toContain("certainty: probable");
     // A value that was only filled in is not unusual.
@@ -98,8 +99,9 @@ describe("formatReadout", () => {
     for (const raw of ["isPublic", "wordsPublic", "sortKey", "rev", "setId: 5"]) expect(text).not.toContain(raw);
     expect(text).not.toContain("true");
   });
-  it("shows a link with its ID and name, and no default value", () => {
-    expect(text).toContain("work: 7 (Ripple)");
+  it("shows a link by its name, with no ID, and no default value", () => {
+    expect(text).toContain("work: Ripple");
+    expect(text).not.toContain("7 (Ripple)");
     expect(text).not.toContain("joinsNext");
     expect(text).not.toContain("cut at");
   });
@@ -111,14 +113,34 @@ describe("formatReadout", () => {
     const item = create("Segment", "Ripple", { id: 1, summary: "x" }, null);
     expect(formatReadout([item])).not.toContain("who can see it");
   });
-  it("shows public text in full and does not print long private text", () => {
+  it("cuts long public text at about 100 characters and does not print long private text", () => {
     const long = "x".repeat(500);
     const read = (type: string, after: Record<string, unknown>) => formatReadout([create(type, type, { id: 1, ...after }, null)]);
-    expect(read("Note", { body: long, isPublic: true })).toContain(long);
+    expect(read("Note", { body: long, isPublic: true })).not.toContain(long);
     expect(read("Note", { body: long, isPublic: false })).not.toContain(long);
-    expect(read("Note", { body: long, isPublic: false })).toContain("(private; 500 characters)");
-    expect(read("Segment", { summary: long })).toContain(long);
+    expect(read("Note", { body: long, isPublic: false })).toContain("body: added (private; 500 characters)");
+    const summary = read("Segment", { summary: "y".repeat(300) });
+    expect(summary).toContain("“" + "y".repeat(97) + "...”");
+    expect(summary).not.toContain("y".repeat(101));
     expect(read("Segment", { wordsAsHeard: long })).not.toContain(long);
+  });
+  it("never prints short private text of a new record", () => {
+    const read = (type: string, after: Record<string, unknown>) => formatReadout([create(type, type, { id: 1, ...after }, null)]);
+    expect(read("Note", { body: "Ask Bob about the tape.", isPublic: false })).not.toContain("Ask Bob");
+    expect(read("Citation", { excerpt: "He said the secret thing" })).not.toContain("secret");
+    expect(read("Citation", { excerpt: "He said the secret thing" })).toContain("excerpt: added (private; 24 characters)");
+    const words = read("Segment", { wordsAsHeard: "a".repeat(96) });
+    expect(words).not.toContain("aaaa");
+    expect(words).toContain("words as heard: added (private; 96 characters)");
+  });
+  it("titles a private note without the start of its body", () => {
+    const item = create("Note", 'Note "Ask Bob about the tape"', { id: 12, body: "Ask Bob about the tape", isPublic: false }, null);
+    const text = formatReadout([item]);
+    expect(text).toContain("New Private note");
+    expect(text).not.toContain("Ask Bob");
+    const applied = create("Note", "Private note #12", { id: 12, body: "Ask Bob about the tape", isPublic: false }, null);
+    expect(formatReadout([applied])).toContain("New Private note #12");
+    expect(formatReadout([applied])).not.toContain("Ask Bob");
   });
   it("shows a link to a record made in the same call as new", () => {
     const item = create("NoteAttachment", "NoteAttachment", { id: 2, noteId: 9 }, null, { noteId: link("Note", "Great show", true) });
@@ -165,11 +187,29 @@ describe("changed fields", () => {
     };
     const text = formatReadout([item]);
     expect(text).toContain("Moved Reference: Made for an English audience… mentions Ripple");
-    expect(text).toContain("from: Segment \"Jack O' Roses was a hobbyist record…\" (13929) → Segment \"Made for an English audience…\" (14222)");
+    expect(text).toContain("from: Segment \"Jack O' Roses was a hobbyist record…\" → Segment \"Made for an English audience…\"");
+    expect(text).not.toContain("13929");
+    expect(text).not.toContain("14222");
   });
-  it("never prints a bare ID: a missing record reads as deleted", () => {
-    const item = create("Reference", "Reference", { id: 5, fromId: 14180, certainty: "PROBABLE" }, null);
-    expect(formatReadout([item])).toContain("from: (deleted record 14180)");
+  it("prints an ID only when there is no name: deleted record, or name not found", () => {
+    const gone: LinkInfo = { type: "Segment", label: "", name: "", isNew: false, deleted: true };
+    const deleted = create("Reference", "Reference", { id: 5, fromId: 14180, certainty: "PROBABLE" }, null, { fromId: gone });
+    expect(formatReadout([deleted])).toContain("from: (deleted record 14180)");
+    const unknown = create("Reference", "Reference", { id: 5, fromId: 14180, certainty: "PROBABLE" }, null);
+    expect(formatReadout([unknown])).toContain("from: (record 14180, name not found)");
+    expect(formatReadout([unknown])).not.toContain("deleted");
+  });
+  it("says Moved only for a change of parent or order, and Changed for a new work", () => {
+    const base = { op: "update" as const, type: "Segment", label: "Ripple", parent: null, links: none };
+    const work = formatReadout([{ ...base, before: { id: 1, workId: 7 }, after: { id: 1, workId: 8 } }]);
+    expect(work).toContain("Changed Segment");
+    expect(work).not.toContain("Moved");
+    expect(formatReadout([{ ...base, before: { id: 1, setId: 5 }, after: { id: 1, setId: 6 } }])).toContain("Moved Segment");
+    expect(formatReadout([{ ...base, before: { id: 1, sortKey: "a" }, after: { id: 1, sortKey: "b" } }])).toContain("Moved Segment");
+  });
+  it("shows a short changed value on two lines", () => {
+    const item = update("Show", "Show 1980", { timeLabel: "Early" }, { timeLabel: "Late" });
+    expect(formatReadout([item])).toContain("  time label\n      was: “Early”\n      now: “Late”");
   });
   it("prints no backslash before a quote inside a value", () => {
     const item = update("Show", "Show 1980", { notes: "He said hi." }, { notes: 'He said "hello" to the host.' });
@@ -203,7 +243,7 @@ describe("storedReadoutItem", () => {
     expect(readout.groups[0].heading).toBe("Earlier change (no grouping stored)");
     expect(readout.groups[0].cards).toHaveLength(2);
     const text = formatReadout([old(1)]);
-    expect(text).toContain("(deleted record 13928)");
+    expect(text).toContain("(record 13928, name not found)");
     expect(text).not.toMatch(/: \d+( →|$)/m);
     expect(text).not.toContain("to Earlier");
   });

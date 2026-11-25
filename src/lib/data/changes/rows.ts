@@ -51,6 +51,11 @@ export function memo<T>(cache: LookupCache | undefined, key: string, lookup: () 
   return started;
 }
 
+/** One set, whole. The one cache key per set, so a label and a parent lookup share one query. */
+export function setRowOf(tx: Tx, setId: number, cache?: LookupCache): Promise<Row | null> {
+  return memo(cache, `set:${setId}`, () => tx.set.findUnique({ where: { id: setId } }) as Promise<Row | null>);
+}
+
 /** The date of a show, as text, or null when the show is unknown or has no date. */
 async function showDateOf(tx: Tx, showId: unknown, cache?: LookupCache): Promise<string | null> {
   if (typeof showId !== "number") return null;
@@ -69,7 +74,7 @@ export async function labelRow(tx: Tx, type: string, row: Row, withId = true, ca
   if (type === "Segment") {
     const setId = row.setId;
     const workId = row.workId;
-    const set = typeof setId === "number" ? await memo(cache, `set:${setId}`, () => tx.set.findUnique({ where: { id: setId }, select: { showId: true } })) : null;
+    const set = typeof setId === "number" ? await setRowOf(tx, setId, cache) : null;
     const work = typeof workId === "number" ? await memo(cache, `work:${workId}`, () => tx.work.findUnique({ where: { id: workId }, select: { title: true } })) : null;
     return segmentLabel(work?.title ?? null, await showDateOf(tx, set?.showId, cache), row);
   }

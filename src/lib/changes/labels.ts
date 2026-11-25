@@ -20,6 +20,8 @@ export function datePart(row: Row): string | null {
  */
 export function describeRecord(type: string, row: Row | null, extra?: string | null, withId = true): string {
   if (!row) return type;
+  // A private note's body is private: its name never shows the start of the body.
+  if (type === "Note" && row.isPublic !== true) return withId && typeof row.id === "number" ? `Private note #${row.id}` : "Private note";
   if (type === "Show") {
     const date = datePart(row);
     if (date !== null || extra) return ["Show", [date, extra].filter(Boolean).join(", ")].join(" ");
@@ -66,6 +68,15 @@ export function withType(type: string, label: string): string {
   return label === type || label.startsWith(`${type} `) || label.startsWith(`${type}: `) ? label : `${type}: ${label}`;
 }
 
+/**
+ * The name of a record for a card title or a heading. A private note reads `Private note #12`
+ * (or `Private note` before apply), whatever label an older changeset stored: never the body.
+ */
+export function titleLabel(type: string, label: string, row: Row | null): string {
+  if (type !== "Note" || row?.isPublic === true) return withType(type, label);
+  return label.startsWith("Private note") ? label : "Private note";
+}
+
 /** Plain words for enum values that the raw name would make hard to read. */
 const PLAIN_VALUES: Record<string, string> = { RECORDING_PLAYED: "recording played" };
 
@@ -84,12 +95,6 @@ export function showValue(value: unknown, full = false, max = 200): string {
   if (typeof value === "string" && value in PLAIN_VALUES) return PLAIN_VALUES[value];
   if (typeof value === "string") return `“${full ? value : cutText(value, max)}”`;
   return String(value);
-}
-
-/** True for a text field that goes on a public page: a public note's body and a segment summary. */
-export function isPublicText(type: string, field: string, row: Row | null): boolean {
-  if (type === "Segment") return field === "summary";
-  return type === "Note" && field === "body" && row?.isPublic === true;
 }
 
 /** True for long text that only the curator reads: words as heard, a citation excerpt, a private note. */

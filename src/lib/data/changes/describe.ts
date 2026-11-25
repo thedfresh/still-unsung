@@ -2,7 +2,7 @@ import { MODEL, modelInfo } from "@/lib/content-access";
 import { bareLabel, type Row } from "@/lib/changes/labels";
 import type { ItemDetail, LinkInfo, ParentInfo } from "@/lib/changes/readout";
 import type { PreviewItem } from "@/lib/changes/preview-format";
-import { labelRow, memo, readRow, type LookupCache, type Tx } from "@/lib/data/changes/rows";
+import { labelRow, memo, readRow, setRowOf, toJson, type LookupCache, type Tx } from "@/lib/data/changes/rows";
 import type { AppliedItem } from "@/lib/data/changes/write-edits";
 
 /** Records that head their own group in the readout. */
@@ -45,7 +45,8 @@ export async function describeItems(tx: Tx, items: AppliedItem[], options: Descr
     const label = item.op === "update" && item.before ? await labelRow(tx, item.type, item.before, true, cache) : await labelRow(tx, item.type, item.after, withId, cache);
     labels.set(keyOf(item.type, item.id), label);
   }
-  const rowOf = (type: string, id: number) => memo(cache, `row:${keyOf(type, id)}`, () => readRow(tx, type, id));
+  const rowOf = (type: string, id: number): Promise<Row | null> =>
+    type === "Set" ? setRowOf(tx, id, cache).then((row) => (row ? toJson(row) : null)) : memo(cache, `row:${keyOf(type, id)}`, () => readRow(tx, type, id));
   const nameOf = async (type: string, id: number): Promise<string> => {
     const known = labels.get(keyOf(type, id));
     if (known) return known;
@@ -65,7 +66,16 @@ export async function describeItems(tx: Tx, items: AppliedItem[], options: Descr
   };
   const linkLabel = async (type: string, field: string, value: unknown): Promise<LinkInfo | null> => {
     const target = await targetOf(type, field, value);
-    if (!target) return null;
+    if (!target) {
+      // The record is gone only when the shared-record row itself is missing. An unknown kind has no name to look up.
+      const fk = modelInfo(type).fields[field]?.fk;
+      if (field === "id" || fk !== "Entity" || typeof value !== "number") return null;
+      const entity = await memo(cache, `entity:${value}`, () => tx.entity.findUnique({ where: { id: value }, select: { kind: true } }));
+      return entity ? null : { type: "Entity", label: "", name: "", isNew: false, deleted: true };
+    }
+    if (!labels.has(keyOf(target.type, target.id)) && !(await rowOf(target.type, target.id))) {
+      return { type: target.type, label: "", name: "", isNew: false, deleted: true };
+    }
     const label = await nameOf(target.type, target.id);
     return { type: target.type, label, name: bareLabel(target.type, label), isNew: createdHere.has(keyOf(target.type, target.id)) };
   };

@@ -428,9 +428,11 @@ describe("preview wording", () => {
       ],
     });
     const text = formatPreview(preview);
-    expect(text).toMatch(/entity: Show 1978-05-23 \(\d+\)/);
+    expect(text).toContain("entity: Show 1978-05-23");
+    expect(text).not.toContain("Old words");
+    expect(text).toContain("New Private note");
     // The new note sits under the show with its attachment, not under a heading of its own.
-    expect(text).toContain("\nShow 1978-05-23\n  New Note");
+    expect(text).toContain("\nShow 1978-05-23\n  New Private note");
     expect(text).toContain("  New NoteAttachment");
     expect(text).not.toMatch(/^Note "Old words"$/m);
     expect(text).not.toMatch(/#\d+/);
@@ -442,7 +444,8 @@ describe("preview wording", () => {
       evidence: { ownKnowledge: true },
       edits: [{ op: "update", type: "Note", id: note.id, rev: note.rev, fields: { body: "New words" } }],
     });
-    expect(formatPreview(edit)).toContain('Changed Note "Old words"');
+    // A private note is named by its number, never by the start of its body.
+    expect(formatPreview(edit)).toContain(`Changed Private note #${note.id}`);
   });
 });
 
@@ -487,8 +490,8 @@ describe("labels, defaults and position", () => {
     expect(preview.warnings).toEqual([]);
     const text = formatPreview(preview);
     expect(text).toContain("New Segment: Man Of Constant Sorrow, 2002-04-30");
-    expect(text).toMatch(/set: \d+ \(2002-04-30, set 1\)/);
-    expect(text).toMatch(/work: \d+ \(Man Of Constant Sorrow\)/);
+    expect(text).toContain("set: 2002-04-30, set 1");
+    expect(text).toContain("work: Man Of Constant Sorrow");
     for (const word of ["joinsNext", "workCertainty", "cutAtStart", "cutAtEnd", "extent", "isPublic", "wordsPublic"]) {
       expect(text).not.toContain(word);
     }
@@ -499,7 +502,7 @@ describe("labels, defaults and position", () => {
     const workKindId = (await db.workKind.findFirstOrThrow()).id;
     const preview = await previewChanges(agentId, { evidence: evidence(), edits: [{ op: "create", type: "Work", fields: { title: "Ripple", workKindId } }] });
     const text = formatPreview(preview);
-    expect(text).toContain("work kind: 1 (song)");
+    expect(text).toContain("work kind: song");
     expect(text).not.toContain("attaches to");
   });
 
