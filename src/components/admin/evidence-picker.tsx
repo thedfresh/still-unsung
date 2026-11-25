@@ -27,9 +27,14 @@ export function EvidencePicker({ value, onChange, recent }: Props) {
         <input type="radio" name={name} checked={value.kind === "own"} onChange={() => onChange({ kind: "own" })} />
         My own knowledge
       </label>
-      {recent.map((choice, index) => (
+      {recent.map((choice) => (
         <label key={choice.label} className="flex items-center gap-2">
-          <input type="radio" name={name} checked={value.kind === "recent" && value.index === index} onChange={() => onChange({ kind: "recent", index })} />
+          <input
+            type="radio"
+            name={name}
+            checked={value.kind === "recent" && JSON.stringify(value.evidence) === JSON.stringify(choice.evidence)}
+            onChange={() => onChange({ kind: "recent", evidence: choice.evidence })}
+          />
           {choice.label}
         </label>
       ))}

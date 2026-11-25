@@ -124,6 +124,8 @@ export interface OriginInput {
   recordingName: string | null;
   contributorName: string | null;
   place: string | null;
+  /** Set when the recording is of the show that the page is about: no show date is repeated. */
+  ownShowRecording?: { description: string | null } | null;
 }
 
 /**
@@ -134,7 +136,9 @@ export function describeOrigin(input: OriginInput): string {
   const who = input.path === "IMPORT" ? "the import" : input.role === "AGENT" ? "the agent" : "an admin";
   const evidence: string[] = [];
   if (input.sourceTitle) evidence.push(`the source "${input.sourceTitle}"`);
-  if (input.recordingName) evidence.push(`the recording "${input.recordingName}"`);
+  if (input.ownShowRecording) {
+    evidence.push(input.ownShowRecording.description ? `this show's recording "${input.ownShowRecording.description}"` : "this show's recording");
+  } else if (input.recordingName) evidence.push(`the recording "${input.recordingName}"`);
   if (input.contributorName) evidence.push(`${input.contributorName}`);
   if (input.ownKnowledge) evidence.push("own knowledge");
   let line = `Added by ${who} on ${input.when.toISOString().slice(0, 10)}`;

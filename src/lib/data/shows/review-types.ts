@@ -94,7 +94,8 @@ export interface ReviewShow {
   billedAs: string | null;
   band: string | null;
   showType: string | null;
-  status: string;
+  /** Only a status other than "took place", the default. */
+  status: string | null;
   timeLabel: string | null;
   bill: ReviewLine[];
   /** Exceptions only, as stored. */

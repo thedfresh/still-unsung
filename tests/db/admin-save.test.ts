@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { seedLists } from "../../prisma/seed/index.ts";
 import { recentEvidence, saveAdminChanges } from "@/lib/data/changes/admin-save";
 import { listChangesets } from "@/lib/data/changes/list";
+import { previewChanges } from "@/lib/data/changes/preview";
 import { addUser } from "@/lib/data/users";
 import { getPrisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
@@ -104,6 +105,42 @@ describe("saveAdminChanges", () => {
     );
     expect(result.status).toBe("blocked");
     if (result.status === "blocked") expect(result.messages[0]).toContain("does not exist");
+  });
+
+  it("returns every problem of one save: a stale version and a missing list value", async () => {
+    const segment = await db.segment.findUniqueOrThrow({ where: { id: segmentId } });
+    await db.segment.update({ where: { id: segmentId }, data: { summary: "Moved on.", rev: { increment: 1 } } });
+    const result = await saveAdminChanges(
+      {
+        edits: [
+          { op: "update", type: "Segment", id: segmentId, rev: segment.rev, fields: { summary: "Stale." } },
+          { op: "create", type: "Set", fields: { showId: setId, position: 2, setTypeId: 999999 } },
+        ],
+        evidence: own,
+      },
+      asUser(admin),
+    );
+    expect(result.status).toBe("conflict");
+    if (result.status !== "conflict") return;
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages.join("\n")).toContain(`Segment ${segmentId}`);
+    expect(result.messages.join("\n")).toContain("does not exist");
+    expect(await db.changeset.count({ where: { status: "APPLIED" } })).toBe(0);
+  });
+
+  it("names a new place by its first place name, also one made in the same save", async () => {
+    const preview = await previewChanges(admin.id, {
+      path: "ADMIN",
+      evidence: own,
+      edits: [
+        { op: "create", type: "Place", ref: "place", fields: {} },
+        { op: "create", type: "PlaceName", fields: { placeId: { ref: "place" }, name: "Capitol Theatre", position: 1 } },
+        { op: "create", type: "PlaceName", fields: { placeId: { ref: "place" }, name: "Later Name", position: 2 } },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    const place = preview.items.find((item) => item.type === "Place");
+    expect(place?.label).toBe('Place "Capitol Theatre"');
   });
 
   it("refuses a user who is not an admin, and writes nothing", async () => {

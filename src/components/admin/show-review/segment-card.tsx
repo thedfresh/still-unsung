@@ -39,7 +39,7 @@ export function SegmentCard({ segment, recent }: { segment: ReviewSegment; recen
         />
         {segment.wordsAsHeard ? (
           <section className="flex flex-col gap-1">
-            <h4 className="font-semibold">Words as heard (private)</h4>
+            <h4 className="font-semibold">Words as heard{segment.wordsPublic ? "" : " (private)"}</h4>
             <p className="whitespace-pre-wrap">{segment.wordsAsHeard}</p>
           </section>
         ) : null}

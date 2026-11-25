@@ -59,9 +59,10 @@ function conflictMessage(c: SaveConflict): string {
   return `${c.record} changed since you opened it (you read version ${c.expectedRev}, it is now version ${c.currentRev}). Nothing was saved.`;
 }
 
-function conflictResult(list: PreviewConflict[]): SaveResult {
+/** `others` are the other problems of the same save, for example a missing list value. */
+function conflictResult(list: PreviewConflict[], others: string[] = []): SaveResult {
   const conflicts = list.map(describeConflict);
-  return { status: "conflict", messages: conflicts.map(conflictMessage), conflicts };
+  return { status: "conflict", messages: [...conflicts.map(conflictMessage), ...others], conflicts };
 }
 
 /**
@@ -78,7 +79,8 @@ export async function saveAdminChanges(
 ): Promise<SaveResult> {
   const user = await getUser(["ADMIN"]);
   const preview = await previewChanges(user.id, { ...input, path: "ADMIN" });
-  if (preview.conflicts.length > 0) return conflictResult(preview.conflicts);
+  // The preview lists one warning per conflict after the other problems: report every problem at once.
+  if (preview.conflicts.length > 0) return conflictResult(preview.conflicts, preview.warnings.slice(0, preview.warnings.length - preview.conflicts.length));
   if (!preview.token) return { status: "blocked", messages: preview.warnings.length > 0 ? preview.warnings : ["Nothing was saved."] };
   const result = await applyChanges(user.id, preview.token);
   if (result.ok) return { status: "saved", changesetId: result.changesetId };

@@ -42,7 +42,7 @@ export function SummaryEditor({ segmentId, label, rev, summary, recent }: Props)
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    const picked = evidenceOf(choice, recent);
+    const picked = evidenceOf(choice);
     if ("error" in picked) return setFormError(picked.error);
     setFormError(null);
     const text = draft.trim();
@@ -83,7 +83,7 @@ export function SummaryEditor({ segmentId, label, rev, summary, recent }: Props)
         />
       </label>
       <p id={countId}>
-        {draft.length} of {SUMMARY_MAX} characters
+        {draft.trim().length} of {SUMMARY_MAX} characters
       </p>
       <EvidencePicker value={choice} onChange={setChoice} recent={recent} />
       {formError || form.messages.length > 0 ? (

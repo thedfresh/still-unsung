@@ -8,6 +8,11 @@ import { parseId } from "@/lib/ids";
 
 export const metadata = { title: "Show" };
 
+/**
+ * `notFound()` here shows the not-found page, but the status is already 200: with Cache
+ * Components the page streams after its prerendered shell. The HTTP 404 for a bad or unknown
+ * ID comes from `src/proxy.ts`, which runs before the page renders.
+ */
 async function ShowReview({ params }: { params: PageProps<"/admin/shows/[id]">["params"] }) {
   // Sign-in first: nothing is read before this call.
   const user = await requireAdminPage();
