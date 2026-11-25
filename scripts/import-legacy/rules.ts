@@ -435,26 +435,36 @@ export function externalValue(system: string, url: string): string {
 
 export type NoteHint = "a-cappella" | "guest" | "bill";
 
+const HINT_PATTERNS: Record<NoteHint, RegExp> = {
+  "a-cappella": /a\s*cappella|acapella/i,
+  guest: /\b(guests?|joined by|sits? in|sat in|sitting in)\b/i,
+  bill: /\b(opening act|opened by|opener|openers|supporting act|on the bill|also appearing|bill:)/i,
+};
+
+const FOOTNOTE_PATTERNS: Record<FootnoteKind, RegExp> = {
+  portion: /\b(first|second|third|last|final|opening|closing)\s+(verse|chorus|stanza|refrain)s?\b|\bverses?\s+\d/i,
+  instrumental: /\binstrumental\b/i,
+  "lead-in": /\b(lead-?in|leads? into|segues? from|from the end of)\b/i,
+};
+
 /** Words that make a note a candidate for one of the review lists (section 5, items 1, 13, 14). */
 export function noteHints(text: string): NoteHint[] {
-  const hints: NoteHint[] = [];
-  if (/a\s*cappella|acapella/i.test(text)) hints.push("a-cappella");
-  if (/\b(guests?|joined by|sits? in|sat in|sitting in)\b/i.test(text)) hints.push("guest");
-  if (/\b(opening act|opened by|opener|openers|supporting act|on the bill|also appearing|bill:)/i.test(text)) {
-    hints.push("bill");
-  }
-  return hints;
+  return (Object.keys(HINT_PATTERNS) as NoteHint[]).filter((hint) => HINT_PATTERNS[hint].test(text));
 }
 
 export type FootnoteKind = "portion" | "instrumental" | "lead-in";
 
 /** Footnotes a rule can type (section 5, item 4). The rest stay notes. */
 export function footnoteKinds(text: string): FootnoteKind[] {
-  const kinds: FootnoteKind[] = [];
-  if (/\b(first|second|third|last|final|opening|closing)\s+(verse|chorus|stanza|refrain)s?\b|\bverses?\s+\d/i.test(text)) {
-    kinds.push("portion");
-  }
-  if (/\binstrumental\b/i.test(text)) kinds.push("instrumental");
-  if (/\b(lead-?in|leads? into|segues? from|from the end of)\b/i.test(text)) kinds.push("lead-in");
-  return kinds;
+  return (Object.keys(FOOTNOTE_PATTERNS) as FootnoteKind[]).filter((kind) => FOOTNOTE_PATTERNS[kind].test(text));
+}
+
+/** The words of a note that triggered a hint or a footnote kind, with a little text around them. */
+export function matchedText(text: string, trigger: NoteHint | FootnoteKind): string {
+  const pattern = trigger in HINT_PATTERNS ? HINT_PATTERNS[trigger as NoteHint] : FOOTNOTE_PATTERNS[trigger as FootnoteKind];
+  const found = pattern.exec(text);
+  if (!found) return "";
+  const start = Math.max(0, found.index - 40);
+  const end = Math.min(text.length, found.index + found[0].length + 40);
+  return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
 }
