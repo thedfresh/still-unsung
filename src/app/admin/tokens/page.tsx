@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { TokenForm } from "@/components/admin/token-form";
 import { listAgentTokens } from "@/lib/data/agent-tokens";
 import { listUsers } from "@/lib/data/users";
@@ -18,6 +18,8 @@ function formatDate(date: Date | null): string {
 }
 
 async function Tokens({ error }: { error: Promise<string | undefined> }) {
+  // Sign-in first: nothing is read before this call.
+  await requireAdminPage();
   const code = await error;
   const [tokens, users] = await Promise.all([listAgentTokens(), listUsers()]);
   const agents = users.filter((user) => user.role === "AGENT").map(({ id, email }) => ({ id, email }));

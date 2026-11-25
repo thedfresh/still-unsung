@@ -1,6 +1,7 @@
 import { getPrisma } from "@/lib/db";
 import { describeRecord, withType, type Row } from "@/lib/changes/labels";
 import { MODEL } from "@/lib/content-access";
+import { findShowLinks, type ShowLink } from "./show-links";
 
 export interface ChangesetRow {
   id: number;
@@ -15,6 +16,8 @@ export interface ChangesetRow {
   userRole: string;
   /** The evidence, in words. */
   evidence: string;
+  /** The shows this change touched, for the links to the show review page. */
+  shows: ShowLink[];
   items: Array<{ position: number; tableName: string; label: string; recordId: number; action: string; before: Row | null; after: Row | null }>;
 }
 
@@ -64,6 +67,17 @@ export async function listChangesets(limit = 50): Promise<ChangesetRow[]> {
     const state = (item.after ?? item.before) as Row | null;
     return type && state ? withType(type, describeRecord(type, state)) : `${item.tableName} #${item.recordId}`;
   };
+  const showLinks = await findShowLinks(
+    rows.flatMap((row) =>
+      row.items.map((item) => ({
+        changesetId: row.id,
+        tableName: item.tableName,
+        recordId: item.recordId,
+        before: item.before as Row | null,
+        after: item.after as Row | null,
+      })),
+    ),
+  );
   return rows.map((row) => {
     return {
       id: row.id,
@@ -76,6 +90,7 @@ export async function listChangesets(limit = 50): Promise<ChangesetRow[]> {
       userEmail: row.user.email,
       userRole: row.user.role,
       evidence: describeChangeEvidence(row),
+      shows: showLinks.get(row.id) ?? [],
       items: row.items.map((item) => ({
         position: item.position,
         tableName: item.tableName,
