@@ -47,6 +47,8 @@ export interface ReadoutItem {
   /** For each field that points at a record: that record, by field. */
   links: ItemDetail["links"];
   parent: ParentInfo | null;
+  /** The show that the record sits in, when it has a show page. Only the pending preview page sets it. */
+  showId?: number | null;
 }
 
 /** One line of a card: a value, or a before and after pair. */
@@ -65,6 +67,8 @@ export interface ReadoutCard {
   action: string;
   title: string;
   fields: ReadoutField[];
+  /** The show whose page the card links to, when there is one. */
+  showId?: number;
 }
 
 export interface Readout {
@@ -257,6 +261,11 @@ function deletedFields(item: ReadoutItem, skip: Set<string>): ReadoutField[] {
 
 /** One card for one record. */
 function recordCard(item: ReadoutItem): ReadoutCard {
+  const card = recordCardBody(item);
+  return item.showId ? { ...card, showId: item.showId } : card;
+}
+
+function recordCardBody(item: ReadoutItem): ReadoutCard {
   const { title, skip } = recordTitle(item);
   if (item.op === "delete") return { action: "", title: `Deleted · ${title}`, fields: deletedFields(item, skip) };
   if (item.op === "create") {

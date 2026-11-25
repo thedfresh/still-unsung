@@ -19,7 +19,7 @@ export interface PreviewData {
  * themselves come from `formatReadout`, which the Changes page uses too. Only the warnings, the
  * evidence and the apply token are added here.
  */
-export function formatPreview(preview: PreviewData): string {
+export function formatPreview(preview: PreviewData, pageUrl?: string | null): string {
   const lines: string[] = [];
   if (preview.warnings.length > 0) {
     lines.push("WARNINGS (nothing can be applied until these are fixed):");
@@ -34,5 +34,6 @@ export function formatPreview(preview: PreviewData): string {
   if (preview.token && preview.expiresAt) {
     lines.push("", `Apply token: ${preview.token}`, `It works once and expires at ${preview.expiresAt.toISOString()}.`);
   }
+  if (pageUrl) lines.push("", `Read this change as cards (admin sign-in needed): ${pageUrl}`);
   return lines.join("\n");
 }

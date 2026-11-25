@@ -357,6 +357,16 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   edit screens reuse `writeEdits` and the changeset code with path `ADMIN`. The page
   `/admin/changes` is a log, newest first, 50 to a page: one line for each change (the counts
   sentence, who made it, its evidence and the time). Opening a line shows the readout.
+- **Pending preview page.** `/admin/changes/pending/[id]` shows an open preview as cards, with
+  the shared `ReadoutView` (`src/components/admin/readout-view.tsx`). `/admin/changes/pending`
+  lists the open previews, newest first, each with its stored counts. The changeset keeps only
+  the edits, so `getPendingPreview` (`src/lib/data/changes/pending.ts`) runs the same trial as the
+  preview in a transaction that rolls back, then describes the items. It never writes. An
+  expired, used or applied preview says so and is not rebuilt. A card links to its show page when
+  the record sits in a show. `preview_changes` ends its text with the page address, built from
+  `AUTH_URL` (`src/lib/changes/preview-link.ts`); with no `AUTH_URL` it adds no link. The proxy
+  gives an unknown ID a real 404. The page does not apply or discard.
+  (test: `tests/db/pending-preview.test.ts`, `tests/e2e/agent-mcp.spec.ts`)
 - **Not built yet:** the call to the cache-refresh route after an apply (no cached page reads
   content yet; section 5), undo, and merge.
 

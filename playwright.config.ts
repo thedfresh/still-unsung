@@ -37,6 +37,7 @@ export default defineConfig({
           env: {
             AUTH_SECRET: "e2e-only-secret-not-used-anywhere-else",
             AUTH_TRUST_HOST: "true",
+            AUTH_URL: baseURL,
             AUTH_GOOGLE_ID: FAKE_GOOGLE_CLIENT_ID,
             AUTH_GOOGLE_SECRET: "e2e-client-secret",
             AUTH_GOOGLE_ISSUER: `http://localhost:${FAKE_GOOGLE_PORT}`,

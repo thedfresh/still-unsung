@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { formatPreview } from "@/lib/changes/preview-format";
+import { pendingPreviewUrl } from "@/lib/changes/preview-link";
 import { isList, LIST_TABLES, readableTypes, writableTypes } from "@/lib/content-access";
 import { applyChanges } from "@/lib/data/changes/apply";
 import { previewChanges } from "@/lib/data/changes/preview";
@@ -53,7 +54,7 @@ export function createContentMcpServer(user: CurrentUser): McpServer {
     ({ evidence, edits, isPublic }) =>
       run(async () => {
         const preview = await previewChanges(user.id, { evidence, edits, isPublic });
-        return formatPreview(preview);
+        return formatPreview(preview, pendingPreviewUrl(preview.changesetId));
       }),
   );
 
