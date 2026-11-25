@@ -330,6 +330,7 @@ const TABLE_OF_KIND: Partial<Record<EntityKind, string>> = {
   LINEUP_ENTRY: "lineup_entries",
   RECORDING: "recordings",
   PLACE: "places",
+  PLACE_NAME: "place_names",
   BAND: "bands",
   PERSON: "people",
   WORK: "works",

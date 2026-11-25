@@ -322,6 +322,8 @@ export type VocalRoleName = "LEAD" | "HARMONY" | "BACKING";
  */
 export function vocalRoleOf(text: string | null): VocalRoleName | "UNKNOWN" {
   const lower = (text ?? "").toLowerCase();
+  // Item 33: the old default value "default" means a lead singer.
+  if (lower.trim() === "default") return "LEAD";
   const found: VocalRoleName[] = [];
   if (/lead/.test(lower)) found.push("LEAD");
   if (/harm/.test(lower)) found.push("HARMONY");

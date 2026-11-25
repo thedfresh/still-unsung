@@ -131,6 +131,7 @@ describe("small rules", () => {
     expect(vocalRoleOf("Harmony")).toBe("HARMONY");
     expect(vocalRoleOf("backup")).toBe("BACKING");
     expect(vocalRoleOf("Lead")).toBe("LEAD");
+    expect(vocalRoleOf("default")).toBe("LEAD");
     expect(vocalRoleOf(null)).toBe("UNKNOWN");
     expect(vocalRoleOf("Unknown")).toBe("UNKNOWN");
     expect(vocalRoleOf("lead and harmony")).toBe("UNKNOWN");

@@ -1,5 +1,5 @@
 import type { Ctx } from "./context.ts";
-import { bool, normalizeName, num, str, type Row } from "./rules.ts";
+import { bool, dateOf, normalizeName, num, str, type Row } from "./rules.ts";
 
 // The stress tests of plan section 6. Each one compares the new data with the old rows and
 // lists the differences by id. No banter text, emails or raw entries (plan section 7).
@@ -253,14 +253,19 @@ async function setlists(ctx: Ctx): Promise<StressResult> {
     const segments = await ctx.db.segment.findMany({
       where: { set: { showId: show.id } },
       orderBy: [{ set: { position: "asc" } }, { sortKey: "asc" }],
-      select: { id: true, workId: true, delivery: true, joinsNext: true, extent: true, workCertainty: true, setId: true },
+      select: { id: true, workId: true, delivery: true, joinsNext: true, extent: true, workCertainty: true, setId: true, legacyId: true },
     });
+    // A stage-talk segment from show_banter has no old performance row: its old cell stays blank.
+    const aligned: string[] = [];
+    let nextOld = 0;
     const explicit = segments.map(
       (s) => `segment ${s.id} work ${s.workId ?? "none"}${s.delivery ? ` ${s.delivery}` : ""}${s.extent !== "COMPLETE" ? ` ${s.extent}` : ""}${s.workCertainty !== "CONFIRMED" ? ` ${s.workCertainty}` : ""}${s.joinsNext === "RUNS_INTO" ? " >" : ""}`,
     );
+    segments.forEach((s) => aligned.push(String(s.legacyId ?? "").startsWith("show_banter:") ? "" : (oldList[nextOld++] ?? "")));
+    aligned.push(...oldList.slice(nextOld));
     lines.push("  old | new, explicit view");
-    const rows = Math.max(oldList.length, explicit.length);
-    for (let i = 0; i < rows; i += 1) lines.push(`  ${(oldList[i] ?? "").padEnd(34)} | ${explicit[i] ?? ""}`);
+    const rows = Math.max(aligned.length, explicit.length);
+    for (let i = 0; i < rows; i += 1) lines.push(`  ${(aligned[i] ?? "").padEnd(34)} | ${explicit[i] ?? ""}`);
     // Compact view: a set on one line; ">" joins segments that run into each other.
     lines.push("  new, compact view");
     const bySet = new Map<number, typeof segments>();
@@ -307,8 +312,16 @@ async function lineups(ctx: Ctx): Promise<StressResult> {
     if (!event) continue;
     const old = new Set<number>();
     const listed = eventMusicians.get(oldId) ?? [];
-    const source = listed.length > 0 ? listed : (bandMembers.get(num(event, "primary_band_id") ?? -1) ?? []);
-    for (const row of source) {
+    // Band members who were in the band on the show date (joined and left dates), plus the
+    // musicians the show lists: listed musicians are guests and add to the members.
+    const date = at(show.dateYear, show.dateMonth, show.dateDay, 0);
+    const members = (bandMembers.get(num(event, "primary_band_id") ?? -1) ?? []).filter((row) => {
+      if (show.dateYear === null) return true;
+      const joined = dateOf(row, "joined_date");
+      const left = dateOf(row, "left_date");
+      return (joined === null || joined.getTime() <= date) && (left === null || date <= left.getTime());
+    });
+    for (const row of [...members, ...listed]) {
       const person = ctx.personByMusician.get(num(row, "musician_id") ?? -1);
       if (person) old.add(person);
     }

@@ -327,7 +327,6 @@ export async function importPlaces(ctx: Ctx): Promise<void> {
     // The Songwriters Hall of Fame row has its venue and its context reversed: list it.
     if (/songwriters hall of fame/i.test(`${str(row, "name") ?? ""} ${context ?? ""}`)) {
       ctx.line("Venues with the name and context possibly reversed (review)", `venues:${id}`);
-      ctx.propose("07-place-merges", { placeIds: String(made.placeId), names: "name and context may be reversed", reason: `venues:${id}` });
     }
   }
 }
