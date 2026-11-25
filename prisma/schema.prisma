@@ -1,19 +1,1973 @@
-// Prisma schema for StillUnsung.
-// The real schema comes from the data-model design session (HSA-28, HSA-35).
-// SystemCheck is a placeholder so the skeleton can prove a real database
-// round trip; it will be removed when the real models land.
+// =============================================================================
+// Robert Hunter Performance Archive: the new schema (HSA-142, draft of 2026-11-24)
+// =============================================================================
+//
+// Written from docs/data-model-proposal.md and the decision log
+// docs/decisions/data-model.md (items 1-105). "item n" below means item n of that log.
+// Design source: the planning repo (HSA-142). HSA-35 moved it here.
+// Target: Prisma 7 (still-unsung uses 7.10), PostgreSQL 18.
+//
+// HOW TO READ IT
+//
+// 1. The shared record ID (items 44, 45, 92). Every record that states a fact has a row in
+//    `Entity`, and its own primary key IS that entity's id (a shared primary key). Citations,
+//    notes, references, tags, external IDs and backlinks point at `Entity`, so they attach to
+//    any fact record the same way. Deleting the Entity row deletes the record (cascade);
+//    attachments that hold the curator's work use RESTRICT, so a delete or merge must move or
+//    delete them in the same changeset (item 45). The entity row also holds the one
+//    public/private flag (item 47).
+//    To create a record: create its Entity row (with its kind) and the record with that id,
+//    in one transaction (Prisma nested create: `entity: { create: { kind: SHOW } }`).
+//
+// 2. Records without an Entity row ("machinery", item 92): Citation, Note, NoteAttachment, TagAssignment,
+//    ExternalId, Backlink, Address, Changeset, ChangesetItem, user accounts and the lookup
+//    lists. Also LineupInstrument, PersonInstrument and SourceCreator (details of the record
+//    they belong to; see the technical choices in docs/schema/migration-plan.md).
+//
+// 3. Columns every editable record has:
+//    - `rev`: the version number for the edit-conflict check (item 87). Every write checks it
+//      and increments it.
+//    - `createdAt`, `updatedAt`.
+//    - `legacyId` on records the migration fills: "<old table>:<old id>", for example
+//      "venues:12", with ":<old field>" where one old row makes several rows ("events:7:rawData")
+//      (item 49). Text, because two old tables can feed one new table (musicians and
+//      contributors both become Person). Not unique: traceability only.
+//
+// 4. The shared date shape (items 57, 93). Each dated record repeats these columns, with a
+//    prefix (`date…`, or `start…` for a range's start):
+//      Year, Month, Day         the parts that are known (all optional)
+//      EndYear, EndMonth, EndDay  an optional end, for a range
+//      AsWritten                the date as the source wrote it
+//      Certainty                confirmed (default), probable, possible, unknown
+//    Display and sort dates are derived, never stored.
+//
+// 5. Fixed lists are enums; editable lists are tables (item 91). A fixed list grows only with
+//    the code change for the rule that reads it.
+//
+// 6. Private fields are named in a comment `PRIVATE`. The public read layer never selects
+//    them (item 47). No lyric or source text is ever in this repository; only the columns
+//    that will hold it.
+//
+// 7. What Prisma cannot express is listed at the end of this file (check constraints,
+//    sort-key collation). The migration `20261125120000_schema` adds them as raw SQL.
+// =============================================================================
 
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  importFileExtension = "ts"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-model SystemCheck {
-  id        Int      @id @default(autoincrement())
-  note      String
-  createdAt DateTime @default(now())
+// =============================================================================
+// FIXED LISTS (item 91: the rules read these by meaning)
+// =============================================================================
+
+/// Item 41, 65, 93. Pages show "probably", "possibly" from it.
+enum Certainty {
+  CONFIRMED
+  PROBABLE
+  POSSIBLE
+  UNKNOWN
 }
+
+/// Item 63.
+enum ShowStatus {
+  TOOK_PLACE
+  CANCELED
+  SPURIOUS
+  UNKNOWN
+}
+
+/// Proposal section 2, segment: "sung, played without words, or spoken"; item 101 adds
+/// SUNG_A_CAPPELLA (counts as sung). Item 83: a vocal entry may override it for its scope.
+/// Item 94: PLAYED is the "instrumental" filter.
+enum Delivery {
+  SUNG
+  SUNG_A_CAPPELLA
+  PLAYED
+  SPOKEN
+}
+
+/// Item 22, 80. COMPLETE is the presumed default, never checked one by one.
+enum Extent {
+  COMPLETE
+  PARTIAL
+  FRAGMENT
+  ABORTED
+}
+
+/// Proposal section 2: how a segment joins the next one at the same level.
+enum Join {
+  STOPS
+  RUNS_INTO
+}
+
+/// Item 90.
+enum TitleStatus {
+  KNOWN
+  WORKING_TITLE
+}
+
+/// Item 83.
+enum VocalRole {
+  LEAD
+  HARMONY
+  BACKING
+}
+
+/// Item 82. "Opened for" and "openers" are derived from it.
+enum BillRole {
+  HEADLINER
+  OPENER
+  CO_BILL
+}
+
+/// Item 84: a lineup entry can override the derived member/guest status by hand.
+enum MemberOverride {
+  MEMBER
+  GUEST
+}
+
+/// Item 67.
+enum CreditKind {
+  AS_CREDITED
+  ATTRIBUTED
+}
+
+/// Items 25, 26: a version is a canonical form of a work's words or of its tune.
+enum VersionOf {
+  WORDS
+  TUNE
+}
+
+/// Proposal section 2, Passage: fixed (verse, chorus, refrain) or loose (a motif, item 39).
+enum PassageKind {
+  FIXED
+  MOTIF
+}
+
+/// Section 6, item 28: the role is optional. The import proposes CHORUS for a repeated
+/// stanza, so code reads it: a fixed list (item 91).
+enum PassageRole {
+  VERSE
+  CHORUS
+  REFRAIN
+  BRIDGE
+  OTHER
+}
+
+/// Item 75: for a segment, each passage is sung as the version (nothing recorded), left out,
+/// added or changed. Also used for a variant's passages.
+enum PassageChange {
+  CHANGED
+  ADDED
+  LEFT_OUT
+}
+
+/// Item 35: a suite's structure.
+enum SuiteStructure {
+  FIXED
+  VARIABLE
+}
+
+/// Item 42 (a): the aspect of a record that a citation supports. No aspect means the whole
+/// record. The evidence summary (item 29) reads them: a fixed list.
+/// Item 42's list: show date, venue (SHOW_PLACE), took place (SHOW_STATUS), setlist, lineup,
+/// billing; segment identification, words, extent, cut marks, version; work credit.
+/// Added: SHOW_TIME (item 95). Added in this draft, for review: WORK_DATE (item 57), VERSION_WORDING (items 59, 78: the
+/// anchor text), and the first-known-from and origin aspects of items 65 and 77.
+enum CitationAspect {
+  SHOW_DATE
+  SHOW_TIME
+  SHOW_PLACE
+  SHOW_STATUS
+  SHOW_SETLIST
+  SHOW_LINEUP
+  SHOW_BILLING
+  SEGMENT_IDENTIFICATION
+  SEGMENT_WORDS
+  SEGMENT_EXTENT
+  SEGMENT_CUT_MARKS
+  SEGMENT_VERSION
+  WORK_CREDIT
+  WORK_DATE
+  VERSION_WORDING
+  VERSION_FIRST_KNOWN_FROM
+  VERSION_CHANGED_BY
+  VARIANT_FIRST_KNOWN_FROM
+  VARIANT_ORIGIN
+  RENDITION_FIRST_KNOWN_FROM
+  RENDITION_ORIGIN
+}
+
+/// Item 54.
+enum LinkPurpose {
+  LISTEN
+  WATCH
+  READ
+  IDENTIFY
+}
+
+/// Item 40, item 89, PLAN.md (Auth.js with roles). Editor and contributor come later (N17).
+enum UserRole {
+  ADMIN
+  AGENT
+}
+
+/// Item 19: the write path a changeset came through.
+enum ChangesetPath {
+  ADMIN
+  MCP
+  IMPORT
+}
+
+/// Item 19, 40: preview, then apply; undo applies the stored previous state.
+enum ChangesetStatus {
+  PREVIEWED
+  APPLIED
+  UNDONE
+}
+
+enum ChangeAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+/// The kind of record behind an Entity row (items 44, 92).
+enum EntityKind {
+  SHOW
+  SET
+  SEGMENT
+  PORTION_ENTRY
+  SEGMENT_VARIANT
+  VOCAL_ENTRY
+  LINEUP_ENTRY
+  BILL_ENTRY
+  SHOW_GROUP
+  SHOW_GROUP_MEMBER
+  PERIOD
+  RECORDING
+  PLACE
+  PLACE_NAME
+  BAND
+  PERSON
+  WORK
+  WORK_SINGER
+  CREDIT
+  SUITE_PART
+  PASSAGE
+  VERSION
+  VERSION_BASIS
+  VERSION_PASSAGE
+  VARIANT
+  VARIANT_PASSAGE
+  RENDITION
+  APPEARANCE
+  REFERENCE
+  SUBJECT
+  SOURCE
+  SOURCE_WORK
+  GUIDE_PAGE
+}
+
+// =============================================================================
+// THE SHARED RECORD ID (items 44, 45, 47, 92)
+// =============================================================================
+
+/// One row per fact record. Its id is the record's own primary key.
+model Entity {
+  id        Int        @id @default(autoincrement())
+  kind      EntityKind
+  /// Item 47: the one public/private flag. Default public; a source's content is gated by
+  /// its license instead (item 53).
+  isPublic  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+
+  // The record behind this row (exactly one is set, matching `kind`).
+  show            Show?
+  set             Set?
+  segment         Segment?
+  portionEntry    PortionEntry?
+  segmentVariant  SegmentVariant?
+  vocalEntry      VocalEntry?
+  lineupEntry     LineupEntry?
+  billEntry       BillEntry?
+  showGroup       ShowGroup?
+  showGroupMember ShowGroupMember?
+  period          Period?
+  recording       Recording?
+  place           Place?
+  placeName       PlaceName?
+  band            Band?
+  person          Person?
+  work            Work?
+  workSinger      WorkSinger?
+  credit          Credit?
+  suitePart       SuitePart?
+  passage         Passage?
+  version         Version?
+  versionBasis    VersionBasis?
+  versionPassage  VersionPassage?
+  variant         Variant?
+  variantPassage  VariantPassage?
+  rendition       Rendition?
+  appearance      Appearance?
+  reference       Reference?         @relation("ReferenceRecord")
+  subject         Subject?
+  source          Source?
+  sourceWork      SourceWork?
+  guidePage       GuidePage?
+
+  // Attachments (items 44, 45, 52)
+  citations      Citation[]
+  referencesFrom Reference[]     @relation("ReferenceFrom")
+  referencesTo   Reference[]     @relation("ReferenceTo")
+  notes          NoteAttachment[]
+  tags           TagAssignment[]
+  externalIds    ExternalId[]
+  backlinks      Backlink[]
+  addresses      Address[]
+
+  @@index([kind])
+  @@map("entities")
+}
+
+// =============================================================================
+// SHOWS (proposal section 2, "Shows")
+// =============================================================================
+
+/// A whole performance event. Items 29, 36, 56, 57, 63, 65, 81, 82, 93.
+/// How fully it is documented is derived from citations (item 29), never typed.
+model Show {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  // Date (shared shape, items 57, 93)
+  dateYear      Int?
+  dateMonth     Int?
+  dateDay       Int?
+  dateEndYear   Int?
+  dateEndMonth  Int?
+  dateEndDay    Int?
+  dateAsWritten String?
+  dateCertainty Certainty   @default(CONFIRMED)
+
+  /// Item 95: the label as the source states it ("Early", "Late", "Midnight").
+  timeLabel     String?
+  /// Item 95: only when a source gives it (cited with aspect SHOW_TIME); never inferred.
+  scheduledTime DateTime?   @db.Time(0)
+  /// Item 95: 1, 2, 3 when a date has more than one show; sorts them.
+  orderOnDate   Int?
+
+  /// Item 36: the most specific place known.
+  placeId        Int?
+  place          Place?     @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  /// Item 81: which of the place's names this show used.
+  /// Compound key: the name must belong to the show's own place (item 81).
+  placeNameId    Int?
+  placeName      PlaceName? @relation(fields: [placeNameId, placeId], references: [id, placeId], onDelete: Restrict)
+  placeCertainty Certainty  @default(CONFIRMED)
+  /// Item 81: what a flyer or advertisement printed, when it differs.
+  billedAs       String?
+
+  bandId     Int?
+  band       Band?     @relation(fields: [bandId], references: [id], onDelete: Restrict)
+  showTypeId Int?
+  showType   ShowType? @relation(fields: [showTypeId], references: [id], onDelete: Restrict)
+
+  /// Item 63.
+  status                       ShowStatus @default(TOOK_PLACE)
+  statusCertainty              Certainty  @default(CONFIRMED)
+  /// Item 65: Hunter's participation.
+  hunterParticipationCertainty Certainty  @default(CONFIRMED)
+
+  slug      String?  @unique
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sets       Set[]
+  recordings Recording[]
+  bill       BillEntry[]
+  groups     ShowGroupMember[]
+  lineup     LineupEntry[]
+
+  @@index([dateYear, dateMonth, dateDay])
+  @@index([placeId])
+  @@map("shows")
+}
+
+/// A part of a show, with a set type (item 31).
+model Set {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  showId    Int
+  show      Show    @relation(fields: [showId], references: [id], onDelete: Restrict)
+  position  Int
+  setTypeId Int
+  setType   SetType @relation(fields: [setTypeId], references: [id], onDelete: Restrict)
+  /// Today's Set.bandId: the band of this set when it differs from the show's (for example
+  /// a guest appearance with the Jerry Garcia Band).
+  bandId    Int?
+  band      Band?   @relation(fields: [bandId], references: [id], onDelete: Restrict)
+  /// Item 97: why the setlist is incomplete. Empty: nothing is claimed either way.
+  incompleteReasonId Int?
+  incompleteReason   IncompleteReason? @relation(fields: [incompleteReasonId], references: [id], onDelete: Restrict)
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  segments Segment[]
+  lineup   LineupEntry[]
+
+  @@index([showId, position])
+  @@map("sets")
+}
+
+/// One piece of a show, in order (items 21, 22, 35, 37, 60, 64, 65, 66, 83, 85, 90).
+/// Replaces today's Performance and ShowBanter.
+model Segment {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  setId    Int
+  set      Set      @relation(fields: [setId], references: [id], onDelete: Restrict)
+  /// Item 35, 39, 64 (d): the container segment (a suite, a free-text piece) it sits inside.
+  parentId Int?
+  parent   Segment? @relation("SegmentInside", fields: [parentId], references: [id], onDelete: Restrict)
+  children Segment[] @relation("SegmentInside")
+  /// Order among its siblings (same set, same parent). A fractional-index key (compared as
+  /// bytes, collation "C"), so an insert needs no renumber and the id never changes when a
+  /// segment moves (section 7, point A).
+  sortKey  String
+  joinsNext Join    @default(STOPS)
+
+  /// Item 101: empty means the work's default delivery, otherwise SUNG.
+  delivery Delivery?
+
+  /// Item 66: what this is a performance of. Empty for talk, and for a completely unknown
+  /// song (item 90).
+  workId              Int?
+  work                Work?     @relation("SegmentWork", fields: [workId], references: [id], onDelete: Restrict)
+  workCertainty       Certainty @default(CONFIRMED)
+  /// Item 66: only where the words or tune come from another work.
+  wordsFromWorkId     Int?
+  wordsFromWork       Work?     @relation("SegmentWordsFrom", fields: [wordsFromWorkId], references: [id], onDelete: Restrict)
+  wordsFromCertainty  Certainty @default(CONFIRMED)
+  tuneFromWorkId      Int?
+  tuneFromWork        Work?     @relation("SegmentTuneFrom", fields: [tuneFromWorkId], references: [id], onDelete: Restrict)
+  tuneFromCertainty   Certainty @default(CONFIRMED)
+  /// Items 26, 60: empty means "not determined".
+  wordsVersionId      Int?
+  wordsVersion        Version?  @relation("SegmentWordsVersion", fields: [wordsVersionId], references: [id], onDelete: Restrict)
+  tuneVersionId       Int?
+  tuneVersion         Version?  @relation("SegmentTuneVersion", fields: [tuneVersionId], references: [id], onDelete: Restrict)
+
+  /// Item 22.
+  extent        Extent  @default(COMPLETE)
+  /// Glossary "portion": a description ("last verse only"). The passages covered, in order,
+  /// are PortionEntry rows (item 79).
+  portionNote   String?
+
+  /// Item 21: the tape we know is cut.
+  cutAtStart Boolean @default(false)
+  cutAtEnd   Boolean @default(false)
+  hasGaps    Boolean @default(false)
+
+  /// Who delivered it, when that differs from the lineup (item 65).
+  deliveredById        Int?
+  deliveredBy          Person?   @relation("SegmentDeliveredBy", fields: [deliveredById], references: [id], onDelete: Restrict)
+  deliveredByCertainty Certainty @default(CONFIRMED)
+
+  /// PRIVATE. Words as heard, verbatim, in the curator's notation (items 24, 32, 79).
+  wordsAsHeard    String?
+  transcribedById Int?
+  transcribedBy   Person? @relation("SegmentTranscribedBy", fields: [transcribedById], references: [id], onDelete: Restrict)
+  /// Section 2 and section 7, point 5: whether the words may be shown publicly.
+  wordsPublic     Boolean @default(false)
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  portion     PortionEntry[]
+  variants    SegmentVariant[]
+  renditions  Rendition[]
+  appearances Appearance[]
+  vocals      VocalEntry[]
+  lineup      LineupEntry[]
+
+  @@index([setId, parentId, sortKey])
+  @@index([workId])
+  @@index([wordsFromWorkId])
+  @@index([tuneFromWorkId])
+  @@map("segments")
+}
+
+/// The passages a segment covered, in the order sung (glossary "portion"; item 79). A
+/// rendition can name one entry, so a change to a refrain names the one time it changed.
+model PortionEntry {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  segmentId Int
+  segment   Segment @relation(fields: [segmentId], references: [id], onDelete: Restrict)
+  position  Int
+  passageId Int
+  passage   Passage @relation(fields: [passageId], references: [id], onDelete: Restrict)
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  renditions Rendition[]
+
+  @@unique([segmentId, position])
+  @@map("portion_entries")
+}
+
+/// A segment follows a variant (item 60: any number).
+model SegmentVariant {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  segmentId Int
+  segment   Segment @relation(fields: [segmentId], references: [id], onDelete: Restrict)
+  variantId Int
+  variant   Variant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@unique([segmentId, variantId])
+  @@map("segment_variants")
+}
+
+/// Items 33, 83: who sang, where it differs from the default singer.
+model VocalEntry {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  segmentId Int
+  segment   Segment   @relation(fields: [segmentId], references: [id], onDelete: Restrict)
+  /// Empty means "unknown": not Hunter, singer not known (item 33).
+  personId  Int?
+  person    Person?   @relation(fields: [personId], references: [id], onDelete: Restrict)
+  role      VocalRole @default(LEAD)
+  /// Item 83: overrides the segment's delivery for this scope (the Dark Star outro).
+  delivery  Delivery?
+  /// Scope: a passage, or a short description where the work has no passages yet.
+  passageId Int?
+  passage   Passage?  @relation(fields: [passageId], references: [id], onDelete: Restrict)
+  scopeNote String?
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([segmentId])
+  @@index([personId])
+  @@map("vocal_entries")
+}
+
+/// Who played or sang what (proposal "Lineup"; item 84). One table for all four levels;
+/// exactly one of bandId, showId, setId, segmentId is set (SQL check, end of file).
+/// - Band level: a member, with dates (the shared shape; start = joined, end = left).
+/// - Show, set, segment level: only exceptions: an absent member (`absent`) or a guest.
+///   "Guest" is derived by comparing with the members; `memberOverride` overrides it by hand.
+model LineupEntry {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  bandId    Int?
+  band      Band?    @relation(fields: [bandId], references: [id], onDelete: Restrict)
+  showId    Int?
+  show      Show?    @relation(fields: [showId], references: [id], onDelete: Restrict)
+  setId     Int?
+  set       Set?     @relation(fields: [setId], references: [id], onDelete: Restrict)
+  segmentId Int?
+  segment   Segment? @relation(fields: [segmentId], references: [id], onDelete: Restrict)
+
+  personId Int
+  person   Person @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  /// Band level only: member dates (items 57, 84, 93).
+  dateYear      Int?
+  dateMonth     Int?
+  dateDay       Int?
+  dateEndYear   Int?
+  dateEndMonth  Int?
+  dateEndDay    Int?
+  dateAsWritten String?
+  dateCertainty Certainty @default(CONFIRMED)
+
+  absent         Boolean         @default(false)
+  memberOverride MemberOverride?
+  /// Today's includesVocals: sings in this lineup (the default lead is resolved by item 33).
+  sings          Boolean         @default(false)
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  instruments LineupInstrument[]
+
+  @@index([bandId])
+  @@index([showId])
+  @@index([setId])
+  @@index([segmentId])
+  @@index([personId])
+  @@map("lineup_entries")
+}
+
+/// The instruments of one lineup entry (detail of the entry; no Entity row).
+model LineupInstrument {
+  id            Int         @id @default(autoincrement())
+  lineupEntryId Int
+  lineupEntry   LineupEntry @relation(fields: [lineupEntryId], references: [id], onDelete: Restrict)
+  instrumentId  Int
+  instrument    Instrument  @relation(fields: [instrumentId], references: [id], onDelete: Restrict)
+
+  @@unique([lineupEntryId, instrumentId])
+  @@map("lineup_instruments")
+}
+
+/// Item 82: one row per act on the bill, Hunter's own act included. A festival's bill belongs
+/// to its show group, not to each show: exactly one of showId, showGroupId is set, and
+/// exactly one of actBandId, actPersonId (SQL checks, end of file).
+model BillEntry {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  showId      Int?
+  show        Show?      @relation(fields: [showId], references: [id], onDelete: Restrict)
+  showGroupId Int?
+  showGroup   ShowGroup? @relation(fields: [showGroupId], references: [id], onDelete: Restrict)
+
+  actBandId   Int?
+  actBand     Band?   @relation(fields: [actBandId], references: [id], onDelete: Restrict)
+  actPersonId Int?
+  actPerson   Person? @relation(fields: [actPersonId], references: [id], onDelete: Restrict)
+
+  role      BillRole
+  position  Int
+  /// Item 82: a bill from an advertisement is often "probable".
+  certainty Certainty @default(CONFIRMED)
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([showId])
+  @@index([showGroupId])
+  @@index([actBandId])
+  @@index([actPersonId])
+  @@map("bill_entries")
+}
+
+/// A recording of one show (item 69); two lineages are two recordings. Outside IDs (SHN,
+/// LMA, Lossless Legs, YouTube, etree) are ExternalId rows (item 50).
+model Recording {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  showId          Int
+  show            Show           @relation(fields: [showId], references: [id], onDelete: Restrict)
+  recordingTypeId Int?
+  recordingType   RecordingType? @relation(fields: [recordingTypeId], references: [id], onDelete: Restrict)
+  description     String?
+  taperId         Int?
+  taper           Person?        @relation(fields: [taperId], references: [id], onDelete: Restrict)
+  lengthMinutes   Int?
+  /// Proposal section 2: in circulation or not.
+  inCirculation   Boolean        @default(true)
+  /// Display curation (home page).
+  featured        Boolean        @default(false)
+  featuredText    String?
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  citedBy    Citation[]
+  changesets Changeset[]
+
+  @@index([showId])
+  @@map("recordings")
+}
+
+/// Items 36, 81: any location of any depth. Its names are PlaceName rows.
+model Place {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  placeKindId Int?
+  placeKind   PlaceKind? @relation(fields: [placeKindId], references: [id], onDelete: Restrict)
+  parentId    Int?
+  parent      Place?     @relation("PlaceParent", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Place[]    @relation("PlaceParent")
+
+  slug      String?  @unique
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  names          PlaceName[]
+  shows          Show[]
+  worksWrittenAt Work[]
+
+  @@index([parentId])
+  @@map("places")
+}
+
+/// Item 81: a place's names, undated. `position` orders them; the highest is the latest
+/// name, the default for a new show. When each was in use is derived from the shows.
+model PlaceName {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  placeId  Int
+  place    Place  @relation(fields: [placeId], references: [id], onDelete: Restrict)
+  name     String
+  position Int
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shows Show[]
+
+  @@unique([placeId, position])
+  @@unique([id, placeId])
+  @@index([name])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "place_name_name_trgm_idx")
+  @@map("place_names")
+}
+
+/// Items 36, 56: a festival, tour, run …; stores no dates of its own.
+model ShowGroup {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  name            String
+  showGroupKindId Int
+  showGroupKind   ShowGroupKind @relation(fields: [showGroupKindId], references: [id], onDelete: Restrict)
+
+  slug      String?  @unique
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members ShowGroupMember[]
+  bill    BillEntry[]
+
+  @@map("show_groups")
+}
+
+/// Item 56: a show can belong to several groups.
+model ShowGroupMember {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  showGroupId Int
+  showGroup   ShowGroup @relation(fields: [showGroupId], references: [id], onDelete: Restrict)
+  showId      Int
+  show        Show      @relation(fields: [showId], references: [id], onDelete: Restrict)
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@unique([showGroupId, showId])
+  @@map("show_group_members")
+}
+
+/// Item 72: a named date range; shows fall in it by date (arithmetic, not classification).
+model Period {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  name String
+
+  // Range in the shared date shape; the end can be open.
+  dateYear      Int?
+  dateMonth     Int?
+  dateDay       Int?
+  dateEndYear   Int?
+  dateEndMonth  Int?
+  dateEndDay    Int?
+  dateAsWritten String?
+  dateCertainty Certainty @default(CONFIRMED)
+
+  bandId Int?
+  band   Band? @relation(fields: [bandId], references: [id], onDelete: Restrict)
+
+  slug      String?  @unique
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("periods")
+}
+
+/// As today (proposal section 2). Members are LineupEntry rows at band level (item 84).
+model Band {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  name         String
+  displayName  String?
+  isHunterBand Boolean @default(true)
+
+  slug      String?  @unique
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shows        Show[]
+  sets         Set[]
+  members      LineupEntry[]
+  billEntries  BillEntry[]
+  periods      Period[]
+  worksFor     Work[]
+  singers      WorkSinger[]
+  versionsFirst   Version[]   @relation("VersionFirstKnownFromBand")
+  variantsFirst   Variant[]   @relation("VariantFirstKnownFromBand")
+  renditionsFirst Rendition[] @relation("RenditionFirstKnownFromBand")
+
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "band_name_trgm_idx")
+  @@map("bands")
+}
+
+// =============================================================================
+// CATALOGUE (proposal section 2, "Catalogue")
+// =============================================================================
+
+/// Anyone: musician, author, taper, contributor, speaker, a person mentioned (item 42).
+/// "Audience" is one anonymous person (item 32).
+model Person {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  name       String
+  firstName  String?
+  lastName   String?
+  /// Item 42: a short key ("bill-gallagher") and other names, for "find source/person".
+  key        String   @unique
+  otherNames String[] @default([])
+  /// PRIVATE. A contributor's email.
+  email      String?
+
+  slug      String?  @unique
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  defaultInstruments  PersonInstrument[]
+  lineup              LineupEntry[]
+  vocals              VocalEntry[]
+  segmentsDelivered   Segment[]    @relation("SegmentDeliveredBy")
+  segmentsTranscribed Segment[]    @relation("SegmentTranscribedBy")
+  recordingsTaped     Recording[]
+  billEntries         BillEntry[]
+  credits             Credit[]
+  defaultSinging      WorkSinger[]
+  worksFor            Work[]
+  versionsFirst       Version[]    @relation("VersionFirstKnownFrom")
+  versionsChanged     Version[]    @relation("VersionChangedBy")
+  variantsFirst       Variant[]    @relation("VariantFirstKnownFrom")
+  variantsOrigin      Variant[]    @relation("VariantOrigin")
+  renditionsFirst     Rendition[]  @relation("RenditionFirstKnownFrom")
+  renditionsOrigin    Rendition[]  @relation("RenditionOrigin")
+  referencesSaid      Reference[]
+  citationsContributed Citation[]
+  changesetsContributed Changeset[]
+  sourceCreators      SourceCreator[]
+
+  @@index([otherNames], type: Gin)
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "person_name_trgm_idx")
+  @@map("people")
+}
+
+/// A person's default instruments: an entry aid for lineups (field check). No Entity row.
+model PersonInstrument {
+  id           Int        @id @default(autoincrement())
+  personId     Int
+  person       Person     @relation(fields: [personId], references: [id], onDelete: Restrict)
+  instrumentId Int
+  instrument   Instrument @relation(fields: [instrumentId], references: [id], onDelete: Restrict)
+
+  @@unique([personId, instrumentId])
+  @@map("person_instruments")
+}
+
+/// Anything with words, a tune or both, by anyone (items 55, 57, 66, 67, 90).
+/// Its text lives in its versions' passages or in a source (item 59).
+model Work {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  title       String
+  otherNames  String[]    @default([])
+  /// Item 90.
+  titleStatus TitleStatus @default(KNOWN)
+  workKindId  Int
+  workKind    WorkKind    @relation(fields: [workKindId], references: [id], onDelete: Restrict)
+  /// Item 35: only for suites and free-text containers.
+  suiteStructure SuiteStructure?
+  /// Item 101: the default delivery of its segments ("Boys in the Barroom": SUNG_A_CAPPELLA).
+  defaultDelivery Delivery?
+
+  /// Item 55: "written for" a band or a person, a claim with certainty (item 65).
+  writtenForBandId     Int?
+  writtenForBand       Band?     @relation(fields: [writtenForBandId], references: [id], onDelete: Restrict)
+  writtenForPersonId   Int?
+  writtenForPerson     Person?   @relation(fields: [writtenForPersonId], references: [id], onDelete: Restrict)
+  writtenForCertainty  Certainty @default(CONFIRMED)
+
+  // Date written (shared shape, items 57, 93)
+  dateYear      Int?
+  dateMonth     Int?
+  dateDay       Int?
+  dateEndYear   Int?
+  dateEndMonth  Int?
+  dateEndDay    Int?
+  dateAsWritten String?
+  dateCertainty Certainty @default(CONFIRMED)
+  /// Item 57: optional place written and time.
+  placeWrittenId Int?
+  placeWritten   Place?  @relation(fields: [placeWrittenId], references: [id], onDelete: Restrict)
+  timeWritten    String?
+
+  /// Items 26, 76: the reference version for display (a display choice, not a fact).
+  displayVersionId Int?     @unique
+  displayVersion   Version? @relation("WorkDisplayVersion", fields: [displayVersionId], references: [id], onDelete: Restrict)
+
+  slug      String?  @unique
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  passages          Passage[]
+  versions          Version[]    @relation("VersionWork")
+  credits           Credit[]
+  defaultSingers    WorkSinger[]
+  suiteParts        SuitePart[]  @relation("SuiteWork")
+  partOfSuites      SuitePart[]  @relation("SuitePartWork")
+  segments          Segment[]    @relation("SegmentWork")
+  segmentsWordsFrom Segment[]    @relation("SegmentWordsFrom")
+  segmentsTuneFrom  Segment[]    @relation("SegmentTuneFrom")
+  carriedBy         SourceWork[]
+
+  @@index([otherNames], type: Gin)
+  @@index([workKindId])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "work_title_trgm_idx")
+  @@map("works")
+}
+
+/// Item 33: the default lead singer of a work, optionally for one band ("with the Dinosaurs,
+/// Barry Melton"). personId empty means "unknown": not Hunter, singer not known.
+model WorkSinger {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  workId   Int
+  work     Work    @relation(fields: [workId], references: [id], onDelete: Restrict)
+  bandId   Int?
+  band     Band?   @relation(fields: [bandId], references: [id], onDelete: Restrict)
+  personId Int?
+  person   Person? @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workId])
+  @@map("work_singers")
+}
+
+/// Item 67: a work (or a tune version), a person, a role, as credited or attributed.
+/// Exactly one of workId, versionId (SQL check).
+model Credit {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  workId    Int?
+  work      Work?      @relation(fields: [workId], references: [id], onDelete: Restrict)
+  versionId Int?
+  version   Version?   @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  personId  Int
+  person    Person     @relation(fields: [personId], references: [id], onDelete: Restrict)
+  roleId    Int
+  role      CreditRole @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  kind      CreditKind
+  /// Item 65: certainty applies to attributed credits.
+  certainty Certainty  @default(CONFIRMED)
+  position  Int        @default(0)
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workId])
+  @@index([versionId])
+  @@index([personId])
+  @@map("credits")
+}
+
+/// Item 35: the canonical structure of a fixed suite only (Alligator Moon, Eagle Mall).
+model SuitePart {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  suiteWorkId Int
+  suiteWork   Work @relation("SuiteWork", fields: [suiteWorkId], references: [id], onDelete: Restrict)
+  partWorkId  Int
+  partWork    Work @relation("SuitePartWork", fields: [partWorkId], references: [id], onDelete: Restrict)
+  position    Int
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([suiteWorkId, position])
+  @@map("suite_parts")
+}
+
+/// A part of a work: the smallest unit the versions share (items 28, 39, 61, 74).
+/// Fixed: a verse, chorus or refrain, with no text of its own. Motif: a key that never
+/// changes, a name and a description, no fixed text.
+model Passage {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  workId      Int
+  work        Work         @relation(fields: [workId], references: [id], onDelete: Restrict)
+  kind        PassageKind  @default(FIXED)
+  /// Fixed passages: a label from the opening words, or a plain label ("verse 2").
+  label       String
+  role        PassageRole?
+  /// Motifs only (item 39): the key never changes.
+  motifKey    String?
+  description String?
+  /// Item 61: a few search words, once, for highlighting.
+  searchWords String[]     @default([])
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inVersions      VersionPassage[]
+  inVariants      VariantPassage[]
+  inPortions      PortionEntry[]
+  renditions      Rendition[]
+  appearances     Appearance[]
+  vocalScopes     VocalEntry[]
+
+  @@unique([workId, motifKey])
+  @@index([workId])
+  @@map("passages")
+}
+
+/// A canonical form of a work's words or tune (items 25-27, 59, 60, 65, 77, 78, 88).
+/// Anchored to one fixed text (item 78), cited with a VERSION_WORDING citation.
+model Version {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  workId      Int
+  work        Work      @relation("VersionWork", fields: [workId], references: [id], onDelete: Restrict)
+  versionOf   VersionOf @default(WORDS)
+  name        String
+  /// Item 26: a display name shown on the setlist, where it differs.
+  displayName String?
+
+  // Date (shared shape, items 57, 93)
+  dateYear      Int?
+  dateMonth     Int?
+  dateDay       Int?
+  dateEndYear   Int?
+  dateEndMonth  Int?
+  dateEndDay    Int?
+  dateAsWritten String?
+  dateCertainty Certainty @default(CONFIRMED)
+
+  /// First known from: the performer (observed); the source is a citation with aspect
+  /// VERSION_FIRST_KNOWN_FROM.
+  firstKnownFromId        Int?
+  firstKnownFrom          Person?   @relation("VersionFirstKnownFrom", fields: [firstKnownFromId], references: [id], onDelete: Restrict)
+  /// Item 100: or a band (at most one of the person or the band; SQL check).
+  firstKnownFromBandId Int?
+  firstKnownFromBand   Band? @relation("VersionFirstKnownFromBand", fields: [firstKnownFromBandId], references: [id], onDelete: Restrict)
+  firstKnownFromCertainty Certainty @default(CONFIRMED)
+  /// Changed by: a claim (Hunter, Garcia, a co-edit …).
+  changedById             Int?
+  changedBy               Person?   @relation("VersionChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+  changedByCertainty      Certainty @default(CONFIRMED)
+  /// The kind of evidence (studio, live and lasting, published text): an editable list.
+  evidenceKindId          Int?
+  evidenceKind            EvidenceKind? @relation(fields: [evidenceKindId], references: [id], onDelete: Restrict)
+
+  /// Item 59: whether the wording is reviewed.
+  wordingReviewed Boolean @default(false)
+  /// Item 88: whether the full wording may be shown publicly. Default private.
+  wordingPublic   Boolean @default(false)
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  displayFor        Work?            @relation("WorkDisplayVersion")
+  passages          VersionPassage[]
+  basedOn           VersionBasis[]   @relation("VersionBasisOf")
+  basisFor          VersionBasis[]   @relation("VersionBasisOn")
+  variants          Variant[]
+  credits           Credit[]
+  segmentsWords     Segment[]        @relation("SegmentWordsVersion")
+  segmentsTune      Segment[]        @relation("SegmentTuneVersion")
+  carriedBy         SourceWork[]
+
+  @@index([workId])
+  @@map("versions")
+}
+
+/// Item 25: what a version is based on (one or more other versions).
+model VersionBasis {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  versionId   Int
+  version     Version @relation("VersionBasisOf", fields: [versionId], references: [id], onDelete: Restrict)
+  basedOnId   Int
+  basedOn     Version @relation("VersionBasisOn", fields: [basedOnId], references: [id], onDelete: Restrict)
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@unique([versionId, basedOnId])
+  @@map("version_bases")
+}
+
+/// A version's wording: its passages in order, each with that version's wording
+/// (items 28, 59, 74). A refrain can be listed many times.
+model VersionPassage {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  versionId    Int
+  version      Version @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  position     Int
+  passageId    Int
+  passage      Passage @relation(fields: [passageId], references: [id], onDelete: Restrict)
+  /// PRIVATE unless the version's wordingPublic is set (items 24, 88).
+  wording      String?
+  /// Item 74: this entry starts a printed stanza.
+  startsStanza Boolean @default(true)
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([versionId, position])
+  @@map("version_passages")
+}
+
+/// A named change to one or more passages of a version, declared by the curator when it
+/// recurs (items 60, 65, 77).
+model Variant {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  versionId   Int
+  version     Version @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  name        String
+  description String?
+
+  /// Item 77: first known from (observed) and origin (a claim). Kept on trial.
+  firstKnownFromId Int?
+  firstKnownFrom   Person?   @relation("VariantFirstKnownFrom", fields: [firstKnownFromId], references: [id], onDelete: Restrict)
+  /// Item 100: or a band (at most one of the person or the band; SQL check).
+  firstKnownFromBandId Int?
+  firstKnownFromBand   Band? @relation("VariantFirstKnownFromBand", fields: [firstKnownFromBandId], references: [id], onDelete: Restrict)
+  originId         Int?
+  origin           Person?   @relation("VariantOrigin", fields: [originId], references: [id], onDelete: Restrict)
+  originCertainty  Certainty @default(CONFIRMED)
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  passages VariantPassage[]
+  segments SegmentVariant[]
+
+  @@index([versionId])
+  @@map("variants")
+}
+
+/// The passages a variant changes, adds or leaves out (items 60, 75).
+model VariantPassage {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  variantId Int
+  variant   Variant       @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  passageId Int
+  passage   Passage       @relation(fields: [passageId], references: [id], onDelete: Restrict)
+  change    PassageChange
+  /// PRIVATE. The variant's wording of this passage.
+  wording   String?
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([variantId, passageId])
+  @@map("variant_passages")
+}
+
+/// A change in one segment only (items 60, 75, 77, 79). A description is enough; the
+/// passage, its place in the portion and its wording are optional.
+model Rendition {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  segmentId      Int
+  segment        Segment        @relation(fields: [segmentId], references: [id], onDelete: Restrict)
+  passageId      Int?
+  passage        Passage?       @relation(fields: [passageId], references: [id], onDelete: Restrict)
+  /// Item 79: the one time in the sung order (for a refrain listed many times).
+  portionEntryId Int?
+  portionEntry   PortionEntry?  @relation(fields: [portionEntryId], references: [id], onDelete: Restrict)
+  change         PassageChange?
+  description    String?
+  /// PRIVATE. The wording as sung.
+  wording        String?
+
+  /// Item 77: where its words came from.
+  firstKnownFromId Int?
+  firstKnownFrom   Person?   @relation("RenditionFirstKnownFrom", fields: [firstKnownFromId], references: [id], onDelete: Restrict)
+  /// Item 100: or a band (at most one of the person or the band; SQL check).
+  firstKnownFromBandId Int?
+  firstKnownFromBand   Band? @relation("RenditionFirstKnownFromBand", fields: [firstKnownFromBandId], references: [id], onDelete: Restrict)
+  originId         Int?
+  origin           Person?   @relation("RenditionOrigin", fields: [originId], references: [id], onDelete: Restrict)
+  originCertainty  Certainty @default(CONFIRMED)
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([segmentId])
+  @@index([passageId])
+  @@map("renditions")
+}
+
+/// "This motif was heard in this segment" (items 39, 48, 61).
+model Appearance {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  segmentId Int
+  segment   Segment @relation(fields: [segmentId], references: [id], onDelete: Restrict)
+  passageId Int
+  passage   Passage @relation(fields: [passageId], references: [id], onDelete: Restrict)
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@index([segmentId])
+  @@index([passageId])
+  @@map("appearances")
+}
+
+/// What a reference can point at that is not a person or a work (proposal section 2).
+model Subject {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  name          String
+  otherNames    String[]     @default([])
+  subjectKindId Int?
+  subjectKind   SubjectKind? @relation(fields: [subjectKindId], references: [id], onDelete: Restrict)
+
+  slug      String?  @unique
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "subject_name_trgm_idx")
+  @@map("subjects")
+}
+
+/// A Zotero item (items 23, 34, 53, 68). Zotero owns the bibliographic part; this table
+/// holds a read-only cache of it, the extracted text and the archive-owned license fields.
+model Source {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  zoteroKey    String      @unique
+  /// Item 42: short key ("gallagher-list") and other names, for "find source".
+  key          String      @unique
+  otherNames   String[]    @default([])
+  sourceKindId Int?
+  sourceKind   SourceKind? @relation(fields: [sourceKindId], references: [id], onDelete: Restrict)
+
+  /// Read-only cache from Zotero (item 23): the title for search, the rest as received.
+  title        String
+  zoteroData   Json
+  syncedAt     DateTime
+  /// PRIVATE. Extracted text (OCR or a description for visual items). Never edited (section 6).
+  extractedText String?
+
+  /// Item 53: archive-owned license fields; an unknown license keeps the content private.
+  licenseCode  String?
+  licenseUrl   String?
+  rightsHolder String?
+  creditLine   String?
+  sourceUrl    String?
+
+  slug      String?  @unique
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creators   SourceCreator[]
+  contents   SourceWork[]
+  citedBy    Citation[]
+  changesets Changeset[]
+
+  @@index([otherNames], type: Gin)
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "source_title_trgm_idx")
+  @@map("sources")
+}
+
+/// Zotero creators, cached; a creator is linked to a Person when the curator confirms the
+/// match in a preview (item 67). No Entity row: the link is part of the source's cache.
+model SourceCreator {
+  id          Int     @id @default(autoincrement())
+  sourceId    Int
+  source      Source  @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  position    Int
+  name        String
+  creatorType String
+  personId    Int?
+  person      Person? @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceId, position])
+  @@map("source_creators")
+}
+
+/// Which works (and versions) a source carries, each with its place: a track, a page, a
+/// journal entry's date (items 34, 57).
+model SourceWork {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  sourceId  Int
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  workId    Int
+  work      Work     @relation(fields: [workId], references: [id], onDelete: Restrict)
+  versionId Int?
+  version   Version? @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  place     String?
+  position  Int?
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sourceId])
+  @@index([workId])
+  @@map("source_works")
+}
+
+// =============================================================================
+// LINKS (proposal section 2, "Links")
+// =============================================================================
+
+/// "This relates to that" (items 64, 70, 73). Any record to any record.
+/// Who says so: a person here, or a citation on this reference's own entity.
+model Reference {
+  id     Int    @id
+  entity Entity @relation("ReferenceRecord", fields: [id], references: [id], onDelete: Cascade)
+
+  fromId Int
+  from   Entity @relation("ReferenceFrom", fields: [fromId], references: [id], onDelete: Restrict)
+  toId   Int
+  to     Entity @relation("ReferenceTo", fields: [toId], references: [id], onDelete: Restrict)
+
+  referenceKindId Int
+  referenceKind   ReferenceKind @relation(fields: [referenceKindId], references: [id], onDelete: Restrict)
+  certainty       Certainty     @default(CONFIRMED)
+  saidById        Int?
+  saidBy          Person?       @relation(fields: [saidById], references: [id], onDelete: Restrict)
+
+  // Optional date (shared shape)
+  dateYear      Int?
+  dateMonth     Int?
+  dateDay       Int?
+  dateEndYear   Int?
+  dateEndMonth  Int?
+  dateEndDay    Int?
+  dateAsWritten String?
+  dateCertainty Certainty @default(CONFIRMED)
+
+  /// Which line, why (item 61: no position is stored).
+  note String?
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fromId])
+  @@index([toId])
+  @@map("references")
+}
+
+/// "This record (or one aspect of it) is supported by that source, recording or contributor"
+/// (items 29, 42, 65, 102). No certainty. At least one of sourceId, recordingId,
+/// contributorId is set (SQL check): a contributor alone is evidence (item 102).
+model Citation {
+  id Int @id @default(autoincrement())
+
+  entityId Int
+  entity   Entity          @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  aspect   CitationAspect?
+
+  sourceId      Int?
+  source        Source?    @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  recordingId   Int?
+  recording     Recording? @relation(fields: [recordingId], references: [id], onDelete: Restrict)
+  /// The page, track, time on the tape, entry date.
+  place         String?
+  contributorId Int?
+  contributor   Person?    @relation(fields: [contributorId], references: [id], onDelete: Restrict)
+  /// The date of the citation (for "I listened", the date of listening).
+  citedOn       DateTime?  @db.Date
+  /// PRIVATE. A short excerpt (the raw legacy entry, the sentence as written).
+  excerpt       String?
+  /// How weak or strong the source is (item 65).
+  note          String?
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityId])
+  @@index([sourceId])
+  @@index([recordingId])
+  @@map("citations")
+}
+
+// =============================================================================
+// PROSE AND HOUSEKEEPING
+// =============================================================================
+
+/// A remark written once and attached to any number of records (items 52, 103): Markdown with
+/// wikilinks. Public or private. The write layer deletes it when it is attached nowhere.
+model Note {
+  id       Int     @id @default(autoincrement())
+  body     String
+  isPublic Boolean @default(false)
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  backlinks   Backlink[]
+  attachments NoteAttachment[]
+
+  @@map("notes")
+}
+
+/// Item 103: which records a note is attached to.
+model NoteAttachment {
+  id       Int    @id @default(autoincrement())
+  noteId   Int
+  note     Note   @relation(fields: [noteId], references: [id], onDelete: Restrict)
+  entityId Int
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([noteId, entityId])
+  @@index([entityId])
+  @@map("note_attachments")
+}
+
+/// A guide page: Markdown with links into the data (item 52).
+model GuidePage {
+  id     Int    @id
+  entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  title String
+  body  String
+
+  slug      String   @unique
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  backlinks Backlink[]
+
+  @@map("guide_pages")
+}
+
+/// Written at save (item 52): one row per wikilink (toEntityId) or external URL (url) in a
+/// note or guide page. Exactly one of fromNoteId, fromGuidePageId; exactly one of
+/// toEntityId, url (SQL checks). Derived: cascades.
+model Backlink {
+  id              Int        @id @default(autoincrement())
+  fromNoteId      Int?
+  fromNote        Note?      @relation(fields: [fromNoteId], references: [id], onDelete: Cascade)
+  fromGuidePageId Int?
+  fromGuidePage   GuidePage? @relation(fields: [fromGuidePageId], references: [id], onDelete: Cascade)
+  toEntityId      Int?
+  toEntity        Entity?    @relation(fields: [toEntityId], references: [id], onDelete: Cascade)
+  /// An external URL, kept for the later link-rot check.
+  url             String?
+
+  @@index([toEntityId])
+  @@index([fromNoteId])
+  @@index([fromGuidePageId])
+  @@map("backlinks")
+}
+
+/// An editorial tag: the curator's judgment only (item 43).
+model Tag {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments TagAssignment[]
+
+  @@map("tags")
+}
+
+model TagAssignment {
+  id       Int     @id @default(autoincrement())
+  tagId    Int
+  tag      Tag     @relation(fields: [tagId], references: [id], onDelete: Restrict)
+  entityId Int
+  entity   Entity  @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  /// Why (item 43).
+  note     String?
+
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@unique([tagId, entityId])
+  @@map("tag_assignments")
+}
+
+/// Items 50, 54: a record's ID in an outside system. Only verified IDs are stored.
+model ExternalId {
+  id           Int        @id @default(autoincrement())
+  entityId     Int
+  entity       Entity     @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  linkSystemId Int
+  linkSystem   LinkSystem @relation(fields: [linkSystemId], references: [id], onDelete: Restrict)
+  value        String
+  /// Item 54: inputs for the later link-rot check.
+  isActive     Boolean    @default(true)
+  checkedAt    DateTime?
+
+  legacyId  String?
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([entityId, linkSystemId, value])
+  @@index([linkSystemId, value])
+  @@map("external_ids")
+}
+
+/// Item 45: old web addresses. A live record's address forwards; an empty entityId answers
+/// "gone"; a merge points the loser's addresses at the survivor.
+model Address {
+  id       Int     @id @default(autoincrement())
+  path     String  @unique
+  entityId Int?
+  entity   Entity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([entityId])
+  @@map("addresses")
+}
+
+// =============================================================================
+// CHANGESETS AND USERS (items 19, 20, 40, 42, 45, 87, 89)
+// =============================================================================
+
+/// One group of changes with its source, path and status. Every write path makes one,
+/// the curator's admin edits included (item 19).
+model Changeset {
+  id     Int             @id @default(autoincrement())
+  /// Item 89: the user who made it. The agent is its own user with the AGENT role.
+  userId String
+  user   User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  path   ChangesetPath
+  status ChangesetStatus @default(PREVIEWED)
+
+  /// Item 42: the evidence it names once; the server writes the citations from it. Any of a
+  /// source, a recording (item 29: "I listened") or a contributor (item 102). All empty only
+  /// when the curator says it is his own knowledge (`ownKnowledge`).
+  sourceId      Int?
+  source        Source?    @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  recordingId   Int?
+  recording     Recording? @relation(fields: [recordingId], references: [id], onDelete: Restrict)
+  contributorId Int?
+  contributor   Person?    @relation(fields: [contributorId], references: [id], onDelete: Restrict)
+  /// The place in the source or recording (a page, a time on the tape).
+  place         String?
+  ownKnowledge  Boolean    @default(false)
+
+  /// Item 20: changes marked public go in the public list of recent changes.
+  isPublic Boolean @default(false)
+  summary  String
+  /// Item 40: preview, then apply with a token.
+  previewToken String? @unique
+
+  createdAt DateTime  @default(now())
+  appliedAt DateTime?
+  undoneAt  DateTime?
+
+  items ChangesetItem[]
+
+  @@index([status, appliedAt])
+  @@index([isPublic, appliedAt])
+  @@map("changesets")
+}
+
+/// One change. Record IDs are plain values, no foreign key, so history outlives the record
+/// (item 45). `before` is the stored previous state for undo (item 19).
+model ChangesetItem {
+  id          Int          @id @default(autoincrement())
+  changesetId Int
+  changeset   Changeset    @relation(fields: [changesetId], references: [id], onDelete: Restrict)
+  position    Int
+  tableName   String
+  recordId    Int
+  action      ChangeAction
+  /// Item 87: the rev the change expects; the write stops if the record has moved on.
+  expectedRev Int?
+  before      Json?
+  after       Json?
+
+  @@unique([changesetId, position])
+  @@index([tableName, recordId])
+  @@map("changeset_items")
+}
+
+/// A person or agent who signs in (PLAN.md: Auth.js with roles; item 89). The tables below
+/// follow the Auth.js Prisma adapter (sign-in with Google or a passkey), written from memory:
+/// UNVERIFIED, check against the adapter's current docs in HSA-35.
+/// `role` has no default on purpose: users are created ahead of sign-in (the curator and the
+/// agent, from environment settings), and sign-in accepts only existing users.
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          UserRole
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  authenticators Authenticator[]
+  changesets    Changeset[]
+
+  @@map("users")
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+/// Passkeys (WebAuthn).
+model Authenticator {
+  credentialID         String  @unique
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, credentialID])
+  @@map("authenticators")
+}
+
+// =============================================================================
+// EDITABLE LISTS (item 91). The curator edits them in the admin. Where a rule needs an input
+// from a list, the input is a column on its row.
+// =============================================================================
+
+/// Item 57, 94. `tickedByDefault`: the counting filter's default for this kind.
+model WorkKind {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique
+  tickedByDefault Boolean @default(false)
+  position        Int     @default(0)
+  rev             Int     @default(1)
+
+  works Work[]
+
+  @@map("work_kinds")
+}
+
+/// Item 31. `includeInStats` is an input to the counting rules (Soundcheck: no).
+/// Item 97: the type "Set" (a show's one main set) has an empty display name.
+model SetType {
+  id             Int     @id @default(autoincrement())
+  name           String  @unique
+  displayName    String
+  includeInStats Boolean @default(true)
+  position       Int     @default(0)
+  rev            Int     @default(1)
+
+  sets Set[]
+
+  @@map("set_types")
+}
+
+/// Item 30: public performance, studio session, broadcast … `includeInStats` as today.
+model ShowType {
+  id             Int     @id @default(autoincrement())
+  name           String  @unique
+  includeInStats Boolean @default(true)
+  position       Int     @default(0)
+  rev            Int     @default(1)
+
+  shows Show[]
+
+  @@map("show_types")
+}
+
+/// Item 56: festival, tour, run, residency, benefit series.
+model ShowGroupKind {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  position Int    @default(0)
+  rev      Int    @default(1)
+
+  groups ShowGroup[]
+
+  @@map("show_group_kinds")
+}
+
+/// Item 67: words, music, arrangement, translation …
+model CreditRole {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  position Int    @default(0)
+  rev      Int    @default(1)
+
+  credits Credit[]
+
+  @@map("credit_roles")
+}
+
+/// Item 70: quotes, alludes to, draws on, mentions, part of, played on air, annotates …
+/// Some rules read a kind by meaning ("part of" for suites, item 35; "quotes" in the counts
+/// of item 80; "played on air", item 30). Per item 91 the rule's input is a column on the row:
+/// `ruleKey` names the kinds a rule uses; the name stays editable.
+model ReferenceKind {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  ruleKey  String? @unique
+  position Int    @default(0)
+  rev      Int    @default(1)
+
+  references Reference[]
+
+  @@map("reference_kinds")
+}
+
+/// Item 54: a URL template such as https://doi.org/{value}.
+model LinkSystem {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  purpose     LinkPurpose
+  urlTemplate String?
+  position    Int         @default(0)
+  rev         Int         @default(1)
+
+  externalIds ExternalId[]
+
+  @@map("link_systems")
+}
+
+/// SBD, FM, Matrix, Video, Aud …
+model RecordingType {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+  position    Int     @default(0)
+  rev         Int     @default(1)
+
+  recordings Recording[]
+
+  @@map("recording_types")
+}
+
+model Instrument {
+  id          Int    @id @default(autoincrement())
+  name        String @unique
+  displayName String
+  position    Int    @default(0)
+  rev         Int    @default(1)
+
+  lineup   LineupInstrument[]
+  defaults PersonInstrument[]
+
+  @@map("instruments")
+}
+
+/// Item 36: stage, hall, campus, park, farm, village, city, region, country …
+model PlaceKind {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  position Int    @default(0)
+  rev      Int    @default(1)
+
+  places Place[]
+
+  @@map("place_kinds")
+}
+
+/// Items 29, 34, 53: ticket, poster, advertisement, review, tape list, album, book, image …
+model SourceKind {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  position Int    @default(0)
+  rev      Int    @default(1)
+
+  sources Source[]
+
+  @@map("source_kinds")
+}
+
+/// Proposal section 2, Subject: theme, place, character, song form, event of the day …
+model SubjectKind {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  position Int    @default(0)
+  rev      Int    @default(1)
+
+  subjects Subject[]
+
+  @@map("subject_kinds")
+}
+
+/// Item 97: assumed, inferred from the tape, reported …
+model IncompleteReason {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  position Int    @default(0)
+  rev      Int    @default(1)
+
+  sets Set[]
+
+  @@map("incomplete_reasons")
+}
+
+/// Proposal section 2, Version: studio, live and lasting, published text.
+model EvidenceKind {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  position Int    @default(0)
+  rev      Int    @default(1)
+
+  versions Version[]
+
+  @@map("evidence_kinds")
+}
+
+// =============================================================================
+// RAW SQL IN THE MIGRATION (Prisma cannot express these; tests/db/constraints.test.ts checks them)
+// =============================================================================
+//
+// Extension: pg_trgm (for the trigram indexes declared on the models above).
+// Ordering: segments.sortKey uses COLLATE "C" (byte order for the fractional index).
+// Check constraints: "exactly one", "at least one" and the date shape. See the migration.
+//
+// Kept in the write layer and tested, not in triggers (keep it light, item 46):
+//   - each record's entity row has the matching kind;
+//   - a record is deleted by deleting its Entity row (item 45), never directly, so no Entity
+//     row is left behind;
+//   - an Appearance points at a passage of kind MOTIF.
+// Sources have no date shape of their own: Zotero owns the date (item 23), in zoteroData.
