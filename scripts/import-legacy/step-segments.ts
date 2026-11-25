@@ -1,10 +1,11 @@
 import type { Delivery, Extent } from "@/generated/prisma/enums";
 import { bulk, type Ctx } from "./context.ts";
-import { bool, dateOf, footnoteKinds, noteHints, num, sortKeys, str, type Row } from "./rules.ts";
+import { bool, dateOf, footnoteKinds, matchedText, noteHints, num, sortKeys, str, type Row } from "./rules.ts";
 
 // Step 4, second half (plan section 4: Performance, ShowBanter): every performance becomes a
 // segment; every banter row becomes a spoken segment next to its performance (item 37).
 
+const CHECK_NOTE = "check this note";
 const TEST_RULE = "test-show-2099-12-20";
 
 type Item =
@@ -101,6 +102,8 @@ export async function importSegments(ctx: Ctx): Promise<SoloSegment[]> {
         legacyId: `show_banter:${oldId}`,
         oldIsVerbatim: bool(item.row, "is_verbatim"),
         length: (str(item.row, "banter_text") ?? "").length,
+        proposal: "check whether this text is a summary or the words as heard",
+        text: str(item.row, "banter_text"),
       });
       return;
     }
@@ -161,7 +164,11 @@ function afterPerformance(ctx: Ctx, row: Row, segmentId: number): void {
   const flags = ["is_aborted", "is_partial", "is_lyrical_fragment"].filter((flag) => bool(row, flag));
   if (flags.length > 1) ctx.line("Performances with several extent flags", `performances:${oldId}: ${flags.join(", ")}; the first rule won`);
   if (bool(row, "is_medley")) ctx.fieldDrop("performances.is_medley: derived from the joins (plan, Performance)");
-  if (bool(row, "is_musical_fragment")) ctx.propose("16-musical-fragments", { segmentId, legacyId: `performances:${oldId}` });
+  if (bool(row, "is_musical_fragment")) ctx.propose("16-musical-fragments", {
+      segmentId,
+      legacyId: `performances:${oldId}`,
+      proposal: "check this segment: the old data flags it as a musical fragment",
+    });
   if (bool(row, "is_uncertain")) {
     ctx.propose("15-old-uncertain-flags", { segmentId, legacyId: `performances:${oldId}`, flag: "isUncertain", migratedTo: "workCertainty POSSIBLE" });
   }
@@ -179,9 +186,22 @@ function afterPerformance(ctx: Ctx, row: Row, segmentId: number): void {
     if (!text) continue;
     ctx.note(segmentId, text, isPublic, `performances:${oldId}:${camel}`);
     const kinds = footnoteKinds(text);
-    if (kinds.length > 0) ctx.propose("04-typed-footnotes", { segmentId, legacyId: `performances:${oldId}`, kinds: kinds.join(",") });
-    const hints = noteHints(text);
-    if (hints.includes("a-cappella")) ctx.propose("13-a-cappella", { segmentId, legacyId: `performances:${oldId}`, source: camel });
-    if (hints.includes("guest")) ctx.propose("14-guests-in-notes", { segmentId, legacyId: `performances:${oldId}`, source: camel });
+    if (kinds.length > 0) {
+      ctx.propose("04-typed-footnotes", {
+        segmentId,
+        legacyId: `performances:${oldId}`,
+        proposal: CHECK_NOTE,
+        source: camel,
+        kinds: kinds.join(","),
+        matchedText: kinds.map((kind) => matchedText(text, kind)).join(" | "),
+        text,
+      });
+    }
+    for (const hint of noteHints(text)) {
+      const list = hint === "a-cappella" ? "13-a-cappella" : hint === "guest" ? "14-guests-in-notes" : null;
+      if (list) {
+        ctx.propose(list, { segmentId, legacyId: `performances:${oldId}`, proposal: CHECK_NOTE, source: camel, matchedText: matchedText(text, hint), text });
+      }
+    }
   }
 }

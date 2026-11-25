@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import pg from "pg";
@@ -65,6 +65,34 @@ describe("legacy import: accounting", () => {
     const bill = JSON.parse(await readFile(path.join(dir, "01-bill.json"), "utf8"));
     expect(bill.applied).toBe(false);
     expect(bill.rows.length).toBeGreaterThan(0);
+  });
+
+  it("gives every row of every list a label, a context and a summary at the top", async () => {
+    const dir = path.join(outputDir, "proposals");
+    for (const file of await readdir(dir)) {
+      const json = JSON.parse(await readFile(path.join(dir, file), "utf8"));
+      expect(json.summary.rows).toBe(json.rows.length);
+      expect(json.summary.list).not.toBe("");
+      expect(json.summary.decision).not.toBe("");
+      for (const row of json.rows) {
+        expect(typeof row.label, file).toBe("string");
+        expect(row.label.trim(), file).not.toBe("");
+        expect(typeof row.context, file).toBe("object");
+      }
+    }
+  });
+
+  it("shows the show date, song title and note text on a row of the a cappella list", async () => {
+    const json = JSON.parse(await readFile(path.join(outputDir, "proposals", "13-a-cappella.json"), "utf8"));
+    const row = json.rows.find((r: { legacyId: string }) => r.legacyId === "performances:2");
+    expect(row.proposal).toBe("check this note");
+    expect(row.matchedText).toContain("a cappella");
+    expect(row.context.text).toBe("Sung a cappella.");
+    expect(row.context.showDate).toMatch(/^\d{4}/);
+    expect(row.context.songTitle).toBeTruthy();
+    expect(row.label).toContain(row.context.songTitle);
+    expect(row.label).toContain(row.context.showDate);
+    expect(row.segmentId).toBeGreaterThan(0);
   });
 });
 
