@@ -22,7 +22,6 @@ function midpoint(a: string, b: string | null): string {
   const low = a.length > 0 ? digitOf(a[0]) : 0;
   const high = b !== null && b.length > 0 ? digitOf(b[0]) : BASE;
   if (high - low > 1) return DIGITS[Math.round((low + high) / 2)];
-  if (b !== null && b.length > 1) return b[0];
   return DIGITS[low] + midpoint(a.slice(1), null);
 }
 

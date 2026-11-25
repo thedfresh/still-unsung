@@ -149,7 +149,10 @@ export function parseEdits(input: unknown): ParsedEdit[] {
     if (op === "update" && !isUpdatable(type)) {
       return void (problems[`${prefix}.type`] = [`A ${type} record cannot be changed after it is created.`]);
     }
+    const problemCount = Object.keys(problems).length;
     const placement = edit.data.op === "create" ? placementOf(edit.data, type, `${prefix}`, created, problems) : undefined;
+    // A before/after error comes first: do not add errors about setId or sortKey as well.
+    if (Object.keys(problems).length > problemCount) return;
     const fields = fieldsSchema(type, op, placement !== undefined).safeParse(edit.data.fields);
     if (!fields.success) return addIssues(problems, `${prefix}.fields`, fields.error);
     const values = fields.data as Record<string, FieldValue>;

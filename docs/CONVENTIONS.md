@@ -304,7 +304,10 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
 - **One formatter.** `src/lib/changes/preview-format.ts` writes the preview text. Change the
   wording there only. It shows a field of a new record only when the value differs from the
   column default. `src/lib/changes/labels.ts` and `labelRow` write the record labels, also used
-  by the Changes page. (review)
+  by the Changes page. A link shows as `ID (name)`, or `(new) Type "name"` for a record made in
+  the same call. Public text (a public note body, a segment summary) shows in full; other long
+  text is cut. The apply step stores each item's label, so the Changes page runs no label queries.
+  (review)
 - **Insert by position.** A new segment takes `before` or `after` (a segment ID or a ref)
   instead of `sortKey`. `placeSegment` makes the key between the neighbours. (test)
 - **Every write path makes a changeset** (`src/lib/data/changes/`), linked to the user. The admin

@@ -4075,6 +4075,12 @@
      "required": false,
      "list": false,
      "hasDefault": false
+    },
+    "label": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false
     }
    },
    "entityKind": null

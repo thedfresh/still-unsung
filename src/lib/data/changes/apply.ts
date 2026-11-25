@@ -79,8 +79,14 @@ export async function applyChanges(userId: string, token: string, isPublic?: boo
       if (conflicts.length > 0) throw new ConflictAbort(conflicts);
       const items = await writeEdits(tx, edits);
       const all: AppliedItem[] = [...items, ...(await writeCitations(tx, items, evidence, items.length))];
+      // A changed record is named by its stored value before the change, a new one by its own.
+      const labels: string[] = [];
+      for (const item of all) {
+        labels.push(withType(item.type, await labelRow(tx, item.type, item.op === "update" && item.before ? item.before : item.after)));
+      }
       await tx.changesetItem.createMany({
         data: all.map((item, position) => ({
+          label: labels[position],
           changesetId: changeset.id,
           position,
           tableName: modelInfo(item.type).table,
@@ -96,7 +102,7 @@ export async function applyChanges(userId: string, token: string, isPublic?: boo
         data: { status: "APPLIED", appliedAt: new Date(), plan: Prisma.DbNull, previewExpiresAt: null },
       });
       const applied = [];
-      for (const item of items) applied.push({ op: item.op, record: withType(item.type, await labelRow(tx, item.type, item.after)) });
+      for (const [position, item] of items.entries()) applied.push({ op: item.op, record: labels[position] });
       return { ok: true as const, changesetId: changeset.id, applied };
     });
   } catch (err) {

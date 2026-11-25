@@ -56,12 +56,27 @@ export function withType(type: string, label: string): string {
 /** Plain words for enum values that the raw name would make hard to read. */
 const PLAIN_VALUES: Record<string, string> = { RECORDING_PLAYED: "recording played" };
 
-/** One value as plain text for the preview. */
-export function showValue(value: unknown): string {
+/**
+ * One value as plain text for the preview. A long string is cut at 200 characters unless `full`
+ * is true (public text, which the user must read whole before it goes live).
+ */
+export function showValue(value: unknown, full = false): string {
   if (value === null || value === undefined) return "(empty)";
   if (typeof value === "string" && value in PLAIN_VALUES) return PLAIN_VALUES[value];
-  if (typeof value === "string") return JSON.stringify(value.length > 200 ? `${value.slice(0, 197)}...` : value);
+  if (typeof value === "string") return JSON.stringify(!full && value.length > 200 ? `${value.slice(0, 197)}...` : value);
   return String(value);
+}
+
+/** True for a text field that goes on a public page: a public note's body and a segment summary. */
+export function isPublicText(type: string, field: string, row: Row | null): boolean {
+  if (type === "Segment") return field === "summary";
+  return type === "Note" && field === "body" && row?.isPublic === true;
+}
+
+/** A record label without its type, for example `Work "Ripple"` becomes `Ripple`. */
+export function bareLabel(type: string, label: string): string {
+  const rest = label.startsWith(`${type} `) ? label.slice(type.length + 1) : label;
+  return /^".*"$/.test(rest) ? rest.slice(1, -1) : rest;
 }
 
 /** The fields that differ between two versions of a record, as before → after. */

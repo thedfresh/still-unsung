@@ -31,6 +31,31 @@ describe("keyBetween", () => {
       last = key;
     }
   });
+  it("inserts before the first key at least 50 times, from an imported key", () => {
+    let first = "a0";
+    for (let i = 0; i < 60; i += 1) {
+      const key = keyBetween(null, first);
+      expect(key < first).toBe(true);
+      first = key;
+    }
+  });
+  it("finds a key between a digit and an imported key that follows it", () => {
+    const key = keyBetween("Z", "a0");
+    expect(key > "Z" && key < "a0").toBe(true);
+    expect(() => keyBetween(key, "a0")).not.toThrow();
+  });
+  it("keeps order over many inserts at random positions", () => {
+    let seed = 12345;
+    const random = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+    const keys = ["a0", "a1", "a2", "b0"];
+    for (let i = 0; i < 500; i += 1) {
+      const slot = Math.floor(random() * (keys.length + 1));
+      const key = keyBetween(keys[slot - 1] ?? null, keys[slot] ?? null);
+      keys.splice(slot, 0, key);
+    }
+    expect(keys).toEqual([...keys].sort());
+    expect(new Set(keys).size).toBe(keys.length);
+  });
   it("refuses neighbours that are equal or out of order", () => {
     expect(() => keyBetween("a1", "a1")).toThrow();
     expect(() => keyBetween("a2", "a1")).toThrow();
