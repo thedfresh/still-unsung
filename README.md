@@ -67,6 +67,15 @@ npx playwright install chromium
 | `npm run db:migrate` | Create and apply a migration locally (Prisma Migrate) |
 | `npm run db:deploy` | Apply pending migrations (staging and prod) |
 | `npm run db:deploy:test` | Apply pending migrations to the test database from `.env.test` |
+| `npm run db:seed` | Load the synthetic sample archive into the database from `.env`. It skips a database that already has shows |
+
+## Data model
+
+The schema in `prisma/schema.prisma` has one `Entity` row for each fact record, and the record shares its id.
+Read the comments at the top of the file first. The migration also adds what Prisma cannot express: the
+`pg_trgm` extension, check constraints and byte-order sort keys. `tests/db/constraints.test.ts` tests them.
+The seed (`prisma/seed/`) holds the starting values for the editable lists and a small invented sample
+archive. It contains no production data.
 
 ## CI
 
