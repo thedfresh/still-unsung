@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { APIRequestContext } from "@playwright/test";
 import { expect, test } from "../support/e2e";
-import { seedSignedInUser } from "../support/auth-fixtures";
+import { query, seedSignedInUser } from "../support/auth-fixtures";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const HEADERS = { Accept: "application/json, text/event-stream", "Content-Type": "application/json" };
@@ -21,7 +21,61 @@ async function callTool(request: APIRequestContext, token: string, name: string,
   return { text: body.result.content[0].text as string, isError: Boolean(body.result.isError) };
 }
 
+/** Make the private import rules page when the test database has none. Plain SQL, synthetic text. */
+async function ensureImportRulesPage(): Promise<number> {
+  const found = await query<{ id: number }>(`SELECT id FROM guide_pages WHERE slug = 'agent-import-rules'`);
+  if (found.length > 0) return found[0].id;
+  const rows = await query<{ id: number }>(`INSERT INTO entities (kind, "isPublic") VALUES ('GUIDE_PAGE', false) RETURNING id`);
+  await query(
+    `INSERT INTO guide_pages (id, title, body, slug, "updatedAt") VALUES ($1, 'Agent import rules', 'Placeholder.', 'agent-import-rules', now())`,
+    [rows[0].id],
+  );
+  return rows[0].id;
+}
+
 test.describe("the MCP endpoint", () => {
+  test("tells a new client to read the import rules, serves them, and shows an edit at once", async ({ context, baseURL, page, request }) => {
+    const admin = await seedSignedInUser("ADMIN");
+    const agent = await seedSignedInUser("AGENT");
+    await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
+    await page.goto("/admin/tokens");
+    await page.getByLabel("Agent user").selectOption({ label: agent.email });
+    await page.getByLabel("Label").fill("rules e2e");
+    await page.getByRole("button", { name: "Make token" }).click();
+    const token = (await page.getByTestId("new-token").textContent())!;
+    const pageId = await ensureImportRulesPage();
+
+    const init = await rpc(request, token, "initialize", {
+      protocolVersion: "2025-03-26",
+      capabilities: {},
+      clientInfo: { name: "e2e", version: "1" },
+    });
+    expect((await init.json()).result.instructions).toContain("get_import_rules");
+
+    const first = await callTool(request, token, "get_import_rules", {});
+    expect(first.isError).toBe(false);
+    expect(first.text).toMatch(/^Import rules \(rev \d+\):/);
+    const rev = Number(/rev (\d+)/.exec(first.text)![1]);
+
+    const words = `Rules text ${Date.now()}`;
+    const preview = await callTool(request, token, "preview_changes", {
+      evidence: { ownKnowledge: true },
+      edits: [{ op: "update", type: "GuidePage", id: pageId, rev, fields: { body: words } }],
+    });
+    expect(preview.isError).toBe(false);
+    await callTool(request, token, "apply_changes", { token: /Apply token: (suprev_\S+)/.exec(preview.text)![1] });
+    const second = await callTool(request, token, "get_import_rules", {});
+    expect(second.text).toContain(words);
+    expect(second.text).toContain(`rev ${rev + 1}`);
+
+    // The rules are on no public page, and the home page does not carry them.
+    const home = await request.get("/");
+    expect(await home.text()).not.toContain(words);
+    const missing = await request.get("/agent-import-rules");
+    expect(missing.status()).toBe(404);
+    expect(await missing.text()).not.toContain(words);
+  });
+
   test("refuses a request with no sign-in and a wrong token", async ({ request }) => {
     const none = await request.post("/api/v1/mcp", { headers: HEADERS, data: { jsonrpc: "2.0", id: 1, method: "tools/list" } });
     expect(none.status()).toBe(401);
@@ -55,6 +109,7 @@ test.describe("the MCP endpoint", () => {
     const list = await rpc(request, token, "tools/list", {});
     expect((await list.json()).result.tools.map((t: { name: string }) => t.name).sort()).toEqual([
       "apply_changes",
+      "get_import_rules",
       "get_record",
       "preview_changes",
       "search_records",

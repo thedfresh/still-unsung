@@ -5,7 +5,9 @@ import { pendingPreviewUrl } from "@/lib/changes/preview-link";
 import { isList, LIST_TABLES, readableTypes, writableTypes } from "@/lib/content-access";
 import { applyChanges } from "@/lib/data/changes/apply";
 import { previewChanges } from "@/lib/data/changes/preview";
+import { getImportRules } from "@/lib/data/guide-pages";
 import { getRecord, searchRecords } from "@/lib/data/records";
+import { MCP_INSTRUCTIONS } from "@/lib/import-rules";
 import { toErrorBody } from "@/lib/errors";
 import { formatApplyResult } from "@/lib/mcp/format";
 import { MAX_EDITS } from "@/lib/validation/content";
@@ -37,12 +39,12 @@ Editable lists (${LIST_TABLES.join(", ")}): you may only create a value, with op
  * role first). Each tool acts for that user: the only write path for agents (data-model item 16).
  */
 export function createContentMcpServer(user: CurrentUser): McpServer {
-  const server = new McpServer({ name: "still-unsung", version: "0.1.0" });
+  const server = new McpServer({ name: "still-unsung", version: "0.1.0" }, { instructions: MCP_INSTRUCTIONS });
 
   server.registerTool(
     "preview_changes",
     {
-      description: `Check a list of edits and show what they would do. Nothing is saved. Up to ${MAX_EDITS} edits per call. Show the preview to the user; apply it only after the user approves. ${EDIT_HELP}`,
+      description: `Check a list of edits and show what they would do. Nothing is saved. Up to ${MAX_EDITS} edits per call. Before an import or grooming, call get_import_rules and follow the rules. Show the preview to the user; apply it only after the user approves. ${EDIT_HELP}`,
       inputSchema: {
         evidence: z
           .record(z.string(), z.unknown())
@@ -68,6 +70,20 @@ export function createContentMcpServer(user: CurrentUser): McpServer {
       },
     },
     ({ token, isPublic }) => run(async () => formatApplyResult(await applyChanges(user.id, token, isPublic))),
+  );
+
+  server.registerTool(
+    "get_import_rules",
+    {
+      description:
+        "Read the import rules: how to split speakers, what gets a reference, which words are public. Call it before any import or grooming and follow it. Returns the rules as markdown and their rev. To change the rules, update the guide page with the slug agent-import-rules through preview_changes, as the user asks.",
+      inputSchema: {},
+    },
+    () =>
+      run(async () => {
+        const rules = await getImportRules();
+        return `Import rules (rev ${rules.rev}):\n\n${rules.body}`;
+      }),
   );
 
   server.registerTool(
