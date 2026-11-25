@@ -141,6 +141,41 @@ test.describe("admin", () => {
   });
 });
 
+// Staging runs behind nginx over HTTPS: the proxy sends these headers and the session cookie
+// has the `__Secure-` name. A signed-in admin must reach the admin home, not the sign-in page
+// (HSA-160).
+test.describe("admin behind a reverse proxy", () => {
+  test("a signed-in admin reaches /admin with forwarded headers", async ({ browser, baseURL }) => {
+    const admin = await seedSignedInUser("ADMIN");
+    const host = new URL(baseURL!).host;
+    const context = await browser.newContext({
+      baseURL,
+      extraHTTPHeaders: {
+        "x-forwarded-for": "203.0.113.7",
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": host,
+      },
+    });
+    try {
+      await context.addCookies([
+        { name: "__Secure-authjs.session-token", value: admin.sessionToken, domain: new URL(baseURL!).hostname, path: "/", secure: true },
+        { name: "authjs.session-token", value: admin.sessionToken, url: baseURL! },
+      ]);
+      const page = await context.newPage();
+      const session = await context.request.get("/api/auth/session");
+      expect((await session.json()).user?.email).toBe(admin.email);
+      await page.goto("/admin");
+      await expect(page).toHaveURL(/\/admin$/);
+      await expect(page.getByText(`Signed in as ${admin.email}`)).toBeVisible();
+      // The sign-in page sends a signed-in admin on to the admin home.
+      await page.goto("/admin/sign-in");
+      await expect(page).toHaveURL(/\/admin$/);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
 test.describe("Google sign-in (Google is a fake)", () => {
   async function chooseGoogleUser(context: BrowserContext, email: string, unverified = false) {
     await context.addCookies([
