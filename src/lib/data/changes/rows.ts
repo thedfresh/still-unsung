@@ -78,6 +78,15 @@ export async function labelRow(tx: Tx, type: string, row: Row, withId = true, ca
     const work = typeof workId === "number" ? await memo(cache, `work:${workId}`, () => tx.work.findUnique({ where: { id: workId }, select: { title: true } })) : null;
     return segmentLabel(work?.title ?? null, await showDateOf(tx, set?.showId, cache), row);
   }
+  if (type === "Place") {
+    // A place has no name of its own: it reads by its first PlaceName, also one made in the same save.
+    const id = row.id;
+    const first =
+      typeof id === "number"
+        ? await memo(cache, `placeOf:${id}`, () => tx.placeName.findFirst({ where: { placeId: id }, orderBy: { position: "asc" }, select: { name: true } }))
+        : null;
+    return describeRecord(type, first ? { ...row, name: first.name } : row, null, withId);
+  }
   if (type !== "Show") return describeRecord(type, row, null, withId);
   const placeNameId = row.placeNameId;
   const placeId = row.placeId;

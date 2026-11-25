@@ -12,7 +12,7 @@ function showLines(show: ShowRow, origin: Maps["origin"]): Pick<ReviewShow, "bil
       const name = entry.actBand?.name ?? entry.actPerson?.name ?? "Unnamed act";
       return {
         key: `bill-${entry.id}`,
-        text: `${entry.role.toLowerCase().replace("_", "-")}: ${name}${certaintyNote(entry.certainty)}`,
+        text: `${entry.role.toLowerCase().replaceAll("_", "-")}: ${name}${certaintyNote(entry.certainty)}`,
         origin: origin("BillEntry", entry.id),
       };
     }),
@@ -24,6 +24,11 @@ function showLines(show: ShowRow, origin: Maps["origin"]): Pick<ReviewShow, "bil
     }),
     lineup: lineupLines(show.lineup, origin),
   };
+}
+
+/** True when a show with this ID exists: one small query, for the proxy's 404. */
+export async function showExists(id: number, db: PrismaClient = getPrisma()): Promise<boolean> {
+  return (await db.show.count({ where: { id } })) > 0;
 }
 
 /**
@@ -59,8 +64,11 @@ export async function getShowReview(id: number, db: PrismaClient = getPrisma()):
     ["Citation", citations.map((row) => row.id)],
     ["Note", notes.map((row) => row.note.id)],
   ]);
+  const origins = await loadOrigins(db, wanted, id);
   const maps: Maps = {
-    origin: await loadOrigins(db, wanted),
+    showId: id,
+    ownRecordings: show.recordings.length,
+    origin: origins.lookup,
     references: groupBy(references, (row) => row.fromId),
     citations: groupBy(citations, (row) => row.entityId),
     notes: groupBy(notes, (row) => row.entityId),
@@ -85,14 +93,18 @@ export async function getShowReview(id: number, db: PrismaClient = getPrisma()):
   return {
     id,
     title: `Show ${[shortDate(show), placeName].filter(Boolean).join(", ")}`,
-    origin: maps.origin("Show", id),
+    // The one origin line of the page: the change that created the show itself.
+    origin: origins.main,
     date: dateInWords(show),
     place: show.place ? `${placeNameOf(show.place) ?? "Place with no name"}${certaintyNote(show.placeCertainty)}` : null,
     placeName: show.placeName?.name ?? null,
     billedAs: show.billedAs,
     band: show.band?.name ?? null,
     showType: show.showType?.name ?? null,
-    status: `${showStatusWords(show.status)}${certaintyNote(show.statusCertainty)}`,
+    status:
+      show.status === "TOOK_PLACE" && certaintyNote(show.statusCertainty) === ""
+        ? null
+        : `${showStatusWords(show.status)}${certaintyNote(show.statusCertainty)}`,
     timeLabel: show.timeLabel,
     ...showLines(show, maps.origin),
     attachments: attachmentsOf(id, maps),

@@ -91,7 +91,7 @@ export async function findShowLinks(items: LinkableItem[]): Promise<Map<number, 
           dateDay: true,
           dateAsWritten: true,
           placeName: { select: { name: true } },
-          place: { select: { names: { orderBy: { position: "desc" }, take: 1, select: { name: true } } } },
+          place: { select: { names: { orderBy: { position: "asc" }, take: 1, select: { name: true } } } },
         },
       })
     : [];

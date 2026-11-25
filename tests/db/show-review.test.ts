@@ -138,7 +138,8 @@ describe("getShowReview", () => {
 
     const childView = first.segments[1];
     expect(childView.wordsAsHeard).toBe("Words as heard, private.");
-    expect(childView.origin).toContain("Added by the agent");
+    // The show and the child come from the same change: the page says it once, under the show.
+    expect(childView.origin).toBeNull();
     expect(childView.attachments.references).toEqual([
       expect.objectContaining({ kind: "mentions", target: 'work "Test Song"', certainty: "probable", note: "child reference" }),
     ]);
@@ -148,6 +149,89 @@ describe("getShowReview", () => {
     expect(childView.attachments.notes).toEqual([expect.objectContaining({ body: "child private note", isPublic: false })]);
     // A record with no stored creation has no origin line.
     expect(show!.sets[0].segments[0].origin).toBeNull();
+  });
+
+  it("says where it came from once, and again only on a record from another change", async () => {
+    const showId = await makeShow({ year: 1980, month: 11, day: 14 });
+    const set = await makeSet(showId, 1);
+    const a = await makeSegment(set, "a", { summary: "One." });
+    const b = await makeSegment(set, "b", { summary: "Two." });
+    const c = await makeSegment(set, "c", { summary: "Three." });
+    for (const [table, id] of [["shows", showId], ["segments", a], ["segments", b]] as const) await recordCreated(table, id);
+    const later = await db.changeset.create({
+      data: { userId, path: "MCP", status: "APPLIED", sourceId, place: "page 9", summary: "Later import", appliedAt: new Date("2026-11-26T12:00:00Z") },
+    });
+    await db.changesetItem.create({ data: { changesetId: later.id, position: 1, tableName: "segments", recordId: c, action: "CREATE" } });
+
+    const show = await getShowReview(showId, counting);
+    expect(show!.origin).toBe('Added by the agent on 2026-11-25 from the source "Synthetic notebook" (page 4)');
+    const [first, second, third] = show!.sets[0].segments;
+    expect([first.origin, second.origin]).toEqual([null, null]);
+    expect(third.origin).toBe('Added by the agent on 2026-11-26 from the source "Synthetic notebook" (page 9)');
+  });
+
+  it("takes the header line from the change that created the show, even when a later change made more records", async () => {
+    const showId = await makeShow({ year: 1978, month: 4, day: 15 });
+    const set = await makeSet(showId, 1);
+    const talk = await makeSegment(set, "a", { summary: "Introduces the song." });
+    await recordCreated("shows", showId);
+    // Grooming later adds more records (references) than the import made.
+    const grooming = await db.changeset.create({
+      data: { userId, path: "MCP", status: "APPLIED", ownKnowledge: true, summary: "Grooming", appliedAt: new Date("2026-11-26T12:00:00Z") },
+    });
+    for (let i = 0; i < 3; i++) {
+      const refId = await entity("REFERENCE");
+      await db.reference.create({ data: { id: refId, fromId: talk, toId: personId, referenceKindId: kindId } });
+      await db.changesetItem.create({ data: { changesetId: grooming.id, position: i + 1, tableName: "references", recordId: refId, action: "CREATE" } });
+    }
+
+    const show = await getShowReview(showId, counting);
+    expect(show!.origin).toBe('Added by the agent on 2026-11-25 from the source "Synthetic notebook" (page 4)');
+    const refs = show!.sets[0].segments[0].attachments.references;
+    expect(refs).toHaveLength(3);
+    expect(refs.every((ref) => ref.origin === "Added by the agent on 2026-11-26 from own knowledge")).toBe(true);
+  });
+
+  it("has no header line when the show's creation is not stored, and each record keeps its own", async () => {
+    const showId = await makeShow({ year: 1990, month: 11, day: 6 });
+    const set = await makeSet(showId, 1);
+    const talk = await makeSegment(set, "a", { summary: "Talk." });
+    const refId = await entity("REFERENCE");
+    await db.reference.create({ data: { id: refId, fromId: talk, toId: personId, referenceKindId: kindId } });
+    await db.changesetItem.create({ data: { changesetId, position: 1, tableName: "references", recordId: refId, action: "CREATE" } });
+
+    const show = await getShowReview(showId, counting);
+    expect(show!.origin).toBeNull();
+    expect(show!.sets[0].segments[0].attachments.references[0].origin).toBe('Added by the agent on 2026-11-25 from the source "Synthetic notebook" (page 4)');
+  });
+
+  it("writes a bill entry as its role, a colon and a space, then the act", async () => {
+    const showId = await makeShow({ year: 1990, month: 11, day: 6 });
+    const billId = await entity("BILL_ENTRY");
+    await db.billEntry.create({ data: { id: billId, showId, actBandId: bandId, role: "OPENER", position: 1 } });
+    const show = await getShowReview(showId, counting);
+    expect(show!.bill.map((line) => line.text)).toEqual(["opener: Test Band"]);
+  });
+
+  it("names every kind of reference target, and a citation of this show's own recording is short", async () => {
+    const showId = await makeShow({ year: 1980, month: 11, day: 14 });
+    const set = await makeSet(showId, 1);
+    const segment = await makeSegment(set, "a", { summary: "One." });
+    const groupId = await entity("SHOW_GROUP");
+    await db.showGroup.create({ data: { id: groupId, name: "Fall tour", showGroupKindId: (await db.showGroupKind.findFirstOrThrow()).id } });
+    const passageId = await entity("PASSAGE");
+    await db.passage.create({ data: { id: passageId, workId, label: "verse 2" } });
+    for (const toId of [groupId, passageId]) {
+      const id = await entity("REFERENCE");
+      await db.reference.create({ data: { id, fromId: segment, toId, referenceKindId: kindId } });
+    }
+    const recordingId = await entity("RECORDING");
+    await db.recording.create({ data: { id: recordingId, showId } });
+    await db.citation.create({ data: { entityId: segment, recordingId, aspect: "SEGMENT_IDENTIFICATION", place: "12:30" } });
+
+    const view = (await getShowReview(showId, counting))!.sets[0].segments[0];
+    expect(view.attachments.references.map((r) => r.target)).toEqual(['show group "Fall tour"', 'passage "verse 2"']);
+    expect(view.attachments.citations[0]).toMatchObject({ by: "This show's recording, 12:30", place: null });
   });
 
   it("returns null for a show that does not exist", async () => {

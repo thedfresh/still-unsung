@@ -1,0 +1,40 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createClosedAdapter } from "@/lib/data/auth-adapter";
+import { showExists } from "@/lib/data/shows/review";
+import { findCurrentUser } from "@/lib/data/users";
+import { parseId } from "@/lib/ids";
+
+/** The Auth.js session cookie: the secure name is used over HTTPS. */
+const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"];
+
+/** The user ID of a valid, unexpired database session in the request, or null. */
+async function sessionUserId(request: NextRequest): Promise<string | null> {
+  for (const name of SESSION_COOKIES) {
+    const token = request.cookies.get(name)?.value;
+    if (!token) continue;
+    const found = await createClosedAdapter().getSessionAndUser?.(token);
+    if (found && found.session.expires > new Date()) return found.user.id;
+  }
+  return null;
+}
+
+/**
+ * A real HTTP 404 for a bad or unknown show ID on the admin show page. With Cache Components a
+ * page streams after its prerendered shell, so `notFound()` inside the page can only show the
+ * not-found page with status 200. The proxy runs before the page renders, so it can set the status.
+ *
+ * Only a signed-in admin gets the 404. Anyone else passes through to the page, which sends them
+ * to the sign-in page, so a signed-out request learns nothing about which shows exist. The proxy
+ * only decides the status: the page still checks the sign-in itself.
+ */
+export async function proxy(request: NextRequest) {
+  const userId = await sessionUserId(request);
+  const user = userId ? await findCurrentUser(userId) : null;
+  if (user?.role !== "ADMIN") return NextResponse.next();
+  const id = parseId(request.nextUrl.pathname.split("/")[3]);
+  if (id !== null && (await showExists(id))) return NextResponse.next();
+  // A path with no route renders the app's not-found page, with status 404.
+  return NextResponse.rewrite(new URL("/_not-found", request.url), { status: 404 });
+}
+
+export const config = { matcher: "/admin/shows/:id" };

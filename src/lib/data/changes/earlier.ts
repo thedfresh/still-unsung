@@ -71,6 +71,14 @@ export async function lookUpNames(states: StoredState[]): Promise<Array<{ links:
   const numbers = (list: Iterable<Row>, field: string) => [...list].map((r) => r[field]).filter((id): id is number => typeof id === "number");
   await load("Show", [...(wanted.get("Show") ?? []), ...numbers(rows.get("Set")?.values() ?? [], "showId")]);
   await load("PlaceName", numbers(rows.get("Show")?.values() ?? [], "placeNameId"));
+  // A place reads by its first name (lowest position): one query for all the places.
+  const placeIds = [...(rows.get("Place")?.keys() ?? [])];
+  const firstPlaceName = new Map<number, string>();
+  if (placeIds.length > 0) {
+    const names = await getPrisma().placeName.findMany({ where: { placeId: { in: placeIds } }, orderBy: { position: "desc" }, select: { placeId: true, name: true } });
+    // Descending order, so the first name (lowest position) is set last and wins.
+    for (const { placeId, name } of names) firstPlaceName.set(placeId, name);
+  }
   const rowOf = (type: string, id: unknown) => (typeof id === "number" ? rows.get(type)?.get(id) : undefined);
   const showDate = (showId: unknown) => {
     const show = rowOf("Show", showId);
@@ -83,6 +91,7 @@ export async function lookUpNames(states: StoredState[]): Promise<Array<{ links:
     if (type === "Set") return setLabel(row, showDate(row.showId)) ?? describeRecord(type, row);
     if (type === "Segment") return segmentLabel((rowOf("Work", row.workId)?.title as string | undefined) ?? null, showDate(rowOf("Set", row.setId)?.showId), row);
     if (type === "Show") return describeRecord(type, row, (rowOf("PlaceName", row.placeNameId)?.name as string | undefined) ?? null);
+    if (type === "Place") return describeRecord(type, { ...row, name: firstPlaceName.get(id) });
     return describeRecord(type, row);
   };
   const linksOf = (type: string, row: Row | null): Record<string, LinkInfo> => {

@@ -1,8 +1,9 @@
+import type { RecentEvidence } from "@/lib/data/changes/admin-save";
 import type { ReviewSet, ReviewShow } from "@/lib/data/shows/review-types";
 import { Attachments, CARD, Facts, Lines, Origin } from "./parts";
 import { SegmentCard } from "./segment-card";
 
-function SetSection({ set }: { set: ReviewSet }) {
+function SetSection({ set, recent }: { set: ReviewSet; recent: RecentEvidence[] }) {
   return (
     <section id={`set-${set.id}`} aria-labelledby={`set-${set.id}-title`} className="flex flex-col gap-3">
       <h2 id={`set-${set.id}-title`} className="text-xl font-semibold">
@@ -17,7 +18,7 @@ function SetSection({ set }: { set: ReviewSet }) {
       ) : (
         <ol className="flex flex-col gap-3">
           {set.segments.map((segment) => (
-            <SegmentCard key={segment.id} segment={segment} />
+            <SegmentCard key={segment.id} segment={segment} recent={recent} />
           ))}
         </ol>
       )}
@@ -25,8 +26,11 @@ function SetSection({ set }: { set: ReviewSet }) {
   );
 }
 
-/** One show on one page, read-only: the header, then the sets and their segments in order. */
-export function ShowReviewView({ show }: { show: ReviewShow }) {
+/**
+ * One show on one page: the header, then the sets and their segments in order. Only the
+ * segment summary can be edited so far; `recent` feeds the evidence picker.
+ */
+export function ShowReviewView({ show, recent }: { show: ReviewShow; recent: RecentEvidence[] }) {
   return (
     <>
       <section aria-labelledby="show-header" className={`${CARD} flex flex-col gap-2`}>
@@ -51,7 +55,7 @@ export function ShowReviewView({ show }: { show: ReviewShow }) {
         <Lines title="Recordings" lines={show.recordings} level={3} />
         <Attachments data={show.attachments} level={3} />
       </section>
-      {show.sets.length === 0 ? <p>This show has no sets.</p> : show.sets.map((set) => <SetSection key={set.id} set={set} />)}
+      {show.sets.length === 0 ? <p>This show has no sets.</p> : show.sets.map((set) => <SetSection key={set.id} set={set} recent={recent} />)}
     </>
   );
 }

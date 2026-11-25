@@ -47,6 +47,8 @@ export interface ReviewAttachments {
 
 export interface ReviewSegment {
   id: number;
+  /** The version of the record that this page read. An edit form sends it back (item 87). */
+  rev: number;
   /** Number in the set: "3", or "3.1" for a child of segment 3. */
   number: string;
   depth: number;
@@ -92,7 +94,8 @@ export interface ReviewShow {
   billedAs: string | null;
   band: string | null;
   showType: string | null;
-  status: string;
+  /** Only a status other than "took place", the default. */
+  status: string | null;
   timeLabel: string | null;
   bill: ReviewLine[];
   /** Exceptions only, as stored. */

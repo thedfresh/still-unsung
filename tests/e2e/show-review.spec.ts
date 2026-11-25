@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "../support/e2e";
-import { seedSignedInUser } from "../support/auth-fixtures";
+import { query, seedSignedInUser } from "../support/auth-fixtures";
 import { seedShowForReview } from "../support/show-review-seed";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
@@ -63,12 +63,24 @@ test.describe("admin", () => {
     await noSidewaysScroll(page);
   });
 
-  // The page streams, so the status line is sent before the lookup. The page itself says not found.
-  test("a bad or unknown show ID shows the not-found page", async ({ page, context, baseURL }) => {
+  test("words as heard carry no (private) mark once they are public", async ({ page, context, baseURL }) => {
+    const admin = await seedSignedInUser("ADMIN");
+    await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
+    const seeded = await seedShowForReview();
+    await page.goto(`/admin/shows/${seeded.showId}`);
+    await expect(page.getByRole("heading", { name: "Words as heard (private)" })).toBeVisible();
+    await query(`UPDATE segments SET "wordsPublic" = true WHERE "wordsAsHeard" = $1`, [seeded.wordsAsHeard]);
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Words as heard", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Words as heard \(private\)/ })).toHaveCount(0);
+  });
+
+  test("a bad or unknown show ID returns HTTP 404 and the not-found page", async ({ page, context, baseURL }) => {
     const admin = await seedSignedInUser("ADMIN");
     await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
     for (const path of ["/admin/shows/abc", "/admin/shows/2000000000"]) {
-      await page.goto(path);
+      const response = await page.goto(path);
+      expect(response?.status()).toBe(404);
       await expect(page.getByText(/could not be found/i)).toBeVisible();
     }
   });

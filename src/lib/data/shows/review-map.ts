@@ -1,4 +1,5 @@
-import { segmentLabel, setLabel } from "@/lib/changes/labels";
+import { describeRecord, segmentLabel, setLabel } from "@/lib/changes/labels";
+import { typeOfKind } from "@/lib/data/changes/describe";
 import {
   certaintyNote,
   certaintyWords,
@@ -23,7 +24,7 @@ import type {
 type DateRow = Parameters<typeof shortDate>[0];
 type PlaceWithNames = { names: Array<{ name: string }> } | null;
 
-/** The latest name of a place, which is the default name for a show. */
+/** The first name of a place (lowest position), which is the default name for a show. */
 export function placeNameOf(place: PlaceWithNames): string | null {
   return place?.names[0]?.name ?? null;
 }
@@ -34,15 +35,17 @@ function showLabel(show: DateRow & { placeName?: { name: string } | null; place?
 }
 
 /** The target of a reference by name, with the admin page when it has one. */
-export function describeTarget(to: ReferenceRow["to"]): { name: string; href: string | null } {
+export function describeTarget(to: ReferenceRow["to"], pageShowId?: number): { name: string; href: string | null } {
   if (to.show) return { name: showLabel(to.show), href: `/admin/shows/${to.id}` };
+  // A set or segment of the page's own show leaves the show's date out: the page header says it.
+  const dateIn = (showId: number, show: DateRow) => (showId === pageShowId ? null : shortDate(show));
   if (to.set) {
-    const name = setLabel({ position: to.set.position }, shortDate(to.set.show)) ?? "Set";
+    const name = setLabel({ position: to.set.position }, dateIn(to.set.showId, to.set.show)) ?? "Set";
     return { name, href: `/admin/shows/${to.set.showId}#set-${to.id}` };
   }
   if (to.segment) {
     const { set, work, summary } = to.segment;
-    const name = segmentLabel(work?.title ?? null, shortDate(set.show), { summary });
+    const name = segmentLabel(work?.title ?? null, dateIn(set.showId, set.show), { summary });
     return { name, href: `/admin/shows/${set.showId}#segment-${to.id}` };
   }
   const named =
@@ -52,14 +55,27 @@ export function describeTarget(to: ReferenceRow["to"]): { name: string; href: st
     placeNameOf(to.place) ??
     to.placeName?.name ??
     to.source?.title ??
-    (to.recording ? (to.recording.description ?? `Recording of the show on ${shortDate(to.recording.show)}`) : null) ??
+    (to.recording
+      ? (to.recording.description ??
+        (to.recording.showId === pageShowId ? "Recording of this show" : `Recording of the show on ${shortDate(to.recording.show)}`))
+      : null) ??
     to.subject?.name ??
     to.guidePage?.title ??
-    to.version?.name;
-  return { name: named ? `${enumWords(to.kind)} "${named}"` : `a ${enumWords(to.kind)} record`, href: null };
+    to.version?.name ??
+    to.showGroup?.name ??
+    to.period?.name ??
+    to.variant?.name ??
+    to.passage?.label;
+  if (named) return { name: `${enumWords(to.kind)} "${named}"`, href: null };
+  // A kind with no name field reads by the shared label helper: its type and ID.
+  return { name: describeRecord(typeOfKind(to.kind) ?? enumWords(to.kind), { id: to.id }), href: null };
 }
 
 export interface Maps {
+  /** The show of the page. */
+  showId: number;
+  /** How many recordings the show has: a citation names its recording only when there are several. */
+  ownRecordings: number;
   origin: OriginLookup;
   references: Map<number, ReferenceRow[]>;
   citations: Map<number, CitationRow[]>;
@@ -76,7 +92,7 @@ export function groupBy<T>(items: T[], key: (item: T) => number): Map<number, T[
 }
 
 function mapReference(row: ReferenceRow, maps: Maps): ReviewReference {
-  const target = describeTarget(row.to);
+  const target = describeTarget(row.to, maps.showId);
   return {
     key: `reference-${row.id}`,
     kind: row.referenceKind.name,
@@ -89,18 +105,23 @@ function mapReference(row: ReferenceRow, maps: Maps): ReviewReference {
 }
 
 function mapCitation(row: CitationRow, maps: Maps): ReviewCitation {
-  const by = row.source
-    ? `Source "${row.source.title}"`
-    : row.recording
-      ? `Recording "${row.recording.description ?? `of the show on ${shortDate(row.recording.show)}`}"`
-      : row.contributor
-        ? `Contributor ${row.contributor.name}`
-        : "Unnamed evidence";
+  // A recording of this same show reads short: only what is specific (its time on the tape).
+  const own = row.recording && row.recording.showId === maps.showId ? row.recording : null;
+  let by: string;
+  let place = row.place;
+  if (own) {
+    const named = maps.ownRecordings > 1 && own.description ? ` "${own.description}"` : "";
+    by = `This show's recording${named}${place ? `, ${place}` : ""}`;
+    place = null;
+  } else if (row.source) by = `Source "${row.source.title}"`;
+  else if (row.recording) by = `Recording "${row.recording.description ?? `of the show on ${shortDate(row.recording.show)}`}"`;
+  else if (row.contributor) by = `Contributor ${row.contributor.name}`;
+  else by = "Unnamed evidence";
   return {
     key: `citation-${row.id}`,
     by,
     aspect: row.aspect ? enumWords(row.aspect) : null,
-    place: row.place,
+    place,
     note: row.note,
     excerpt: row.excerpt,
     origin: maps.origin("Citation", row.id),
@@ -159,6 +180,7 @@ function workTitle(row: SegmentRow): string {
 function mapSegment(row: SegmentRow, number: string, depth: number, maps: Maps): ReviewSegment {
   return {
     id: row.id,
+    rev: row.rev,
     number,
     depth,
     origin: maps.origin("Segment", row.id),

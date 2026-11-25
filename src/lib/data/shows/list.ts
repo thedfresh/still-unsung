@@ -66,7 +66,7 @@ export async function listShows(query: string, page: number, db: PrismaClient = 
       dateDay: true,
       dateAsWritten: true,
       placeName: { select: { name: true } },
-      place: { select: { names: { orderBy: { position: "desc" }, take: 1, select: { name: true } } } },
+      place: { select: { names: { orderBy: { position: "asc" }, take: 1, select: { name: true } } } },
       band: { select: { name: true } },
       showType: { select: { name: true } },
     },

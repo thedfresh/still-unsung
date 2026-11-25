@@ -11,7 +11,7 @@ const NAME = { select: { name: true } } as const;
 const TITLE = { select: { title: true } } as const;
 export const DATE_SELECT = { dateYear: true, dateMonth: true, dateDay: true, dateAsWritten: true } as const;
 
-const LATEST_PLACE_NAME = { names: { orderBy: { position: "desc" }, take: 1, select: { name: true } } } as const;
+const FIRST_PLACE_NAME = { names: { orderBy: { position: "asc" }, take: 1, select: { name: true } } } as const;
 
 const PERSON_WITH_INSTRUMENTS = {
   person: NAME,
@@ -23,7 +23,7 @@ export function loadShow(db: PrismaClient, id: number) {
     ...JOIN,
     where: { id },
     include: {
-      place: { include: LATEST_PLACE_NAME },
+      place: { include: FIRST_PLACE_NAME },
       placeName: NAME,
       band: NAME,
       showType: NAME,
@@ -68,7 +68,7 @@ export function loadSegments(db: PrismaClient, setIds: number[]) {
 const TARGET_SELECT = {
   id: true,
   kind: true,
-  show: { select: { ...DATE_SELECT, placeName: NAME, place: { include: LATEST_PLACE_NAME } } },
+  show: { select: { ...DATE_SELECT, placeName: NAME, place: { include: FIRST_PLACE_NAME } } },
   set: { select: { position: true, showId: true, show: { select: DATE_SELECT } } },
   segment: {
     select: { summary: true, work: TITLE, set: { select: { showId: true, show: { select: DATE_SELECT } } } },
@@ -76,10 +76,14 @@ const TARGET_SELECT = {
   work: TITLE,
   person: NAME,
   band: NAME,
-  place: { include: LATEST_PLACE_NAME },
+  place: { include: FIRST_PLACE_NAME },
   placeName: NAME,
+  showGroup: NAME,
+  period: NAME,
+  variant: NAME,
+  passage: { select: { label: true } },
   source: TITLE,
-  recording: { select: { description: true, show: { select: DATE_SELECT } } },
+  recording: { select: { description: true, showId: true, show: { select: DATE_SELECT } } },
   subject: NAME,
   guidePage: TITLE,
   version: NAME,
@@ -102,7 +106,7 @@ export function loadCitations(db: PrismaClient, entityIds: number[]) {
     include: {
       source: TITLE,
       contributor: NAME,
-      recording: { select: { description: true, show: { select: DATE_SELECT } } },
+      recording: { select: { description: true, showId: true, show: { select: DATE_SELECT } } },
     },
   });
 }
