@@ -57,6 +57,7 @@ export async function importRecordings(ctx: Ctx): Promise<void> {
       });
     },
     (row) => ctx.eventPublic.get(Number(row.event_id)) ?? true,
+    (row) => dateOf(row, "created_at"),
   );
   kept.forEach((row, index) => {
     const oldId = Number(row.id);
@@ -92,6 +93,9 @@ export async function importContributorsAndLinks(ctx: Ctx): Promise<void> {
     else {
       const note = str(row, "description");
       const key = `${showId}:${contributor}:${note ?? ""}`;
+      // The row's own notes are kept even when its citation repeats one already made.
+      ctx.note(showId, str(row, "public_notes"), true, `event_contributors:${row.id}:publicNotes`);
+      ctx.note(showId, str(row, "private_notes"), false, `event_contributors:${row.id}:privateNotes`);
       if (seen.has(key)) {
         ctx.tally.drop("event_contributors", row.id, "same-citation-already-made-from-a-contributor-line");
         continue;
@@ -99,8 +103,6 @@ export async function importContributorsAndLinks(ctx: Ctx): Promise<void> {
       seen.add(key);
       ctx.citations.push({ entityId: showId, contributorId: contributor, note, legacyId: `event_contributors:${row.id}` });
       ctx.tally.mapped("event_contributors", row.id);
-      ctx.note(showId, str(row, "public_notes"), true, `event_contributors:${row.id}:publicNotes`);
-      ctx.note(showId, str(row, "private_notes"), false, `event_contributors:${row.id}:privateNotes`);
     }
   }
 
@@ -146,7 +148,8 @@ function importLink(ctx: Ctx, row: Row, types: Map<number, string | null>): void
       system: route.system,
       value: externalValue(route.system, url),
       legacyId: `links:${id}`,
-      isActive: row.is_active === undefined ? true : bool(row, "is_active"),
+      // The old column is "isActive": the old schema gave it no @map.
+      isActive: row.isActive === undefined ? true : bool(row, "isActive"),
       checkedAt: dateOf(row, "date_fetched"),
     });
     ctx.tally.mapped("links", id);

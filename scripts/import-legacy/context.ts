@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import pg, { type Pool } from "pg";
 import type { EntityKind } from "@/generated/prisma/enums";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { chunk, type Row } from "./rules.ts";
@@ -13,6 +13,13 @@ export interface Settings {
   curatorEmail: string | null;
   agentEmail: string | null;
 }
+
+// The old schema stores timestamps without a zone, in UTC. Read them as UTC, whatever the zone
+// of this machine, so dates keep their day and `created_at` keeps its hour.
+const UTC_TYPES = {
+  getTypeParser: (oid: number, format?: "text" | "binary") =>
+    oid === 1114 ? (value: string) => new Date(`${value.replace(" ", "T")}Z`) : pg.types.getTypeParser(oid, format as "text"),
+};
 
 export class Legacy {
   private readonly present: Set<string>;
@@ -49,7 +56,10 @@ export class Legacy {
     const cached = this.cache.get(table);
     if (cached) return cached;
     if (!/^[a-z_]+$/.test(table) || !/^[a-z_]+$/.test(this.schema)) throw new Error("Bad table name");
-    const result = await this.pool.query<Row>(`SELECT * FROM "${this.schema}"."${table}" ORDER BY 1`);
+    const result = await this.pool.query<Row>({
+      text: `SELECT * FROM "${this.schema}"."${table}" ORDER BY 1`,
+      types: UTC_TYPES,
+    });
     this.cache.set(table, result.rows);
     return result.rows;
   }
@@ -191,6 +201,8 @@ export class Ctx {
   readonly eventBand = new Map<number, number | null>();
   readonly eventRow = new Map<number, Row>();
   readonly tally = new Tally();
+  /** Old creation dates to carry over (plan section 4, intro): written by `applyCreatedDates`. */
+  readonly createdDates: Array<{ kind: EntityKind; id: number; at: Date }> = [];
 
   // Old id to new id, one map per kind of old row.
   readonly personByMusician = new Map<number, number | null>();
@@ -198,10 +210,12 @@ export class Ctx {
   readonly personByName = new Map<string, number>();
   readonly contributorByName = new Map<string, number>();
   readonly lineupByBandMusician = new Map<number, number>();
-  /** Songs flagged as uncertain in the old data (item 90). */
-  readonly uncertainSongs = new Set<number>();
   readonly bandByBand = new Map<number, number>();
   readonly placeByVenue = new Map<number, { placeId: number; nameId: number }>();
+  /** Venues whose old context names a festival: old venue id to the festival name (plan, Venue). */
+  /** Interview shows (item 96), handled after the segments exist. */
+  readonly interviewShows: Array<{ oldId: number; displayDate: string | null; showTypeId: number | null }> = [];
+  readonly festivalByVenue = new Map<number, string>();
   readonly workBySong = new Map<number, number>();
   readonly showByEvent = new Map<number, number>();
   readonly setBySet = new Map<number, number>();
@@ -239,6 +253,11 @@ export class Ctx {
     this.legacy = legacy;
     this.db = db;
     this.settings = settings;
+  }
+
+  /** Remember the old `created_at` of a new record and its entity row. */
+  stamp(kind: EntityKind, id: number, at: Date | null): void {
+    if (at !== null) this.createdDates.push({ kind, id, at });
   }
 
   /** Count a field the plan drops on purpose. The report lists the counts. */
@@ -290,14 +309,57 @@ export async function bulk<T>(
   items: T[],
   write: (rows: Array<{ item: T; id: number }>) => Promise<unknown>,
   isPublic: (item: T) => boolean = () => true,
+  createdAt: (item: T) => Date | null = () => null,
 ): Promise<number[]> {
   const all: number[] = [];
   for (const part of chunk(items, 1000)) {
     const ids = await newEntities(ctx.db, kind, part.map(isPublic));
     await write(part.map((item, index) => ({ item, id: ids[index] })));
+    part.forEach((item, index) => ctx.stamp(kind, ids[index], createdAt(item)));
     all.push(...ids);
   }
   return all;
+}
+
+// The table of each entity kind that the import writes (names from `@@map` in the schema).
+const TABLE_OF_KIND: Partial<Record<EntityKind, string>> = {
+  SHOW: "shows",
+  SET: "sets",
+  SEGMENT: "segments",
+  VOCAL_ENTRY: "vocal_entries",
+  LINEUP_ENTRY: "lineup_entries",
+  RECORDING: "recordings",
+  PLACE: "places",
+  BAND: "bands",
+  PERSON: "people",
+  WORK: "works",
+  WORK_SINGER: "work_singers",
+  CREDIT: "credits",
+  REFERENCE: "references",
+};
+
+/** Set the old creation date on each stamped record and on its entity row. */
+export async function applyCreatedDates(ctx: Ctx): Promise<number> {
+  const byKind = new Map<EntityKind, Array<{ id: number; at: Date }>>();
+  for (const entry of ctx.createdDates) byKind.set(entry.kind, [...(byKind.get(entry.kind) ?? []), entry]);
+  let count = 0;
+  for (const [kind, entries] of byKind) {
+    const table = TABLE_OF_KIND[kind];
+    for (const part of chunk(entries, 5000)) {
+      const ids = part.map((e) => e.id);
+      const dates = part.map((e) => e.at.toISOString());
+      await ctx.db.$executeRaw`UPDATE entities SET "createdAt" = v.at FROM (SELECT unnest(${ids}::int[]) AS id, unnest(${dates}::timestamp[]) AS at) v WHERE entities.id = v.id`;
+      if (table) {
+        await ctx.db.$executeRawUnsafe(
+          `UPDATE "${table}" SET "createdAt" = v.at FROM (SELECT unnest($1::int[]) AS id, unnest($2::timestamp[]) AS at) v WHERE "${table}".id = v.id`,
+          ids,
+          dates,
+        );
+      }
+      count += part.length;
+    }
+  }
+  return count;
 }
 
 /** A unique person key from a name; a duplicate gets a number suffix (item 42). */

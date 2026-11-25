@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Pool } from "pg";
 import type { PrismaClient } from "../../src/generated/prisma/client.ts";
-import { Ctx, Legacy, type Settings } from "./context.ts";
+import { Ctx, Legacy, applyCreatedDates, type Settings } from "./context.ts";
 import { seedFixedPeople, seedLists, seedSources, seedUsers } from "./lists.ts";
 import { collectMergeProposals, writeProposals } from "./proposals.ts";
 import { writeReport } from "./report.ts";
@@ -11,7 +11,7 @@ import { flushEvidence, flushNotes, importContributorsAndLinks, importRecordings
 import { importLineups } from "./step-lineups.ts";
 import { importBands, importPeople, importPlaces } from "./step-people.ts";
 import { importSegments } from "./step-segments.ts";
-import { importShows } from "./step-shows.ts";
+import { importInterviews, importShows } from "./step-shows.ts";
 import { importWorks } from "./step-works.ts";
 
 // The legacy import (HSA-37): reads the old database copy, writes the new schema, never
@@ -56,6 +56,7 @@ export async function runImport(options: ImportOptions): Promise<{ unaccounted: 
   // 4. Shows, sets, segments, then who sang and played.
   await importShows(ctx);
   const solo = await importSegments(ctx);
+  await importInterviews(ctx);
   await importLineups(ctx, solo);
   // 5 and 6. Recordings, outside IDs, citations.
   await importRecordings(ctx);
@@ -63,6 +64,7 @@ export async function runImport(options: ImportOptions): Promise<{ unaccounted: 
   await flushEvidence(ctx);
   // 7 and 8. Notes with their backlinks, then the addresses.
   await flushNotes(ctx);
+  ctx.line("Creation dates", `${await applyCreatedDates(ctx)} records carry the old created_at`);
 
   await collectMergeProposals(ctx);
   const proposalFiles = await writeProposals(ctx, options.outputDir);

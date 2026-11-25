@@ -185,8 +185,17 @@ export interface TimingResult {
   orderOnDate: number | null;
   /** A lone "Early" or "Late" show: listed in the report (item 95). */
   unpaired: boolean;
+  /** The timing text holds digits, but no clock time can be read from it: listed, time left empty. */
+  ambiguousTime: boolean;
+  /** The date has several shows and their labels or times do not order them: listed. */
+  unordered: boolean;
 }
 
+/**
+ * A clock time in minutes after midnight, or null. A time with no "am" or "pm" is read only
+ * when it is plainly a 24-hour time (hour 13 or later): "8:00" alone could be morning or
+ * evening, and the script does not guess (item 95).
+ */
 function clockMinutes(text: string): number | null {
   const lower = text.toLowerCase();
   if (lower.includes("midnight")) return 1440;
@@ -196,6 +205,7 @@ function clockMinutes(text: string): number | null {
   const minute = found[2] === undefined ? 0 : Number(found[2]);
   const suffix = found[3]?.[0];
   if (hour > 24 || minute > 59) return null;
+  if (suffix === undefined && hour < 13) return null;
   if (suffix === "p" && hour < 12) hour += 12;
   if (suffix === "a" && hour === 12) hour = 0;
   const total = hour * 60 + minute;
@@ -209,7 +219,9 @@ function timeText(minutes: number): string {
 
 /**
  * Item 95: "Early" and "Late" become the label as written; clock times become a scheduled
- * time; a date with more than one show gets an order (early 1, late 2, or by time).
+ * time. A date with several shows gets an order only when every show has a label or time that
+ * orders it (all early or late, or all clock times, with no ties). Otherwise the order stays
+ * empty and the date is listed: the script does not invent an order.
  */
 export function assignShowTiming(shows: TimingInput[]): Map<number, TimingResult> {
   const result = new Map<number, TimingResult>();
@@ -223,8 +235,7 @@ export function assignShowTiming(shows: TimingInput[]): Map<number, TimingResult
   const parse = (text: string | null) => {
     const lower = (text ?? "").trim().toLowerCase();
     const minutes = lower === "" ? null : clockMinutes(lower);
-    const rank = lower === "" ? 0 : lower === "early" ? 1 : lower === "late" ? 2 : minutes !== null ? 1.5 : 3;
-    return { lower, minutes, rank };
+    return { lower, minutes };
   };
   for (const show of shows) {
     const { lower, minutes } = parse(show.timing);
@@ -238,6 +249,8 @@ export function assignShowTiming(shows: TimingInput[]): Map<number, TimingResult
       scheduledTime: minutes === null ? null : timeText(minutes),
       orderOnDate: null,
       unpaired: false,
+      ambiguousTime: lower !== "" && lower !== "early" && lower !== "late" && minutes === null && /\d/.test(lower),
+      unordered: false,
     });
   }
   for (const group of groups.values()) {
@@ -247,18 +260,30 @@ export function assignShowTiming(shows: TimingInput[]): Map<number, TimingResult
       if (only && (lower === "early" || lower === "late")) only.unpaired = true;
       continue;
     }
-    const ordered = [...group].sort((a, b) => {
-      const pa = parse(a.timing);
-      const pb = parse(b.timing);
-      if (pa.minutes !== null && pb.minutes !== null && pa.minutes !== pb.minutes) {
-        return pa.minutes - pb.minutes;
+    // One sort key for each show, or null when its text does not order it.
+    const allClock = group.every((show) => parse(show.timing).minutes !== null);
+    const allLabels = group.every((show) => ["early", "late"].includes(parse(show.timing).lower));
+    const keyOf = (show: TimingInput): number | null => {
+      const { lower, minutes } = parse(show.timing);
+      if (allClock) return minutes;
+      if (allLabels) return lower === "early" ? 1 : 2;
+      return null;
+    };
+    const keys = group.map(keyOf);
+    const ordersThem = keys.every((key) => key !== null) && new Set(keys).size === group.length;
+    if (!ordersThem) {
+      for (const show of group) {
+        const entry = result.get(show.id);
+        if (entry) entry.unordered = true;
       }
-      return pa.rank - pb.rank || a.id - b.id;
-    });
-    ordered.forEach((show, index) => {
-      const entry = result.get(show.id);
-      if (entry) entry.orderOnDate = index + 1;
-    });
+      continue;
+    }
+    [...group]
+      .sort((a, b) => (keyOf(a) as number) - (keyOf(b) as number))
+      .forEach((show, index) => {
+        const entry = result.get(show.id);
+        if (entry) entry.orderOnDate = index + 1;
+      });
   }
   return result;
 }
@@ -290,12 +315,18 @@ export function sortKeys(count: number): string[] {
 
 export type VocalRoleName = "LEAD" | "HARMONY" | "BACKING";
 
-/** The old vocal role is free text. Unknown text becomes LEAD, the safe default (item 83). */
-export function vocalRoleOf(text: string | null): VocalRoleName {
+/**
+ * The old vocal role is free text. Return a role only when the text names exactly one. Any
+ * other text (empty, unknown, or naming two roles) gives "UNKNOWN": the caller reports the row
+ * and does not guess a role (items 33 and 83).
+ */
+export function vocalRoleOf(text: string | null): VocalRoleName | "UNKNOWN" {
   const lower = (text ?? "").toLowerCase();
-  if (lower.includes("harm")) return "HARMONY";
-  if (lower.includes("back")) return "BACKING";
-  return "LEAD";
+  const found: VocalRoleName[] = [];
+  if (/lead/.test(lower)) found.push("LEAD");
+  if (/harm/.test(lower)) found.push("HARMONY");
+  if (/back/.test(lower)) found.push("BACKING");
+  return found.length === 1 ? found[0] : "UNKNOWN";
 }
 
 export function isUnknownName(name: string): boolean {

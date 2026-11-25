@@ -91,8 +91,11 @@ export async function writeReport(ctx: Ctx, outputDir: string, input: ReportInpu
     ledger[table] = { ...s, dropped: Object.fromEntries(ctx.tally.dropped.get(table) ?? []), unmapped: Object.fromEntries(ctx.tally.unmapped.get(table) ?? []) };
   }
   md.push("", unaccounted === 0 ? "Every old row is mapped, dropped by a named rule, or listed below." : `**${unaccounted} old rows are unaccounted for.** They are listed below.`, "");
-  const absent = ctx.legacy.tables();
-  md.push(`Old tables found in the copy: ${absent.length}. A table the plan names but the copy lacks is read as empty.`, "");
+  const found = ctx.legacy.tables();
+  const read = new Set(ctx.tally.tablesSeen());
+  const notRead = found.filter((table) => !read.has(table));
+  md.push(`Old tables found in the copy: ${found.length}. A table the plan names but the copy lacks is read as empty.`, "");
+  md.push(`Old tables the script does not read: ${notRead.length === 0 ? "none" : notRead.join(", ")}.`, "");
 
   md.push("## Rows dropped by a named rule", "");
   for (const table of ctx.tally.tablesSeen()) {
@@ -127,6 +130,7 @@ export async function writeReport(ctx: Ctx, outputDir: string, input: ReportInpu
 
   md.push("## Proposal files (not applied)", "", "| file | rows | bytes |", "|---|---:|---:|", ...input.proposalFiles.map((f) => `| ${f.name}.json | ${f.rows} | ${f.bytes} |`), "");
 
+  json.oldTablesNotRead = notRead;
   json.ledger = ledger;
   json.newCounts = counts;
   json.notes = Object.fromEntries(bySection);
