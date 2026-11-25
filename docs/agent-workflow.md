@@ -133,6 +133,13 @@ message; GitHub emails the person who started it.
 - The planning repo is checked out from its `main` branch to `/tmp/reference`, outside the project,
   so the build, linter and tests never see it and it can't be committed. It is private. Planning
   commits go on its `main`: its deploy workflow for the old app is turned off.
+- The Jira MCP config reaches Claude two ways: as the file `mcp.json`, and as inline JSON in the
+  env variable `JIRA_MCP_CONFIG`. The `@claude` job must use the inline copy. In that job the
+  action adds its own inline MCP config, and when it merges several `--mcp-config` values it
+  silently drops a file path. The ticket job has no inline config of its own, so the file works.
+- Git credentials in the `@claude` job: the job must not keep the checkout's `GITHUB_TOKEN`
+  credential (`persist-credentials: false`). Then a push either uses the Claude GitHub App's token
+  and starts CI at once, or it fails. A push with `GITHUB_TOKEN` starts no CI run without approval.
 - One ticket run at a time; a second request waits for the first.
 - Changes to `claude-agent.yml` can't be fully tested from a branch: the Claude GitHub App only
   issues its token when the workflow file matches `main`'s copy (a safety rule), so a `--ref`
