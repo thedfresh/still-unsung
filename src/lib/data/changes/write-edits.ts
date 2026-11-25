@@ -1,6 +1,6 @@
 import { AppError } from "@/lib/errors";
 import type { Row } from "@/lib/changes/labels";
-import { isList, modelInfo } from "@/lib/content-access";
+import { isList, modelInfo, usesEntityPublicFlag } from "@/lib/content-access";
 import type { Evidence, FieldValue, ParsedEdit } from "@/lib/validation/content";
 import { delegateOf, readRow, type Tx } from "@/lib/data/changes/rows";
 
@@ -83,8 +83,9 @@ export async function findConflicts(tx: Tx, edits: ParsedEdit[]): Promise<Versio
 
 async function createRecord(tx: Tx, index: number, edit: ParsedEdit, values: Record<string, unknown>): Promise<AppliedItem> {
   const info = modelInfo(edit.type);
-  const { isPublic, ...columns } = values;
-  const data: Record<string, unknown> = { ...columns };
+  const entityFlag = usesEntityPublicFlag(edit.type);
+  const { isPublic, ...others } = values;
+  const data: Record<string, unknown> = entityFlag ? { ...others } : { ...values };
   if (info.entityKind) {
     const entity = await tx.entity.create({
       data: { kind: info.entityKind as "SHOW", isPublic: typeof isPublic === "boolean" ? isPublic : true },
@@ -98,16 +99,17 @@ async function createRecord(tx: Tx, index: number, edit: ParsedEdit, values: Rec
 }
 
 async function updateRecord(tx: Tx, index: number, edit: ParsedEdit, values: Record<string, unknown>): Promise<AppliedItem> {
-  const info = modelInfo(edit.type);
   const id = edit.id as number;
   const before = await readRow(tx, edit.type, id);
-  const { isPublic, ...columns } = values;
+  const entityFlag = usesEntityPublicFlag(edit.type);
+  const { isPublic, ...others } = values;
+  const columns = entityFlag ? others : values;
   const result = await delegateOf(tx, edit.type).updateMany({
     where: { id, rev: edit.rev },
     data: { ...columns, rev: { increment: 1 } },
   });
   if (result.count !== 1 || !before) throw new ConflictAbort([{ index, type: edit.type, id, expectedRev: edit.rev as number, current: before, proposed: edit.fields }]);
-  if (info.entityKind && typeof isPublic === "boolean") await tx.entity.update({ where: { id }, data: { isPublic } });
+  if (entityFlag && typeof isPublic === "boolean") await tx.entity.update({ where: { id }, data: { isPublic } });
   const after = (await readRow(tx, edit.type, id)) as Row;
   return { index, op: "update", type: edit.type, id, expectedRev: edit.rev ?? null, before, after };
 }

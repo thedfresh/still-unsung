@@ -12,6 +12,23 @@ function assertReadable(type: string): void {
 }
 
 /**
+ * The sets of a show in order, and the segments of each set in order. A segment carries its
+ * work title, so the agent can read the setlist. Nested segments come after their parent.
+ */
+async function readSetlist(showId: number): Promise<Row[]> {
+  const db = getPrisma();
+  const sets = await db.set.findMany({
+    where: { showId },
+    orderBy: [{ position: "asc" }, { id: "asc" }],
+    include: { segments: { orderBy: [{ sortKey: "asc" }, { id: "asc" }], include: { work: { select: { title: true } } } } },
+  });
+  return sets.map(({ segments, ...set }) => ({
+    ...set,
+    segments: segments.map(({ work, ...segment }) => ({ ...segment, workTitle: work?.title ?? null })),
+  }));
+}
+
+/**
  * One record by ID or by legacy ID, with everything the agent may edit: private fields too. A
  * shared record comes with its citations, notes, tags and external IDs.
  */
@@ -39,8 +56,9 @@ export async function getRecord(type: string, key: { id?: number; legacyId?: str
   if (!row) throw new AppError("not_found");
   const { entity, ...rest } = row as Row & { entity?: Row & { isPublic: boolean } };
   if (!entity) return toJson(rest);
+  const sets = type === "Show" ? await readSetlist(row.id as number) : undefined;
   const { citations, notes, tags, externalIds, isPublic } = entity as Row & { isPublic: boolean };
-  return toJson({ ...rest, isPublic, attachments: { citations, notes, tags, externalIds } });
+  return toJson({ ...rest, isPublic, ...(sets ? { sets } : {}), attachments: { citations, notes, tags, externalIds } });
 }
 
 export interface SearchInput {

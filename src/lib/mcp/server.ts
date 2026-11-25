@@ -44,7 +44,7 @@ export function createContentMcpServer(user: CurrentUser): McpServer {
           .record(z.string(), z.unknown())
           .describe('Name the evidence once: { sourceId } or { recordingId } or { contributorId }, with an optional "place" (page, time on the tape); or { ownKnowledge: true }.'),
         edits: z.array(z.record(z.string(), z.unknown())).max(MAX_EDITS * 2).describe("The edits, in order."),
-        isPublic: z.boolean().optional().describe("The public mark. Leave out to use the default for the type of change."),
+        isPublic: z.boolean().optional().describe("Whether the change is listed in the public list of recent changes. Leave out to use the default for the type of change."),
       },
     },
     ({ evidence, edits, isPublic }) =>
@@ -60,7 +60,7 @@ export function createContentMcpServer(user: CurrentUser): McpServer {
       description: "Apply one preview by its token, after the user approved it. The token works once and expires after 30 minutes.",
       inputSchema: {
         token: z.string().min(1).max(200),
-        isPublic: z.boolean().optional().describe("Change the public mark the user chose."),
+        isPublic: z.boolean().optional().describe("Change whether the change is listed in recent changes, as the user chose."),
       },
     },
     ({ token, isPublic }) => run(async () => formatApplyResult(await applyChanges(user.id, token, isPublic))),
@@ -69,7 +69,7 @@ export function createContentMcpServer(user: CurrentUser): McpServer {
   server.registerTool(
     "get_record",
     {
-      description: `Read one record by ID or legacy ID, with its citations, notes, tags and external IDs. Private fields are included. Types: ${readableTypes().join(", ")}.`,
+      description: `Read one record by ID or legacy ID, with its citations, notes, tags and external IDs. A show also comes with its sets in order and the segments of each set in order. Private fields are included. Types: ${readableTypes().join(", ")}.`,
       inputSchema: { type: z.string(), id: z.number().int().positive().optional(), legacyId: z.string().max(200).optional() },
     },
     ({ type, id, legacyId }) => run(async () => JSON.stringify(await getRecord(type, { id, legacyId }), null, 1)),

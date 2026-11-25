@@ -14,9 +14,9 @@ function datePart(row: Row): string | null {
 
 /**
  * A readable name for a record, for example `Show 1978-05-23, Keystone`. `extra` is a place name
- * the caller looked up for a show.
+ * the caller looked up for a show. `withId` is false for a new record: its trial ID is not the final one.
  */
-export function describeRecord(type: string, row: Row | null, extra?: string | null): string {
+export function describeRecord(type: string, row: Row | null, extra?: string | null, withId = true): string {
   if (!row) return type;
   if (type === "Show") {
     const date = datePart(row);
@@ -31,7 +31,7 @@ export function describeRecord(type: string, row: Row | null, extra?: string | n
   }
   const date = datePart(row);
   if (date !== null) return `${type} ${date}`;
-  return typeof row.id === "number" ? `${type} #${row.id}` : type;
+  return withId && typeof row.id === "number" ? `${type} #${row.id}` : type;
 }
 
 /** One value as plain text for the preview. */

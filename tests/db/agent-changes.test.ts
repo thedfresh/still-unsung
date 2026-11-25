@@ -218,7 +218,68 @@ describe("what an agent may not do", () => {
   });
 });
 
+describe("preview wording", () => {
+  it("keeps a note's own public setting, in the preview and after the apply", async () => {
+    const preview = await previewChanges(agentId, {
+      evidence: { ownKnowledge: true },
+      edits: [{ op: "create", type: "Note", fields: { body: "A public note", isPublic: true } }],
+    });
+    expect(preview.items[0].after).toMatchObject({ isPublic: true });
+    await applyChanges(agentId, preview.token as string);
+    const note = await db.note.findFirstOrThrow();
+    expect(note.isPublic).toBe(true);
+    const change = await previewChanges(agentId, {
+      evidence: { ownKnowledge: true },
+      edits: [{ op: "update", type: "Note", id: note.id, rev: note.rev, fields: { isPublic: false } }],
+    });
+    await applyChanges(agentId, change.token as string);
+    expect((await db.note.findUniqueOrThrow({ where: { id: note.id } })).isPublic).toBe(false);
+  });
+
+  it("names linked records, names a changed record by its stored value, and leaves out new IDs", async () => {
+    const show = await makeShow();
+    const preview = await previewChanges(agentId, {
+      evidence: { ownKnowledge: true },
+      edits: [
+        { op: "create", type: "Note", ref: "note", fields: { body: "Old words" } },
+        { op: "create", type: "NoteAttachment", fields: { noteId: { ref: "note" }, entityId: show.id } },
+      ],
+    });
+    const text = formatPreview(preview);
+    expect(text).toContain("entityId: Show 1978-05-23");
+    expect(text).toContain("attaches to: Show 1978-05-23");
+    expect(text).not.toMatch(/#\d+/);
+    expect(text).toContain("Listed in recent changes:");
+    expect(text).not.toContain("Public mark");
+    await applyChanges(agentId, preview.token as string);
+    const note = await db.note.findFirstOrThrow();
+    const edit = await previewChanges(agentId, {
+      evidence: { ownKnowledge: true },
+      edits: [{ op: "update", type: "Note", id: note.id, rev: note.rev, fields: { body: "New words" } }],
+    });
+    expect(formatPreview(edit)).toContain('CHANGE Note "Old words"');
+  });
+});
+
 describe("read and search", () => {
+  it("reads a show with its sets and segments in order", async () => {
+    const preview = await previewChanges(agentId, {
+      evidence: { ownKnowledge: true },
+      edits: [
+        { op: "create", type: "Show", ref: "show", fields: { dateYear: 1980 } },
+        { op: "create", type: "Set", ref: "s2", fields: { showId: { ref: "show" }, position: 2, setTypeId } },
+        { op: "create", type: "Set", ref: "s1", fields: { showId: { ref: "show" }, position: 1, setTypeId } },
+        { op: "create", type: "Segment", fields: { setId: { ref: "s1" }, sortKey: "b" } },
+        { op: "create", type: "Segment", fields: { setId: { ref: "s1" }, sortKey: "a" } },
+      ],
+    });
+    await applyChanges(agentId, preview.token as string);
+    const show = await db.show.findFirstOrThrow();
+    const record = (await getRecord("Show", { id: show.id })) as { sets: Array<{ position: number; segments: Array<{ sortKey: string }> }> };
+    expect(record.sets.map((x) => x.position)).toEqual([1, 2]);
+    expect(record.sets[0].segments.map((x) => x.sortKey)).toEqual(["a", "b"]);
+  });
+
   it("finds a show by date and place and reads it with its citations", async () => {
     const place = await db.entity.create({ data: { kind: "PLACE" } });
     await db.place.create({ data: { id: place.id, slug: "keystone" } });

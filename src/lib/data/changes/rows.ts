@@ -1,6 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { describeRecord, type Row } from "@/lib/changes/labels";
-import { modelInfo } from "@/lib/content-access";
+import { modelInfo, usesEntityPublicFlag } from "@/lib/content-access";
 
 export type Tx = Prisma.TransactionClient;
 
@@ -31,16 +31,16 @@ export async function readRow(tx: Tx, type: string, id: number): Promise<Row | n
   if (!("id" in info.fields)) return null;
   const row = await delegateOf(tx, type).findUnique({
     where: { id },
-    ...(info.entityKind ? { include: { entity: { select: { isPublic: true } } } } : {}),
+    ...(usesEntityPublicFlag(type) ? { include: { entity: { select: { isPublic: true } } } } : {}),
   });
   if (!row) return null;
   const { entity, ...rest } = row as Row & { entity?: { isPublic: boolean } };
-  return toJson(info.entityKind ? { ...rest, isPublic: entity?.isPublic ?? true } : rest);
+  return toJson(usesEntityPublicFlag(type) ? { ...rest, isPublic: entity?.isPublic ?? true } : rest);
 }
 
 /** A readable name for a record. A show also gets the name of its place. */
-export async function labelRow(tx: Tx, type: string, row: Row): Promise<string> {
-  if (type !== "Show") return describeRecord(type, row);
+export async function labelRow(tx: Tx, type: string, row: Row, withId = true): Promise<string> {
+  if (type !== "Show") return describeRecord(type, row, null, withId);
   const placeNameId = row.placeNameId;
   const placeId = row.placeId;
   let name: string | null = null;
@@ -49,5 +49,5 @@ export async function labelRow(tx: Tx, type: string, row: Row): Promise<string> 
   } else if (typeof placeId === "number") {
     name = (await tx.placeName.findFirst({ where: { placeId }, orderBy: { position: "asc" }, select: { name: true } }))?.name ?? null;
   }
-  return describeRecord(type, row, name);
+  return describeRecord(type, row, name, withId);
 }

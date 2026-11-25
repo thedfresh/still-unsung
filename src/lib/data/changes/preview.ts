@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
-import { defaultPublicMark, modelInfo } from "@/lib/content-access";
+import { defaultPublicMark, MODEL, modelInfo } from "@/lib/content-access";
 import { getPrisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
+import type { Row } from "@/lib/changes/labels";
 import type { PreviewData, PreviewItem } from "@/lib/changes/preview-format";
 import { hashToken } from "@/lib/tokens";
 import { MAX_EDITS, parseEdits, parseEvidence, type Evidence, type ParsedEdit } from "@/lib/validation/content";
@@ -30,32 +31,61 @@ export interface PreviewResult extends PreviewData {
   changesetId: number | null;
 }
 
+/** The model whose records have this shared-record kind. */
+function typeOfKind(kind: string): string | null {
+  return Object.keys(MODEL.models).find((type) => MODEL.models[type].entityKind === kind) ?? null;
+}
+
 async function describeItems(tx: Tx, items: AppliedItem[], citations: AppliedItem[]) {
   const labels = new Map<string, string>();
-  const nameOf = async (type: string, id: number, row: AppliedItem["after"] | null): Promise<string> => {
-    const key = `${type}:${id}`;
-    const known = labels.get(key);
+  const keyOf = (type: string, id: number) => `${type}:${id}`;
+  // A changed record is named by its stored value; a new record is named without its trial ID.
+  for (const item of items) {
+    const label =
+      item.op === "update" && item.before ? await labelRow(tx, item.type, item.before) : await labelRow(tx, item.type, item.after, false);
+    labels.set(keyOf(item.type, item.id), label);
+  }
+  const nameOf = async (type: string, id: number): Promise<string> => {
+    const known = labels.get(keyOf(type, id));
     if (known) return known;
-    const found = row ?? (await readRow(tx, type, id));
+    const found = await readRow(tx, type, id);
     const label = found ? await labelRow(tx, type, found) : `${type} #${id}`;
-    labels.set(key, label);
+    labels.set(keyOf(type, id), label);
     return label;
+  };
+  /** The name of the record a field points at, or null when the field is not a link. */
+  const linkLabel = async (type: string, field: string, value: unknown): Promise<string | null> => {
+    const target = modelInfo(type).fields[field]?.fk;
+    if (field === "id" || !target || typeof value !== "number") return null;
+    if (target !== "Entity") return nameOf(target, value);
+    const entity = await tx.entity.findUnique({ where: { id: value }, select: { kind: true } });
+    const entityType = entity ? typeOfKind(entity.kind) : null;
+    return entityType ? nameOf(entityType, value) : null;
+  };
+  const linksOf = async (type: string, row: Row | null): Promise<Record<string, string>> => {
+    const out: Record<string, string> = {};
+    for (const [field, value] of Object.entries(row ?? {})) {
+      const label = await linkLabel(type, field, value);
+      if (label) out[field] = label;
+    }
+    return out;
   };
   const described: PreviewItem[] = [];
   for (const item of items) {
-    const label = await nameOf(item.type, item.id, item.after);
+    const label = labels.get(keyOf(item.type, item.id)) as string;
+    const links = { before: await linksOf(item.type, item.before), after: await linksOf(item.type, item.after) };
     const attachesTo: string[] = [];
     if (item.op === "create") {
-      for (const [name, field] of Object.entries(modelInfo(item.type).fields)) {
-        const value = item.after[name];
-        if (field.fk && field.fk !== "Entity" && typeof value === "number") attachesTo.push(await nameOf(field.fk, value, null));
-      }
+      // A record that points at a shared record (a note attachment) attaches to that record.
+      const fields = Object.entries(modelInfo(item.type).fields).filter(([name, f]) => name !== "id" && f.fk);
+      const toEntity = fields.filter(([, f]) => f.fk === "Entity");
+      for (const [name] of toEntity.length > 0 ? toEntity : fields) if (links.after[name]) attachesTo.push(links.after[name]);
     }
-    described.push({ op: item.op, type: item.type, label, before: item.before, after: item.after, attachesTo });
+    described.push({ op: item.op, type: item.type, label, before: item.before, after: item.after, attachesTo, links });
   }
   const cited = new Set(citations.map((c) => c.after.entityId));
   const citedLabels = [];
-  for (const item of items) if (cited.has(item.id)) citedLabels.push(labels.get(`${item.type}:${item.id}`) as string);
+  for (const item of items) if (cited.has(item.id)) citedLabels.push(labels.get(keyOf(item.type, item.id)) as string);
   return { items: described, citedLabels };
 }
 

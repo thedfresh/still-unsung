@@ -8,7 +8,7 @@ export const MODEL = contentModel as unknown as ContentModel;
  * Tables the editing tools never write: users and sign-in, changesets, and the shared record ID
  * table (the server creates its rows itself). Backlinks and addresses are derived or routing data.
  */
-const NEVER_WRITTEN = new Set([
+export const NEVER_WRITTEN_TYPES = [
   "Entity",
   "User",
   "Account",
@@ -20,7 +20,59 @@ const NEVER_WRITTEN = new Set([
   "ChangesetItem",
   "Backlink",
   "Address",
-]);
+] as const;
+
+/**
+ * The content tables an agent may create and change. Every model must be in this list, in
+ * `NEVER_WRITTEN_TYPES` or in `LIST_TABLES`: a test fails for a model in none, so a new table is
+ * never agent-writable by default.
+ */
+export const AGENT_WRITABLE_TYPES = [
+  "Show",
+  "Set",
+  "Segment",
+  "PortionEntry",
+  "SegmentVariant",
+  "VocalEntry",
+  "LineupEntry",
+  "LineupInstrument",
+  "BillEntry",
+  "Recording",
+  "Place",
+  "PlaceName",
+  "ShowGroup",
+  "ShowGroupMember",
+  "Period",
+  "Band",
+  "Person",
+  "PersonInstrument",
+  "Work",
+  "WorkSinger",
+  "Credit",
+  "SuitePart",
+  "Passage",
+  "Version",
+  "VersionBasis",
+  "VersionPassage",
+  "Variant",
+  "VariantPassage",
+  "Rendition",
+  "Appearance",
+  "Subject",
+  "Source",
+  "SourceCreator",
+  "SourceWork",
+  "Reference",
+  "Citation",
+  "Note",
+  "NoteAttachment",
+  "GuidePage",
+  "Tag",
+  "TagAssignment",
+  "ExternalId",
+] as const;
+
+const WRITABLE = new Set<string>(AGENT_WRITABLE_TYPES);
 
 /** The editable lists (data-model item 91). The curator adds their values in the admin. */
 export const LIST_TABLES = [
@@ -62,13 +114,13 @@ export function writeRefusal(type: string): string | null {
   if (LISTS.has(type)) {
     return `${type} is an editable list. Ask the user to add the value in the admin, then use its ID.`;
   }
-  if (NEVER_WRITTEN.has(type)) return `${type} cannot be changed with this tool.`;
+  if (!WRITABLE.has(type)) return `${type} cannot be changed with this tool.`;
   return null;
 }
 
 /** Types the agent may read: everything it may write, plus the lists. */
 export function isReadable(type: string): boolean {
-  return isKnownType(type) && "id" in modelInfo(type).fields && (LISTS.has(type) || !NEVER_WRITTEN.has(type));
+  return isKnownType(type) && "id" in modelInfo(type).fields && (LISTS.has(type) || WRITABLE.has(type));
 }
 
 export function modelInfo(type: string): ModelInfo {
@@ -91,4 +143,13 @@ export function writableTypes(): string[] {
 
 export function readableTypes(): string[] {
   return Object.keys(MODEL.models).filter(isReadable);
+}
+
+/**
+ * True when the model's public setting lives in its `entities` row. A model with its own
+ * `isPublic` column (a note) keeps the setting there, as a plain field.
+ */
+export function usesEntityPublicFlag(type: string): boolean {
+  const info = modelInfo(type);
+  return info.entityKind !== null && !("isPublic" in info.fields);
 }
