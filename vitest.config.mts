@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-// Two projects. "unit" needs no database and loads no .env file. "db" runs against the
+// Three projects. "unit" and "component" need no database and load no .env file. "db" runs against the
 // test database, and its setup file refuses any other database. See docs/TESTING.md.
 export default defineConfig({
   test: {
@@ -14,6 +14,16 @@ export default defineConfig({
           name: "unit",
           environment: "node",
           include: ["src/**/*.test.ts", "tests/support/**/*.test.ts", "scripts/**/*.test.ts"],
+        },
+      },
+      {
+        // Client components: React in jsdom. Server Actions are passed in as plain functions.
+        extends: false,
+        resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+        test: {
+          name: "component",
+          environment: "jsdom",
+          include: ["src/**/*.test.tsx"],
         },
       },
       {

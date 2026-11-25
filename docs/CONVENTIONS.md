@@ -9,8 +9,7 @@ Each rule says how it is enforced: **build** (type check or lint fails `npm run 
 Rules marked *built with its first user* describe code that does not exist yet. The first
 ticket that needs it builds it once, in the place named here.
 
-Security rules (sign-in, roles, secrets, headers) are not in this file. They come from a
-separate review, HSA-135.
+Sign-in, roles and headers are in section 10. The wider security review (HSA-135) may add more.
 
 The app runs as one process. During a deploy the old and the new process overlap for a few
 seconds, and each has its own cache. A second long-running process would first need a shared
@@ -92,6 +91,7 @@ Every API route and Server Action reports errors with the same shape, from `src/
 | `forbidden` | 403 | The user's role does not allow the action. |
 | `not_found` | 404 | The record does not exist or is not public. |
 | `conflict` | 409 | A unique value is taken, or the record changed since the form loaded. |
+| `rate_limited` | 429 | Too many sign-in attempts or wrong token checks from one client. |
 | `internal` | 500 | Anything else. |
 
 - Throw `AppError(code, message?)` for an expected failure. Its message is fixed, safe text.
@@ -117,12 +117,12 @@ Every API route and Server Action reports errors with the same shape, from `src/
 These come from the old app's lessons. There, the same code was copied into dozens of routes,
 forms and list pages, and each copy drifted.
 
-- **`defineAction` (Server Actions)** — *built with its first user*, in `src/lib/actions.ts`.
+- **`defineAction` (Server Actions)** — built in `src/lib/actions.ts` (HSA-33), except the cache-tag refresh and the `updatedAt` check, which the first cached editable entity adds.
   It takes a Zod schema, the required role, the data-layer call and the cache tags to refresh.
   It validates, checks the role, runs the call, refreshes the tags and returns
   `{ ok: true, data }` or `{ ok: false, error }` in the shape from section 3. It also builds in
   the `updatedAt` edit-conflict check. Every admin mutation goes through it. (review)
-- **`defineRoute` (API routes)** — *built with its first user*, in `src/lib/api.ts`. The same
+- **`defineRoute` (API routes)** — built in `src/lib/api.ts` (HSA-33), except Zod parsing of input, which the first route with input adds. The same
   steps for route handlers: parse params, query and body with Zod, check the role, set
   `Cache-Control`, map errors with `toErrorBody`. (review)
 - **`useEntityForm` (admin forms)** — *built with its first user*, in `src/lib/use-entity-form.ts`.
@@ -252,9 +252,28 @@ Run these. All must pass.
 
 ```bash
 npm run build      # type check, lint (no warnings allowed), production build
-npm test           # unit tests, then database tests (needs the test database)
+npm test           # unit, component, then database tests (needs the test database)
 npm run test:e2e   # when pages change
 ```
 
-`npm run test:unit` and `npm run test:db` run each part alone. Which tests a change needs:
+`npm run test:unit`, `npm run test:component` and `npm run test:db` run each part alone. Which tests a change needs:
 [TESTING.md](TESTING.md).
+
+## 10. Sign-in, roles and security headers
+
+- **One way to read the user.** `getCurrentUser()` (`src/lib/current-user.ts`) returns the
+  signed-in user, with the role, from a session or an agent access token. Never call `auth()`
+  or read the session cookie anywhere else. (review)
+- **Every admin page, action and route checks a role.** A page calls `AdminShell` (it checks
+  `ADMIN`). An action uses `defineAction` with `roles`. A route uses `defineRoute` with `roles`.
+  (review; tests cover the checks)
+- **Sign-up is closed.** Only an email that has a `users` row signs in. Add users in the admin
+  or with `npm run db:create-admin`. Auth.js never writes a user (`createClosedAdapter`). (test)
+- **Agent tokens.** Only the SHA-256 hash is stored. Only a user with the `AGENT` role has a
+  token. A token never acts as `ADMIN` and never opens an admin page. (test)
+- **Rate limits** use `src/lib/rate-limit.ts`: sign-in requests and wrong token checks. They
+  report `rate_limited` (429). (test)
+- **Security headers** come from `next.config.ts` for every route. A strict `script-src` with a
+  per-request nonce is not set yet. (test: e2e)
+- **No secrets in the repository.** Settings such as `AUTH_SECRET` come from the environment.
+  `AUTH_GOOGLE_ISSUER` is for tests only: never set it on staging or prod. (review)
