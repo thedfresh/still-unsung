@@ -52,3 +52,11 @@ describe("errorResponse", () => {
     });
   });
 });
+
+describe("rate_limited", () => {
+  it("maps to 429 with a fixed message", () => {
+    const { body, status } = toErrorBody(new AppError("rate_limited"));
+    expect(status).toBe(429);
+    expect(body.error.code).toBe("rate_limited");
+  });
+});

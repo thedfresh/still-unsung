@@ -13,9 +13,9 @@ default.
 | Unit | Pure logic: helpers, schemas, formatters. No database, no network. | Next to the source, as `*.test.ts` | Vitest, project `unit` | `npm run test:unit` |
 | Database | Code that reads or writes data: the data layer, migrations, constraints. | `tests/db/` | Vitest, project `db` | `npm run test:db` |
 | End-to-end | A page or route in a real browser: load, accessibility, widths, cache behavior. | `tests/e2e/` | Playwright and axe | `npm run test:e2e` |
-| UI component | Not built yet. See section 2. | — | — | — |
+| UI component | A client component: its states and what it shows. Server Actions are passed in as plain functions. | Next to the source, as `*.test.tsx` | Vitest, project `component` (jsdom, Testing Library) | `npm run test:component` |
 
-`npm test` runs the unit tests, then the database tests. CI and `npm run check` run it, so they
+`npm test` runs the unit, component, then database tests. CI and `npm run check` run it, so they
 keep the same coverage. `npm run test:e2e` runs on its own, after `npm run build`.
 
 ### Which layer a change needs
@@ -51,16 +51,21 @@ requires at a higher layer.
 ### End-to-end tests
 
 - Run against the production build (`npm run build` first).
+- They write to the test database only (`.env.test`, or the address CI sets). `playwright.config.ts`
+  refuses any other name. Use `tests/support/e2e.ts` for `test`: it gives each test its own client
+  address, so the rate limits of parallel tests do not collide. Use unique emails (`uniqueEmail`).
 - Use them only for what needs a browser. Logic that a unit or database test can prove does not
   belong here.
 
-## 2. UI component tests: not now
+## 2. UI component tests
 
-There is no component test layer. The first stateful client component (one with state, effects or
-browser events) brings the layer and its first test, in the same pull request. That pull request
-also adds the runner setup and a row in the table in section 1.
+The first stateful client component (the agent token form, HSA-33) brought this layer.
 
-Until then, server components and static pages get end-to-end coverage only.
+- Use it for a client component's own behavior: what it shows in each state, and what it sends to
+  its action. Pass the Server Action in as a `vi.fn()`. Do not test server components here:
+  they get end-to-end coverage.
+- Browser APIs that jsdom lacks (passkeys) are tested end to end with a virtual authenticator
+  (`tests/e2e/passkey.spec.ts`).
 
 ## 3. Mock rule
 
@@ -73,7 +78,11 @@ Until then, server components and static pages get end-to-end coverage only.
   at the edge, in `tests/support/`. Build the fake with the first test that needs it. Do not
   write a new fake per test.
   - Sign-in: fake only Google's reply. Our own session and role checks run for real, with a
-    seeded test user.
+    seeded test user. The fake is `tests/support/fake-google.ts`: an OpenID Connect server that
+    Playwright starts beside the app. A test picks the Google user with a cookie. The app reads
+    the fake's address from `AUTH_GOOGLE_ISSUER`, which only the test setup sets.
+  - Passkeys: no fake. The tests use Chromium's virtual authenticator, so the real WebAuthn
+    steps run.
 - **Time and random values:** freezing the clock and fixing random values is allowed. It controls
   inputs. It does not fake behavior.
 - **Failure paths:** use a real failure where practical. For "database down", point the client at

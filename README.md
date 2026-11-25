@@ -59,8 +59,9 @@ npx playwright install chromium
 | `npm run dev` | Development server on http://localhost:3000 |
 | `npm run build` | Type check, lint, then production build. Any type error or lint warning fails it |
 | `npm run start` | Serve the production build |
-| `npm test` | Unit tests, then database tests. Same as `npm run test:unit` and `npm run test:db` |
+| `npm test` | Unit, component, then database tests. Same as `npm run test:unit`, `npm run test:component` and `npm run test:db` |
 | `npm run test:unit` | Unit tests only. No database needed |
+| `npm run test:component` | Client component tests in jsdom. No database needed |
 | `npm run test:db` | Database tests, against the test database from `.env.test`. Refuses any database not named `*_test` |
 | `npm run test:e2e` | Playwright smoke and accessibility tests against the production build (run `npm run build` first) |
 | `npm run check` | Everything above, in order |
@@ -68,6 +69,7 @@ npx playwright install chromium
 | `npm run db:deploy` | Apply pending migrations (staging and prod) |
 | `npm run db:deploy:test` | Apply pending migrations to the test database from `.env.test` |
 | `npm run db:seed` | Load the synthetic sample archive into the database from `.env`. It skips a database that already has shows |
+| `npm run db:create-admin` | Make the curator's ADMIN user from `CURATOR_EMAIL` in `.env`. Safe to run again. See *Admin sign-in* |
 | `npm run db:import-legacy` | Rebuild the database from `.env` out of the restored old database. See *Import from the old database* |
 
 ## Data model
@@ -77,6 +79,30 @@ Read the comments at the top of the file first. The migration also adds what Pri
 `pg_trgm` extension, check constraints and byte-order sort keys. `tests/db/constraints.test.ts` tests them.
 The seed (`prisma/seed/`) holds the starting values for the editable lists and a small invented sample
 archive. It contains no production data.
+
+## Admin sign-in
+
+The admin uses Auth.js: sign in with Google or a passkey. The site stores no passwords. Sign-up is
+closed: only an email that already has a user row can sign in, and nobody else gets a row.
+
+Set it up on a laptop:
+
+1. Fill in `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` and `CURATOR_EMAIL` in `.env`
+   (see `.env.example`). Behind a proxy, also set `AUTH_TRUST_HOST="true"`.
+2. Run `npm run db:create-admin`. It makes the ADMIN user from `CURATOR_EMAIL`.
+3. Start the app and open `/admin`. Sign in with Google. On the admin home page, add a passkey.
+
+Roles are `ADMIN` and `AGENT` (the `UserRole` enum). Every admin page, action and API route
+checks a role. `getCurrentUser()` in `src/lib/current-user.ts` is the one function that returns the
+signed-in user, from a session or from an agent access token.
+
+- **Users:** `/admin/users` adds a user (email and role) and removes one.
+- **Agent tokens:** `/admin/tokens` makes a token for a user with the `AGENT` role and shows it once.
+  The database keeps only its hash. An agent sends `Authorization: Bearer <token>`. A token acts as its
+  agent user and never as an admin. Revoke it on the same page. `GET /api/v1/me` shows who a token acts as.
+- **Limits and headers:** sign-in requests and wrong token checks are rate limited for each client
+  address (the proxy must set `X-Forwarded-For`). Every response carries the security headers
+  set in `next.config.ts`.
 
 ## Import from the old database
 

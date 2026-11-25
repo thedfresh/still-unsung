@@ -10,6 +10,7 @@ export type ErrorCode =
   | "forbidden"
   | "not_found"
   | "conflict"
+  | "rate_limited"
   | "internal";
 
 export interface ErrorBody {
@@ -26,6 +27,7 @@ export const HTTP_STATUS: Record<ErrorCode, number> = {
   forbidden: 403,
   not_found: 404,
   conflict: 409,
+  rate_limited: 429,
   internal: 500,
 };
 
@@ -35,6 +37,7 @@ const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   forbidden: "You do not have permission to do this.",
   not_found: "Not found.",
   conflict: "This conflicts with an existing record.",
+  rate_limited: "Too many attempts. Wait a minute and try again.",
   internal: "Something went wrong.",
 };
 
