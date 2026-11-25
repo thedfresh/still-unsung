@@ -1,0 +1,241 @@
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { seedLists } from "../../prisma/seed/index.ts";
+import { applyChanges } from "@/lib/data/changes/apply";
+import { listChangesets } from "@/lib/data/changes/list";
+import { previewChanges } from "@/lib/data/changes/preview";
+import { getRecord, searchRecords } from "@/lib/data/records";
+import { addUser } from "@/lib/data/users";
+import { getPrisma } from "@/lib/db";
+import { formatPreview } from "@/lib/changes/preview-format";
+import { formatApplyResult } from "@/lib/mcp/format";
+import { resetDatabase } from "../support/reset-database";
+
+const db = getPrisma();
+let agentId: string;
+let sourceId: number;
+let setTypeId: number;
+
+beforeEach(async () => {
+  await resetDatabase(db);
+  await seedLists(db);
+  agentId = (await addUser({ email: "agent@example.test", role: "AGENT" })).id;
+  const source = await db.entity.create({ data: { kind: "SOURCE" } });
+  await db.source.create({ data: { id: source.id, zoteroKey: "ZK1", key: "k1", title: "Synthetic notebook", zoteroData: {}, syncedAt: new Date() } });
+  sourceId = source.id;
+  setTypeId = (await db.setType.findFirstOrThrow()).id;
+});
+afterAll(async () => {
+  await db.$disconnect();
+});
+
+const evidence = () => ({ sourceId, place: "page 4" });
+
+async function makeShow() {
+  const preview = await previewChanges(agentId, {
+    evidence: evidence(),
+    edits: [{ op: "create", type: "Show", fields: { dateYear: 1978, dateMonth: 5, dateDay: 23 } }],
+  });
+  await applyChanges(agentId, preview.token as string);
+  return db.show.findFirstOrThrow();
+}
+
+describe("preview and apply", () => {
+  it("previews a change without writing it, then applies it with a changeset", async () => {
+    const show = await makeShow();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Show", id: show.id, rev: show.rev, fields: { timeLabel: "Late" } }],
+    });
+    expect(preview.warnings).toEqual([]);
+    expect(preview.token).toMatch(/^suprev_/);
+    expect(formatPreview(preview)).toContain('timeLabel: (empty) → "Late"');
+    expect((await db.show.findUniqueOrThrow({ where: { id: show.id } })).timeLabel).toBeNull();
+
+    const result = await applyChanges(agentId, preview.token as string);
+    expect(result.ok).toBe(true);
+    const after = await db.show.findUniqueOrThrow({ where: { id: show.id } });
+    expect(after.timeLabel).toBe("Late");
+    expect(after.rev).toBe(show.rev + 1);
+
+    const [change] = await listChangesets();
+    expect(change).toMatchObject({ path: "MCP", status: "APPLIED", userEmail: "agent@example.test", userRole: "AGENT" });
+    expect(change.evidence).toContain("Synthetic notebook");
+    const item = change.items.find((i) => i.tableName === "shows");
+    expect(item?.before).toMatchObject({ timeLabel: null, rev: show.rev });
+    expect(item?.after).toMatchObject({ timeLabel: "Late" });
+    // One citation for the changed show, written from the evidence.
+    const citations = await db.citation.findMany({ where: { entityId: show.id } });
+    expect(citations.at(-1)).toMatchObject({ sourceId, place: "page 4" });
+  });
+
+  it("creates a show with its sets and segments that point at each other", async () => {
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [
+        { op: "create", type: "Show", ref: "show", fields: { dateYear: 1980, dateMonth: 2 } },
+        { op: "create", type: "Set", ref: "set", fields: { showId: { ref: "show" }, position: 1, setTypeId } },
+        { op: "create", type: "Segment", fields: { setId: { ref: "set" }, sortKey: "a" } },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    expect(preview.items.map((i) => i.type)).toEqual(["Show", "Set", "Segment"]);
+    expect(preview.items[1].attachesTo[0]).toContain("Show 1980-02");
+    expect(preview.isPublic).toBe(true);
+    expect(await db.show.count()).toBe(0);
+    await applyChanges(agentId, preview.token as string);
+    expect(await db.show.count()).toBe(1);
+    expect(await db.segment.count()).toBe(1);
+    // Each new shared record has its entities row and a citation.
+    expect(await db.entity.count({ where: { kind: { in: ["SHOW", "SET", "SEGMENT"] } } })).toBe(3);
+  });
+
+  it("works once", async () => {
+    const preview = await previewChanges(agentId, { evidence: { ownKnowledge: true }, edits: [{ op: "create", type: "Show", fields: { dateYear: 1990 } }] });
+    await applyChanges(agentId, preview.token as string);
+    await expect(applyChanges(agentId, preview.token as string)).rejects.toMatchObject({ code: "not_found" });
+    expect(await db.show.count()).toBe(1);
+    expect(await db.citation.count()).toBe(0); // own knowledge writes no citation
+  });
+
+  it("refuses an expired token and another user's token", async () => {
+    const other = (await addUser({ email: "agent2@example.test", role: "AGENT" })).id;
+    const preview = await previewChanges(agentId, { evidence: { ownKnowledge: true }, edits: [{ op: "create", type: "Show", fields: { dateYear: 1990 } }] });
+    await expect(applyChanges(other, preview.token as string)).rejects.toMatchObject({ code: "not_found" });
+    await db.changeset.update({ where: { id: preview.changesetId as number }, data: { previewExpiresAt: new Date(Date.now() - 1000) } });
+    await expect(applyChanges(agentId, preview.token as string)).rejects.toMatchObject({ code: "not_found" });
+    expect(await db.show.count()).toBe(0);
+  });
+});
+
+describe("version check", () => {
+  it("refuses an apply when the record changed after the preview, and shows both versions", async () => {
+    const show = await makeShow();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Show", id: show.id, rev: show.rev, fields: { timeLabel: "Early" } }],
+    });
+    // The curator edits the same record between the preview and the apply.
+    await db.show.update({ where: { id: show.id }, data: { timeLabel: "Midnight", rev: { increment: 1 } } });
+    const result = await applyChanges(agentId, preview.token as string);
+    expect(result.ok).toBe(false);
+    if (result.ok || result.reason !== "conflict") throw new Error("expected a conflict");
+    expect(result.conflicts[0]).toMatchObject({ record: `Show ${show.id}`, expectedRev: show.rev });
+    expect(result.conflicts[0].current).toMatchObject({ timeLabel: "Midnight" });
+    expect(result.conflicts[0].proposed).toEqual({ timeLabel: "Early" });
+    const text = formatApplyResult(result);
+    expect(text).toContain('timeLabel: "Midnight"');
+    expect(text).toContain('timeLabel: "Early"');
+    expect((await db.show.findUniqueOrThrow({ where: { id: show.id } })).timeLabel).toBe("Midnight");
+    expect(await db.changeset.count({ where: { status: "APPLIED" } })).toBe(1); // only the first make
+  });
+
+  it("warns at preview when the agent read an old version", async () => {
+    const show = await makeShow();
+    await db.show.update({ where: { id: show.id }, data: { rev: { increment: 1 } } });
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Show", id: show.id, rev: show.rev, fields: { timeLabel: "Early" } }],
+    });
+    expect(preview.token).toBeNull();
+    expect(preview.warnings[0]).toContain("changed since you read it");
+  });
+});
+
+describe("what an agent may not do", () => {
+  const ownKnowledge = { ownKnowledge: true };
+
+  it.each(["SetType", "User", "AgentToken", "Changeset", "ChangesetItem", "Entity", "Session", "Account"])("refuses to create a %s", async (type) => {
+    await expect(previewChanges(agentId, { evidence: ownKnowledge, edits: [{ op: "create", type, fields: { name: "x" } }] })).rejects.toMatchObject({ code: "invalid_input" });
+    expect(await db.user.count()).toBe(1);
+  });
+
+  it("refuses to change a list value or a user", async () => {
+    const setType = await db.setType.findFirstOrThrow();
+    await expect(
+      previewChanges(agentId, { evidence: ownKnowledge, edits: [{ op: "update", type: "SetType", id: setType.id, rev: setType.rev, fields: { name: "Hacked" } }] }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(
+      previewChanges(agentId, { evidence: ownKnowledge, edits: [{ op: "update", type: "User", id: 1, rev: 1, fields: { role: "ADMIN" } }] }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    expect((await db.setType.findUniqueOrThrow({ where: { id: setType.id } })).name).toBe(setType.name);
+  });
+
+  it("refuses system fields and unknown fields", async () => {
+    for (const fields of [{ rev: 9 }, { id: 5 }, { legacyId: "x" }, { nonsense: 1 }]) {
+      await expect(previewChanges(agentId, { evidence: ownKnowledge, edits: [{ op: "create", type: "Show", fields }] })).rejects.toMatchObject({ code: "invalid_input" });
+    }
+  });
+
+  it("stops and names a list value that does not exist", async () => {
+    const preview = await previewChanges(agentId, {
+      evidence: ownKnowledge,
+      edits: [
+        { op: "create", type: "Show", ref: "s", fields: { dateYear: 1990 } },
+        { op: "create", type: "Set", fields: { showId: { ref: "s" }, position: 1, setTypeId: 999999 } },
+      ],
+    });
+    expect(preview.token).toBeNull();
+    expect(preview.warnings[0]).toMatch(/SetType 999999 does not exist.*admin/);
+    expect(await db.show.count()).toBe(0);
+  });
+
+  it("warns when a call is over the record limit", async () => {
+    const edits = Array.from({ length: 51 }, (_, i) => ({ op: "create", type: "Show", fields: { dateYear: 1900 + i } }));
+    const preview = await previewChanges(agentId, { evidence: ownKnowledge, edits });
+    expect(preview.token).toBeNull();
+    expect(preview.warnings[0]).toContain("limit is 50");
+    expect(await db.show.count()).toBe(0);
+  });
+
+  it("rejects a bad ref and a second change to one record", async () => {
+    await expect(
+      previewChanges(agentId, { evidence: ownKnowledge, edits: [{ op: "create", type: "Set", fields: { showId: { ref: "nope" }, position: 1, setTypeId } }] }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    const show = await makeShow();
+    const edit = { op: "update", type: "Show", id: show.id, rev: show.rev, fields: { timeLabel: "Late" } };
+    await expect(previewChanges(agentId, { evidence: ownKnowledge, edits: [edit, edit] })).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("rejects an unknown evidence record and a call with no evidence", async () => {
+    const edits = [{ op: "create", type: "Show", fields: { dateYear: 1990 } }];
+    await expect(previewChanges(agentId, { evidence: { sourceId: 999999 }, edits })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(previewChanges(agentId, { evidence: {}, edits })).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("rolls back the whole apply when one edit fails", async () => {
+    const show = await makeShow();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [
+        { op: "create", type: "Show", fields: { dateYear: 1991, slug: "dup" } },
+        { op: "update", type: "Show", id: show.id, rev: show.rev, fields: { timeLabel: "Late" } },
+      ],
+    });
+    // A unique slug gets taken before the apply.
+    await db.show.update({ where: { id: show.id }, data: { slug: "dup" } });
+    await expect(applyChanges(agentId, preview.token as string)).rejects.toMatchObject({ code: "conflict" });
+    expect(await db.show.count()).toBe(1);
+  });
+});
+
+describe("read and search", () => {
+  it("finds a show by date and place and reads it with its citations", async () => {
+    const place = await db.entity.create({ data: { kind: "PLACE" } });
+    await db.place.create({ data: { id: place.id, slug: "keystone" } });
+    const name = await db.entity.create({ data: { kind: "PLACE_NAME" } });
+    await db.placeName.create({ data: { id: name.id, placeId: place.id, name: "Keystone Berkeley", position: 1 } });
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Show", fields: { dateYear: 1978, dateMonth: 5, dateDay: 23, placeId: place.id, placeNameId: name.id } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    const hits = await searchRecords({ type: "Show", date: "1978-05", place: "keystone" });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].label).toBe("Show 1978-05-23, Keystone Berkeley");
+    const record = await getRecord("Show", { id: hits[0].id as number });
+    expect(record).toMatchObject({ dateYear: 1978, isPublic: true });
+    expect((record.attachments as { citations: unknown[] }).citations).toHaveLength(1);
+    await expect(getRecord("User", { id: 1 })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(searchRecords({ type: "Session", query: "x" })).rejects.toMatchObject({ code: "invalid_input" });
+  });
+});

@@ -20,10 +20,12 @@
     "db:seed": "node --env-file=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON prisma/seed/run.ts",
     "db:create-admin": "node --env-file=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/create-admin.ts",
     "db:import-legacy": "node --env-file=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/import-legacy/run.ts",
-    "check": "npm run build && npm run test && npm run test:e2e"
+    "check": "npm run build && npm run test && npm run test:e2e",
+    "db:content-model": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/content-model/generate.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "@simplewebauthn/browser": "^9.0.1",

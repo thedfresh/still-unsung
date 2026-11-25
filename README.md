@@ -104,6 +104,17 @@ signed-in user, from a session or from an agent access token.
   address (the proxy must set `X-Forwarded-For`). Every response carries the security headers
   set in `next.config.ts`.
 
+## Agent edits (MCP server)
+
+An agent edits content only through the MCP server at `POST /api/v1/mcp`, with an agent token as
+above. The tools are `preview_changes`, `apply_changes`, `get_record` and `search_records`.
+A preview shows each change as before and after, and gives a one-time token (30 minutes). The
+agent applies it only after the user approves. Each apply makes a changeset. `/admin/changes`
+lists the changes with who made each one. Rules: `docs/CONVENTIONS.md`, section 11.
+
+After a change to `prisma/schema.prisma`, run `npm run db:content-model` to refresh
+`src/lib/content-model.json`.
+
 ## Import from the old database
 
 `scripts/import-legacy/` copies the restored old database into the new schema. It follows the
