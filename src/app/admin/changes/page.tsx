@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { CHANGES_PAGE_SIZE, listChangesets, type ChangesetRow } from "@/lib/data/changes/list";
 import type { ReadoutCard, ReadoutField } from "@/lib/changes/readout";
 
@@ -78,6 +78,19 @@ function Change({ change }: { change: ChangesetRow }) {
         <summary className="cursor-pointer">
           {change.counts} By {change.userEmail ?? "unknown"} ({change.userRole}). Evidence: {change.evidence}. {when} UTC.
         </summary>
+        {change.shows.length > 0 ? (
+          <p className="mt-3">
+            Shows:{" "}
+            {change.shows.map((show, index) => (
+              <span key={show.id}>
+                {index > 0 ? ", " : ""}
+                <Link href={`/admin/shows/${show.id}`} className="underline">
+                  {show.label}
+                </Link>
+              </span>
+            ))}
+          </p>
+        ) : null}
         <Readout readout={change.readoutData} />
       </details>
     </li>
@@ -97,6 +110,8 @@ function Pager({ page, pages }: { page: number; pages: number }) {
 }
 
 async function Changes({ pageParam }: { pageParam: Promise<number> }) {
+  // Sign-in first: nothing is read before this call.
+  await requireAdminPage();
   const requested = await pageParam;
   const { changes, total, page } = await listChangesets(requested);
   const pages = Math.max(1, Math.ceil(total / CHANGES_PAGE_SIZE));

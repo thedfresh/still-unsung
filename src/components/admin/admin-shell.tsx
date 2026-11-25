@@ -28,6 +28,7 @@ export async function AdminShell({ title, children }: { title: string; children:
       <header className="flex flex-col gap-3">
         <nav aria-label="Admin" className="flex flex-wrap gap-4 underline">
           <Link href="/admin">Admin home</Link>
+          <Link href="/admin/shows">Shows</Link>
           <Link href="/admin/users">Users</Link>
           <Link href="/admin/tokens">Agent tokens</Link>
           <Link href="/admin/changes">Changes</Link>

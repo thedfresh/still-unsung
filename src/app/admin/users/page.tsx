@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { listUsers } from "@/lib/data/users";
 import { ROLES } from "@/lib/roles";
 import { addUserAction, removeUserAction } from "./actions";
@@ -14,6 +14,8 @@ const ERRORS: Record<string, string> = {
 };
 
 async function Users({ error }: { error: Promise<string | undefined> }) {
+  // Sign-in first: nothing is read before this call.
+  await requireAdminPage();
   const code = await error;
   const users = await listUsers();
   return (

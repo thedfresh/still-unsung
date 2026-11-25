@@ -6,7 +6,7 @@ import { assertTestDatabase } from "./assert-test-database";
 // Browser tests use plain SQL, because Playwright cannot load the generated Prisma client.
 config({ path: ".env.test", quiet: true });
 
-async function query<T extends pg.QueryResultRow>(text: string, values: unknown[] = []): Promise<T[]> {
+export async function query<T extends pg.QueryResultRow>(text: string, values: unknown[] = []): Promise<T[]> {
   assertTestDatabase(process.env.DATABASE_URL);
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();

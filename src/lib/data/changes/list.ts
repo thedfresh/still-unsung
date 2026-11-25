@@ -3,6 +3,7 @@ import { describeRecord, withType, type Row } from "@/lib/changes/labels";
 import { MODEL } from "@/lib/content-access";
 import { buildReadout, renderReadout, storedReadoutItem, type ItemDetail, type Readout } from "@/lib/changes/readout";
 import { lookUpNames } from "@/lib/data/changes/earlier";
+import { findShowLinks, type ShowLink } from "./show-links";
 
 export interface ChangesetRow {
   id: number;
@@ -23,6 +24,8 @@ export interface ChangesetRow {
   readout: string;
   /** The same readout as a structure, for the page to draw as cards. */
   readoutData: Readout;
+  /** The shows this change touched, for the links to the show review page. */
+  shows: ShowLink[];
   items: Array<{ position: number; tableName: string; label: string; recordId: number; action: string; before: Row | null; after: Row | null }>;
 }
 
@@ -92,6 +95,17 @@ export async function listChangesets(
     const state = (item.after ?? item.before) as Row | null;
     return state ? withType(type, describeRecord(type, state)) : `${item.tableName} #${item.recordId}`;
   };
+  const showLinks = await findShowLinks(
+    rows.flatMap((row) =>
+      row.items.map((item) => ({
+        changesetId: row.id,
+        tableName: item.tableName,
+        recordId: item.recordId,
+        before: item.before as Row | null,
+        after: item.after as Row | null,
+      })),
+    ),
+  );
   const changes = rows.map((row) => {
     const items = row.items.map((item) => ({
       position: item.position,
@@ -119,6 +133,7 @@ export async function listChangesets(
       userEmail: row.user.email,
       userRole: row.user.role,
       evidence: describeChangeEvidence(row),
+      shows: showLinks.get(row.id) ?? [],
       counts: readout.counts,
       readout: renderReadout(readout),
       readoutData: readout,
