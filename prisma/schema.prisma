@@ -1611,7 +1611,7 @@ model Changeset {
   path   ChangesetPath
   status ChangesetStatus @default(PREVIEWED)
 
-  /// Item 42: the evidence it names once; the server writes the citations from it. Any of a
+  /// Item 42, amended by item 109: the evidence it names once. The server writes no citation from it. Any of a
   /// source, a recording (item 29: "I listened") or a contributor (item 102). All empty only
   /// when the curator says it is his own knowledge (`ownKnowledge`).
   sourceId      Int?

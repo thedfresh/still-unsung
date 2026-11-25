@@ -142,7 +142,7 @@ The run writes these files to the output folder:
 
 - `report.md` and `report.json`: row counts by old and new table, the stress tests, every row that
   did not map with its reason, and the proposal sizes. The report holds ids and counts only.
-- `proposals/*.json`: the 17 review lists. The script does not apply them.
+- `proposals/*.json`: the 17 review lists. Each file starts with a short summary. Each row has a `label` and a `context` (show date, place, song title, note text) next to its IDs. The script does not apply them.
 - `place-chains.tsv`: the place chain of every show.
 
 The exit code is 1 when the report finds an old row it cannot account for. The tests run the

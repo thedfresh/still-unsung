@@ -17,6 +17,28 @@ export interface ChangesetRow {
   items: Array<{ position: number; tableName: string; recordId: number; action: string; before: Row | null; after: Row | null }>;
 }
 
+interface EvidenceFields {
+  ownKnowledge: boolean;
+  source: { title: string } | null;
+  recordingId: number | null;
+  contributor: { name: string } | null;
+  place: string | null;
+}
+
+/** The fields a query needs to name a changeset's evidence in words. */
+export const EVIDENCE_INCLUDE = { source: { select: { title: true } }, contributor: { select: { name: true } } } as const;
+
+/** The evidence of a changeset, in words. */
+export function describeChangeEvidence(row: EvidenceFields): string {
+  const parts: string[] = [];
+  if (row.ownKnowledge) parts.push("own knowledge");
+  if (row.source) parts.push(`source "${row.source.title}"`);
+  if (row.recordingId !== null) parts.push(`recording #${row.recordingId}`);
+  if (row.contributor) parts.push(`contributor ${row.contributor.name}`);
+  if (row.place) parts.push(`at ${row.place}`);
+  return parts.join(", ") || "none";
+}
+
 /** The latest changesets with who made each one, their evidence and every stored change. */
 export async function listChangesets(limit = 50): Promise<ChangesetRow[]> {
   const rows = await getPrisma().changeset.findMany({
@@ -26,18 +48,11 @@ export async function listChangesets(limit = 50): Promise<ChangesetRow[]> {
     take: limit,
     include: {
       user: { select: { email: true, role: true } },
-      source: { select: { title: true } },
-      contributor: { select: { name: true } },
+      ...EVIDENCE_INCLUDE,
       items: { orderBy: { position: "asc" } },
     },
   });
   return rows.map((row) => {
-    const parts: string[] = [];
-    if (row.ownKnowledge) parts.push("own knowledge");
-    if (row.source) parts.push(`source "${row.source.title}"`);
-    if (row.recordingId !== null) parts.push(`recording #${row.recordingId}`);
-    if (row.contributor) parts.push(`contributor ${row.contributor.name}`);
-    if (row.place) parts.push(`at ${row.place}`);
     return {
       id: row.id,
       path: row.path,
@@ -48,7 +63,7 @@ export async function listChangesets(limit = 50): Promise<ChangesetRow[]> {
       appliedAt: row.appliedAt,
       userEmail: row.user.email,
       userRole: row.user.role,
-      evidence: parts.join(", ") || "none",
+      evidence: describeChangeEvidence(row),
       items: row.items.map((item) => ({
         position: item.position,
         tableName: item.tableName,

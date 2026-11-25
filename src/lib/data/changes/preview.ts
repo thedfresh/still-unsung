@@ -8,7 +8,7 @@ import type { PreviewData, PreviewItem } from "@/lib/changes/preview-format";
 import { hashToken } from "@/lib/tokens";
 import { MAX_EDITS, parseEdits, parseEvidence, type Evidence, type ParsedEdit } from "@/lib/validation/content";
 import { labelRow, readRow, type Tx } from "@/lib/data/changes/rows";
-import { findConflicts, findMissingListValues, writeCitations, writeEdits, type AppliedItem } from "@/lib/data/changes/write-edits";
+import { findConflicts, findMissingListValues, writeEdits, type AppliedItem } from "@/lib/data/changes/write-edits";
 
 /** A preview token works once and for 30 minutes. */
 export const PREVIEW_MINUTES = 30;
@@ -16,7 +16,7 @@ const MAX_LIVE_PREVIEWS = 20;
 
 /** Thrown at the end of a preview to roll back everything the trial run wrote. */
 class Rollback extends Error {
-  constructor(readonly data: { items: PreviewItem[]; citedLabels: string[] }) {
+  constructor(readonly data: { items: PreviewItem[] }) {
     super("rollback");
   }
 }
@@ -36,7 +36,7 @@ function typeOfKind(kind: string): string | null {
   return Object.keys(MODEL.models).find((type) => MODEL.models[type].entityKind === kind) ?? null;
 }
 
-async function describeItems(tx: Tx, items: AppliedItem[], citations: AppliedItem[]) {
+async function describeItems(tx: Tx, items: AppliedItem[]) {
   const labels = new Map<string, string>();
   const keyOf = (type: string, id: number) => `${type}:${id}`;
   // A changed record is named by its stored value; a new record is named without its trial ID.
@@ -83,10 +83,7 @@ async function describeItems(tx: Tx, items: AppliedItem[], citations: AppliedIte
     }
     described.push({ op: item.op, type: item.type, label, before: item.before, after: item.after, attachesTo, links });
   }
-  const cited = new Set(citations.map((c) => c.after.entityId));
-  const citedLabels = [];
-  for (const item of items) if (cited.has(item.id)) citedLabels.push(labels.get(keyOf(item.type, item.id)) as string);
-  return { items: described, citedLabels };
+  return { items: described };
 }
 
 /** The place in a source, a recording or a contributor, in words, for the preview. */
@@ -138,7 +135,7 @@ export async function previewChanges(userId: string, input: PreviewInput): Promi
   const edits = parseEdits(input.edits);
   const evidence = parseEvidence(input.evidence);
   const isPublic = input.isPublic ?? defaultPublicMark(edits.map((e) => e.type));
-  const base = { items: [], citedLabels: [], isPublic, expiresAt: null, token: null, changesetId: null };
+  const base = { items: [], isPublic, expiresAt: null, token: null, changesetId: null };
   const db = getPrisma();
   const live = await db.changeset.count({ where: { userId, previewToken: { not: null }, previewExpiresAt: { gt: new Date() } } });
   if (live >= MAX_LIVE_PREVIEWS) throw new AppError("rate_limited", "Too many open previews. Apply one or wait for them to expire.");
@@ -154,8 +151,7 @@ export async function previewChanges(userId: string, input: PreviewInput): Promi
       warnings = await trialRun(tx, edits);
       if (warnings.length > 0) return;
       const items = await writeEdits(tx, edits);
-      const citations = await writeCitations(tx, items, evidence, items.length);
-      throw new Rollback(await describeItems(tx, items, citations));
+      throw new Rollback(await describeItems(tx, items));
     });
   } catch (err) {
     if (!(err instanceof Rollback)) throw err;
@@ -182,5 +178,5 @@ export async function previewChanges(userId: string, input: PreviewInput): Promi
     },
     select: { id: true },
   });
-  return { ...base, items: data.items, citedLabels: data.citedLabels, evidence: evidenceText, warnings: [], expiresAt, token, changesetId: changeset.id };
+  return { ...base, items: data.items, evidence: evidenceText, warnings: [], expiresAt, token, changesetId: changeset.id };
 }

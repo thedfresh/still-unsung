@@ -7,6 +7,7 @@ import {
   contributorNamedIn,
   dateOf,
   displayDateMatches,
+  matchedText,
   noteHints,
   normalizeName,
   num,
@@ -152,7 +153,7 @@ function afterShow(ctx: Ctx, plan: ShowPlan, showId: number, slot: TimingResult 
   if (bool(row, "venue_uncertain")) ctx.propose("15-old-uncertain-flags", { showId, legacyId: `events:${oldId}`, flag: "venueUncertain", migratedTo: "placeCertainty POSSIBLE" });
   if (bool(row, "hunter_participation_uncertain")) ctx.propose("15-old-uncertain-flags", { showId, legacyId: `events:${oldId}`, flag: "hunterParticipationUncertain", migratedTo: "hunterParticipationCertainty POSSIBLE" });
   if (plan.status === "SPURIOUS") ctx.line("Errata shows", `events:${oldId} became status SPURIOUS: check it`);
-  if (str(row, "billing")) ctx.propose("01-bill", { showId, legacyId: `events:${oldId}`, source: "billing field", text: str(row, "billing") });
+  if (str(row, "billing")) ctx.propose("01-bill", { showId, legacyId: `events:${oldId}`, proposal: "check the billing field", source: "billing field", text: str(row, "billing") });
 
   const slug = str(row, "slug");
   if (slug) {
@@ -176,9 +177,10 @@ function afterShow(ctx: Ctx, plan: ShowPlan, showId: number, slot: TimingResult 
   for (const [field, text] of [["publicNotes", remaining], ["privateNotes", str(row, "private_notes")]] as const) {
     if (!text) continue;
     const hints = noteHints(text);
-    if (hints.includes("bill")) ctx.propose("01-bill", { showId, legacyId: `events:${oldId}`, source: field, text });
-    if (hints.includes("guest")) ctx.propose("14-guests-in-notes", { showId, legacyId: `events:${oldId}`, source: field, text });
-    if (hints.includes("a-cappella")) ctx.propose("13-a-cappella", { showId, legacyId: `events:${oldId}`, source: field });
+    const base = { showId, legacyId: `events:${oldId}`, proposal: "check this note", source: field, text };
+    if (hints.includes("bill")) ctx.propose("01-bill", { ...base, matchedText: matchedText(text, "bill") });
+    if (hints.includes("guest")) ctx.propose("14-guests-in-notes", { ...base, matchedText: matchedText(text, "guest") });
+    if (hints.includes("a-cappella")) ctx.propose("13-a-cappella", { ...base, matchedText: matchedText(text, "a-cappella") });
   }
 }
 
