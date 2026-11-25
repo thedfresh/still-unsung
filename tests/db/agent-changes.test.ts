@@ -369,6 +369,16 @@ describe("what an agent may not do", () => {
     expect(await db.show.count()).toBe(0);
   });
 
+  it("previews 50 edits within the 30-second limit", async () => {
+    const edits = Array.from({ length: 50 }, (_, i) => ({ op: "create", type: "Show", fields: { dateYear: 1900 + i } }));
+    const started = Date.now();
+    const preview = await previewChanges(agentId, { evidence: ownKnowledge, edits });
+    expect(preview.warnings).toEqual([]);
+    expect(preview.token).not.toBeNull();
+    expect(Date.now() - started).toBeLessThan(30_000);
+    expect(await db.show.count()).toBe(0);
+  });
+
   it("rejects a bad ref and a second change to one record", async () => {
     await expect(
       previewChanges(agentId, { evidence: ownKnowledge, edits: [{ op: "create", type: "Set", fields: { showId: { ref: "nope" }, position: 1, setTypeId } }] }),
@@ -429,10 +439,12 @@ describe("preview wording", () => {
     });
     const text = formatPreview(preview);
     expect(text).toContain("entity: Show 1978-05-23");
-    expect(text).not.toContain("Old words");
-    expect(text).toContain("New Private note");
+    // Private text shows like other text, marked private.
+    // A short body is the card title, so it has no second line.
+    expect(text).toContain('New Note "Old words" (private)');
+    expect(text).not.toContain("Private note");
     // The new note sits under the show with its attachment, not under a heading of its own.
-    expect(text).toContain("\nShow 1978-05-23\n  New Private note");
+    expect(text).toContain('\nShow 1978-05-23\n  New Note "Old words" (private)');
     expect(text).toContain("  New NoteAttachment");
     expect(text).not.toMatch(/^Note "Old words"$/m);
     expect(text).not.toMatch(/#\d+/);
@@ -444,8 +456,10 @@ describe("preview wording", () => {
       evidence: { ownKnowledge: true },
       edits: [{ op: "update", type: "Note", id: note.id, rev: note.rev, fields: { body: "New words" } }],
     });
-    // A private note is named by its number, never by the start of its body.
-    expect(formatPreview(edit)).toContain(`Changed Private note #${note.id}`);
+    // A private note is named by the start of its body, marked private; its text shows on both lines.
+    const editText = formatPreview(edit);
+    expect(editText).toContain('Changed Note "Old words" (private)');
+    expect(editText).toContain("body (private)\n      was: “Old words”\n      now: “New words”");
   });
 });
 

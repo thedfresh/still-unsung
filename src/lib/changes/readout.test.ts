@@ -113,34 +113,31 @@ describe("formatReadout", () => {
     const item = create("Segment", "Ripple", { id: 1, summary: "x" }, null);
     expect(formatReadout([item])).not.toContain("who can see it");
   });
-  it("cuts long public text at about 100 characters and does not print long private text", () => {
+  it("cuts long text at about 100 characters with one cut mark, private text too", () => {
     const long = "x".repeat(500);
     const read = (type: string, after: Record<string, unknown>) => formatReadout([create(type, type, { id: 1, ...after }, null)]);
     expect(read("Note", { body: long, isPublic: true })).not.toContain(long);
     expect(read("Note", { body: long, isPublic: false })).not.toContain(long);
-    expect(read("Note", { body: long, isPublic: false })).toContain("body: added (private; 500 characters)");
+    expect(read("Segment", { wordsAsHeard: long })).toContain("words as heard (private): “" + "x".repeat(99) + "…”");
     const summary = read("Segment", { summary: "y".repeat(300) });
-    expect(summary).toContain("“" + "y".repeat(97) + "...”");
+    expect(summary).toContain("“" + "y".repeat(99) + "…”");
     expect(summary).not.toContain("y".repeat(101));
-    expect(read("Segment", { wordsAsHeard: long })).not.toContain(long);
+    expect(summary).not.toContain("...");
   });
-  it("never prints short private text of a new record", () => {
+  it("shows private text of a new record, marked private", () => {
     const read = (type: string, after: Record<string, unknown>) => formatReadout([create(type, type, { id: 1, ...after }, null)]);
-    expect(read("Note", { body: "Ask Bob about the tape.", isPublic: false })).not.toContain("Ask Bob");
-    expect(read("Citation", { excerpt: "He said the secret thing" })).not.toContain("secret");
-    expect(read("Citation", { excerpt: "He said the secret thing" })).toContain("excerpt: added (private; 24 characters)");
-    const words = read("Segment", { wordsAsHeard: "a".repeat(96) });
-    expect(words).not.toContain("aaaa");
-    expect(words).toContain("words as heard: added (private; 96 characters)");
+    expect(read("Note", { body: "Ask Bob about the tape.", isPublic: false })).toContain("body (private): “Ask Bob about the tape.”");
+    expect(read("Citation", { excerpt: "He said the secret thing" })).toContain("excerpt (private): “He said the secret thing”");
+    expect(read("Segment", { wordsAsHeard: "la la la" })).toContain("words as heard (private): “la la la”");
+    expect(read("Rendition", { wording: "sung words" })).toContain("wording (private): “sung words”");
+    expect(read("Person", { name: "Bob", email: "bob@example.test" })).toContain("email (private): “bob@example.test”");
+    expect(read("Note", { body: "Public words", isPublic: true })).not.toContain("(private)");
   });
-  it("titles a private note without the start of its body", () => {
-    const item = create("Note", 'Note "Ask Bob about the tape"', { id: 12, body: "Ask Bob about the tape", isPublic: false }, null);
+  it("titles a private note by the start of its body, marked private", () => {
+    const item = create("Note", 'Note "Ask Bob about the tape" (private)', { id: 12, body: "Ask Bob about the tape", isPublic: false }, null);
     const text = formatReadout([item]);
-    expect(text).toContain("New Private note");
-    expect(text).not.toContain("Ask Bob");
-    const applied = create("Note", "Private note #12", { id: 12, body: "Ask Bob about the tape", isPublic: false }, null);
-    expect(formatReadout([applied])).toContain("New Private note #12");
-    expect(formatReadout([applied])).not.toContain("Ask Bob");
+    expect(text).toContain('New Note "Ask Bob about the tape" (private)');
+    expect(text).not.toContain("Private note");
   });
   it("shows a link to a record made in the same call as new", () => {
     const item = create("NoteAttachment", "NoteAttachment", { id: 2, noteId: 9 }, null, { noteId: link("Note", "Great show", true) });
@@ -150,7 +147,7 @@ describe("formatReadout", () => {
     const many = Array.from({ length: 40 }, (_, i) => create("Person", `Person "P${i}"`, { id: 100 + i, name: `P${i}` }, null));
     const read = formatReadout(many).split("\n");
     expect(read.filter((l) => l.startsWith("- New person"))).toHaveLength(25);
-    expect(read.some((l) => l.startsWith("- ...and 15 more"))).toBe(true);
+    expect(read.some((l) => l.startsWith("- …and 15 more"))).toBe(true);
   });
 });
 
@@ -163,11 +160,10 @@ describe("changed fields", () => {
     expect(text).toContain("      now: “Jack O' Roses was a record made in England”");
     expect(Math.max(...text.split("\n").map((l) => l.length))).toBeLessThan(140);
   });
-  it("does not print long private text, and says how it changed", () => {
+  it("shows a private text update as was and now, cut, marked private", () => {
     const item = update("Segment", "Ripple", { wordsAsHeard: "a".repeat(412) }, { wordsAsHeard: "b".repeat(196) });
     const text = formatReadout([item]);
-    expect(text).toContain("words as heard: changed (private; 412 → 196 characters)");
-    expect(text).not.toContain("aaaa");
+    expect(text).toContain("words as heard (private)\n      was: “" + "a".repeat(99) + "…”\n      now: “" + "b".repeat(99) + "…”");
   });
   it("shows a short private change as a diff marked private", () => {
     const item = update("Citation", "Citation", { excerpt: "old words" }, { excerpt: "new words" });
@@ -206,6 +202,16 @@ describe("changed fields", () => {
     expect(work).not.toContain("Moved");
     expect(formatReadout([{ ...base, before: { id: 1, setId: 5 }, after: { id: 1, setId: 6 } }])).toContain("Moved Segment");
     expect(formatReadout([{ ...base, before: { id: 1, sortKey: "a" }, after: { id: 1, sortKey: "b" } }])).toContain("Moved Segment");
+  });
+  it("says Moved for a segment placed under another segment", () => {
+    const base = { op: "update" as const, type: "Segment", label: "Ripple", parent: null, links: none };
+    expect(formatReadout([{ ...base, before: { id: 1, parentId: 3 }, after: { id: 1, parentId: 4 } }])).toContain("Moved Segment");
+  });
+  it("says Changed, not Moved, when the credited version of a credit changes", () => {
+    const base = { op: "update" as const, type: "Credit", label: "Credit", parent: null, links: none };
+    const text = formatReadout([{ ...base, before: { id: 1, versionId: 3 }, after: { id: 1, versionId: 4 } }]);
+    expect(text).toContain("Changed Credit");
+    expect(text).not.toContain("Moved");
   });
   it("shows a short changed value on two lines", () => {
     const item = update("Show", "Show 1980", { timeLabel: "Early" }, { timeLabel: "Late" });

@@ -317,12 +317,18 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   on two lines (`was:` and `now:`), cut at about 100 characters. A link shows the name only, never
   the ID, or `(new) Type "name"` for a record made in the same call. An ID shows only when
   there is no name: `(deleted record N)` when the record is gone, `(record N, name not found)`
-  otherwise. Private text (a private note body, words as heard, a citation excerpt) is never
-  printed for a new record: it reads `added (private; N characters)`. A private note's title is
-  `Private note #N`. A card says "Moved" only for a change of parent or order.
+  otherwise. Private text shows like any other text, because only the admin and the agent see
+  the readout (a public change log, later, shows summaries only). `isPrivateText` lists the
+  fields that the schema marks PRIVATE, and the readout puts "(private)" after their names: words
+  as heard, a citation excerpt, a private note body, and the `wording` of a rendition, version
+  passage or variant passage. It cuts private text at about 100 characters, like other text. A
+  private note is titled by the start of its body, with "(private)" after it. A cut ends with
+  one "…" character. A card says "Moved" only for a change of parent or order (`MOVE_FIELDS`
+  in the readout, including `Segment.parentId`). `Credit.versionId` is the credited subject, so
+  a change to it reads "Changed".
   `describeItems` (`src/lib/data/changes/describe.ts`) finds the names and the parent. It caches
-  each lookup per call (one key per set), and the apply step runs it inside a transaction with a
-  30-second limit. The apply step stores the names with each item (`label`, `detail`), so the
+  each lookup per call (one key per set). The preview and the apply step run it inside a
+  transaction with a 30-second limit. The apply step stores the names with each item (`label`, `detail`), so the
   Changes page runs no label queries for new changes. For a change stored before that, the page
   runs one batched lookup per record type (`src/lib/data/changes/earlier.ts`).
   (test: `src/lib/changes/readout.test.ts`, `tests/db/agent-changes.test.ts`)

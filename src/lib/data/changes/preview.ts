@@ -99,7 +99,7 @@ export async function previewChanges(userId: string, input: PreviewInput): Promi
       if (warnings.length > 0) return;
       const items = await writeEdits(tx, edits);
       throw new Rollback({ items: await describeItems(tx, items) });
-    });
+    }, { timeout: 30_000 }); // the trial run and the descriptions run many small queries: allow 30 seconds, not 5
   } catch (err) {
     if (!(err instanceof Rollback)) throw err;
     data = err.data;

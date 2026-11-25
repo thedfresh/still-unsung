@@ -20,8 +20,6 @@ export function datePart(row: Row): string | null {
  */
 export function describeRecord(type: string, row: Row | null, extra?: string | null, withId = true): string {
   if (!row) return type;
-  // A private note's body is private: its name never shows the start of the body.
-  if (type === "Note" && row.isPublic !== true) return withId && typeof row.id === "number" ? `Private note #${row.id}` : "Private note";
   if (type === "Show") {
     const date = datePart(row);
     if (date !== null || extra) return ["Show", [date, extra].filter(Boolean).join(", ")].join(" ");
@@ -29,8 +27,9 @@ export function describeRecord(type: string, row: Row | null, extra?: string | n
   for (const field of NAME_FIELDS) {
     const value = row[field];
     if (typeof value === "string" && value.length > 0) {
-      const short = value.length > 50 ? `${value.slice(0, 47)}...` : value;
-      return `${type} "${short}"`;
+      const short = value.length > 50 ? `${value.slice(0, 49)}…` : value;
+      // A private note reads like any note, marked private after its name.
+      return `${type} "${short}"${type === "Note" && row.isPublic !== true ? ` ${PRIVATE_MARK}` : ""}`;
     }
   }
   const date = datePart(row);
@@ -39,6 +38,7 @@ export function describeRecord(type: string, row: Row | null, extra?: string | n
 }
 
 const SUMMARY_LABEL_MAX = 80;
+const PRIVATE_MARK = "(private)";
 
 /**
  * A segment as its work title (or "[spoken]") and the date of its show, for example
@@ -53,7 +53,7 @@ export function segmentLabel(
   const summary = typeof talk?.summary === "string" ? talk.summary.replace(/\s+/g, " ").trim() : "";
   const byTalk = summary !== "" && talk?.delivery !== "RECORDING_PLAYED" && (talk?.delivery === "SPOKEN" || workTitle === null);
   const text = byTalk ? summary : (workTitle ?? "[spoken]");
-  const title = byTalk && text.length > SUMMARY_LABEL_MAX ? `${text.slice(0, SUMMARY_LABEL_MAX - 3)}...` : text;
+  const title = byTalk && text.length > SUMMARY_LABEL_MAX ? `${text.slice(0, SUMMARY_LABEL_MAX - 1)}…` : text;
   return showDate ? `${title}, ${showDate}` : title;
 }
 
@@ -68,21 +68,12 @@ export function withType(type: string, label: string): string {
   return label === type || label.startsWith(`${type} `) || label.startsWith(`${type}: `) ? label : `${type}: ${label}`;
 }
 
-/**
- * The name of a record for a card title or a heading. A private note reads `Private note #12`
- * (or `Private note` before apply), whatever label an older changeset stored: never the body.
- */
-export function titleLabel(type: string, label: string, row: Row | null): string {
-  if (type !== "Note" || row?.isPublic === true) return withType(type, label);
-  return label.startsWith("Private note") ? label : "Private note";
-}
-
 /** Plain words for enum values that the raw name would make hard to read. */
 const PLAIN_VALUES: Record<string, string> = { RECORDING_PLAYED: "recording played" };
 
-/** Cut text at `max` characters, with an ellipsis. */
+/** Cut text at `max` characters, with one "…" character. */
 export function cutText(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 /**
@@ -97,16 +88,32 @@ export function showValue(value: unknown, full = false, max = 200): string {
   return String(value);
 }
 
-/** True for long text that only the curator reads: words as heard, a citation excerpt, a private note. */
+/**
+ * True for a field that the schema marks PRIVATE: only the admin and the agent read it. The
+ * readout shows it like other text, marked "(private)".
+ */
 export function isPrivateText(type: string, field: string, row: Row | null): boolean {
-  if (type === "Segment") return field === "wordsAsHeard";
-  if (type === "Citation") return field === "excerpt";
-  return type === "Note" && field === "body" && row?.isPublic !== true;
+  switch (`${type}.${field}`) {
+    case "Segment.wordsAsHeard":
+    case "Citation.excerpt":
+    case "Rendition.wording":
+    case "VariantPassage.wording":
+    case "Person.email":
+    case "Source.extractedText":
+      return true;
+    case "VersionPassage.wording":
+      return row?.wordingPublic !== true;
+    case "Note.body":
+      return row?.isPublic !== true;
+    default:
+      return false;
+  }
 }
 
 /** A record label without its type, for example `Work "Ripple"` becomes `Ripple`. */
 export function bareLabel(type: string, label: string): string {
-  const rest = label.startsWith(`${type}: `) ? label.slice(type.length + 2) : label.startsWith(`${type} `) ? label.slice(type.length + 1) : label;
+  if (label.endsWith(` ${PRIVATE_MARK}`)) label = label.slice(0, -PRIVATE_MARK.length - 1);
+  const rest =label.startsWith(`${type}: `) ? label.slice(type.length + 2) : label.startsWith(`${type} `) ? label.slice(type.length + 1) : label;
   return /^".*"$/.test(rest) ? rest.slice(1, -1) : rest;
 }
 

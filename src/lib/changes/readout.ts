@@ -1,5 +1,5 @@
 import { modelInfo } from "@/lib/content-access";
-import { bareLabel, changedFields, filledFields, isPrivateText, showValue, titleLabel, withType, type Row } from "@/lib/changes/labels";
+import { bareLabel, changedFields, filledFields, isPrivateText, showValue, withType, type Row } from "@/lib/changes/labels";
 
 /**
  * The readout: one plain-words view of what a set of changes adds and changes. The MCP preview
@@ -84,7 +84,7 @@ const NEW_RECORD_TYPES = new Set(["Person", "Place", "Work", "Band", "Subject", 
 /** Fields that are not worth a line: system values, and flags that the readout words itself. */
 const SKIPPED_FIELDS = new Set(["sortKey", "legacyId", "isPublic", "wordsPublic"]);
 /** Fields that say where a record sits: its parent and its order. */
-const MOVE_FIELDS = new Set(["segmentId", "setId", "showId", "entityId", "lineupEntryId", "versionId", "fromId", "sortKey", "position"]);
+const MOVE_FIELDS = new Set(["segmentId", "parentId", "setId", "showId", "entityId", "lineupEntryId", "fromId", "sortKey", "position"]);
 const MAX_UNUSUAL = 25;
 /** Text values are cut at this length. */
 const TEXT_MAX = 100;
@@ -173,13 +173,7 @@ function fillFields(item: ReadoutItem, skip: Set<string>): ReadoutField[] {
   for (const [field, value] of inModelOrder(item.type, filledFields(item.type, item.after))) {
     // The label already says a name, title or short body: do not print it twice.
     if (SKIPPED_FIELDS.has(field) || skip.has(field) || value === bareLabel(item.type, item.label)) continue;
-    const name = fieldName(field);
-    // Private text is never printed, however short.
-    if (typeof value === "string" && isPrivateText(item.type, field, item.after)) {
-      fields.push({ name, value: `added (private; ${value.length} characters)` });
-    } else {
-      fields.push({ name, value: showField(item.type, field, value, item.links.after[field]) });
-    }
+    fields.push({ name: privateName(item, field, fieldName(field)), value: showField(item.type, field, value, item.links.after[field]) });
   }
   const seen = visibility(item.type, item.after);
   // A public record is the usual case: only a note and a segment always say who sees them.
@@ -187,19 +181,16 @@ function fillFields(item: ReadoutItem, skip: Set<string>): ReadoutField[] {
   return fields;
 }
 
-/** A changed text field: the old and the new value on two lines, or one line for private text. */
+/** The field name, with "(private)" after it for a field that the schema marks private. */
+function privateName(item: ReadoutItem, field: string, name: string): string {
+  return isPrivateText(item.type, field, item.after) ? `${name} (private)` : name;
+}
+
+/** A changed text field: the old and the new value on two lines, each cut at about 100 characters. */
 function textChange(item: ReadoutItem, field: string, from: unknown, to: unknown): ReadoutField {
-  const name = fieldName(field);
-  const fromText = typeof from === "string" ? from : "";
-  const toText = typeof to === "string" ? to : "";
-  if (isPrivateText(item.type, field, item.after)) {
-    const small = fromText.length <= TEXT_MAX && toText.length <= TEXT_MAX;
-    if (small) return { name: `${name} (private)`, was: showValue(from, true), now: showValue(to, true), overwrite: !isEmpty(from) };
-    const detail = isEmpty(from) ? `added (private; ${toText.length} characters)` : `changed (private; ${fromText.length} → ${toText.length} characters)`;
-    return { name, value: detail, overwrite: !isEmpty(from) };
-  }
+  const name = privateName(item, field, fieldName(field));
   if (isEmpty(from)) return { name, value: plainValue(to) };
-  return { name, was: showValue(from, false, TEXT_MAX), now: showValue(to, false, TEXT_MAX), overwrite: true };
+  return { name, was: plainValue(from), now: plainValue(to), overwrite: true };
 }
 
 /** The fields of a changed record, as before → after. */
@@ -208,7 +199,7 @@ function changeFields(item: ReadoutItem): ReadoutField[] {
   const fields: ReadoutField[] = [];
   for (const [field, from, to] of inModelOrder(item.type, changedFields(before, item.after))) {
     if (SKIPPED_FIELDS.has(field)) continue;
-    const name = fieldName(field);
+    const name = privateName(item, field, fieldName(field));
     const isText = (typeof from === "string" || typeof to === "string") && !/^[A-Z][A-Z0-9_]+$/.test(String(to));
     const longText = isText && (String(from ?? "").length > 40 || String(to ?? "").length > 40 || isPrivateText(item.type, field, item.after));
     if (longText) {
@@ -255,7 +246,7 @@ function recordTitle(item: ReadoutItem): { title: string; skip: Set<string> } {
   if (reference) return { title: `Reference: ${reference.head}`, skip: reference.skip };
   const bill = billHead(item);
   if (bill) return { title: `Bill: ${bill.head}`, skip: bill.skip };
-  return { title: titleLabel(item.type, item.label, item.after), skip: new Set() };
+  return { title: withType(item.type, item.label), skip: new Set() };
 }
 
 /** One card for one record. */
@@ -274,14 +265,14 @@ function recordCard(item: ReadoutItem): ReadoutCard {
 
 /** The sentence a "not confirmed" line is about: a reference as its sentence, else the record. */
 function aboutRecord(item: ReadoutItem): string {
-  return referenceHead(item)?.head ?? titleLabel(item.type, item.label, item.after);
+  return referenceHead(item)?.head ?? withType(item.type, item.label);
 }
 
 /** The cards worth the user's eye: new shared records, overwritten values, doubtful certainty, deletes. */
 function unusualCards(items: ReadoutItem[]): ReadoutCard[] {
   const cards: ReadoutCard[] = [];
   for (const item of items) {
-    const name = titleLabel(item.type, item.label, item.after);
+    const name = withType(item.type, item.label);
     if (item.op === "create" && NEW_RECORD_TYPES.has(item.type)) {
       cards.push({ action: "", title: `New ${words(item.type)}: ${bareLabel(item.type, item.label)}`, fields: [] });
     }
@@ -328,7 +319,7 @@ function groupItems(items: ReadoutItem[]): Array<{ heading: string; items: Reado
   const groups = new Map<string, { heading: string; items: ReadoutItem[] }>();
   for (const item of items) {
     const key = item.parent?.key ?? `${item.type}:${String(item.after.id)}`;
-    const heading = item.parent ? withType(item.parent.type, item.parent.label) : titleLabel(item.type, item.label, item.after);
+    const heading = item.parent ? withType(item.parent.type, item.parent.label) : withType(item.type, item.label);
     const group = groups.get(key) ?? { heading, items: [] };
     group.items.push(item);
     groups.set(key, group);
@@ -373,7 +364,7 @@ export function renderReadout(readout: Readout): string {
       const [first, ...rest] = cardLines(card);
       lines.push(`- ${first}`, ...rest.map((line) => `  ${line}`));
     }
-    if (readout.unusualMore > 0) lines.push(`- ...and ${readout.unusualMore} more. They are in the list below.`);
+    if (readout.unusualMore > 0) lines.push(`- …and ${readout.unusualMore} more. They are in the list below.`);
   }
   for (const group of readout.groups) {
     lines.push("", group.heading);

@@ -32,7 +32,7 @@ describe("segment and set labels", () => {
   it("cuts a long summary to about 80 characters", () => {
     const label = segmentLabel("x", null, { delivery: "SPOKEN", summary: "word ".repeat(40) });
     expect(label.length).toBeLessThanOrEqual(80);
-    expect(label.endsWith("...")).toBe(true);
+    expect(label.endsWith("…")).toBe(true);
   });
   it("names a set by its show and position", () => {
     expect(setLabel({ position: 1 }, "2002-08-07")).toBe("2002-08-07, set 1");
