@@ -36,6 +36,13 @@ describe("formatPreview", () => {
     expect(text).not.toContain("notes");
     expect(text).toContain("attaches to: Show 1978");
   });
+  it("labels the recording-played delivery in plain words", () => {
+    const text = formatPreview({
+      ...base,
+      items: [{ op: "create", type: "Segment", label: "Segment", before: null, after: { id: 1, delivery: "RECORDING_PLAYED" }, attachesTo: [], links: { before: {}, after: {} } }],
+    });
+    expect(text).toContain("delivery: recording played");
+  });
   it("lists warnings first and prints no token when there is none", () => {
     const text = formatPreview({ ...base, items: [], warnings: ["Too many edits."] });
     expect(text.startsWith("WARNINGS")).toBe(true);

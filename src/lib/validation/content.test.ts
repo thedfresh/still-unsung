@@ -61,6 +61,12 @@ describe("parseEdits", () => {
     expect(problems([{ op: "create", type: "Show", fields: { scheduledTime: "25:99" } }])).toHaveProperty(["edits.0.fields.scheduledTime"]);
   });
 
+  it("accepts a segment summary up to 300 characters and the recording-played delivery", () => {
+    const fields = { setId: 1, sortKey: "a", delivery: "RECORDING_PLAYED", summary: "x".repeat(300) };
+    expect(parseEdits([{ op: "create", type: "Segment", fields }])[0].fields).toMatchObject({ delivery: "RECORDING_PLAYED" });
+    expect(problems([{ op: "create", type: "Segment", fields: { ...fields, summary: "x".repeat(301) } }])).toHaveProperty(["edits.0.fields.summary"]);
+  });
+
   it("refuses a Json field and an empty list", () => {
     expect(problems([{ op: "create", type: "Source", fields: { zoteroData: {} } }])).toBeTruthy();
     expect(problems([])).toHaveProperty(["edits"]);

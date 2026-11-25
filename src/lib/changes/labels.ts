@@ -34,9 +34,13 @@ export function describeRecord(type: string, row: Row | null, extra?: string | n
   return withId && typeof row.id === "number" ? `${type} #${row.id}` : type;
 }
 
+/** Plain words for enum values that the raw name would make hard to read. */
+const PLAIN_VALUES: Record<string, string> = { RECORDING_PLAYED: "recording played" };
+
 /** One value as plain text for the preview. */
 export function showValue(value: unknown): string {
   if (value === null || value === undefined) return "(empty)";
+  if (typeof value === "string" && value in PLAIN_VALUES) return PLAIN_VALUES[value];
   if (typeof value === "string") return JSON.stringify(value.length > 200 ? `${value.slice(0, 197)}...` : value);
   return String(value);
 }
