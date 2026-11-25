@@ -3,16 +3,14 @@ import { modelInfo } from "@/lib/content-access";
 import { getPrisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
 import { hashToken } from "@/lib/tokens";
-import { parseEdits, type Evidence } from "@/lib/validation/content";
+import { parseEdits } from "@/lib/validation/content";
 import type { Row } from "@/lib/changes/labels";
 import { labelRow } from "@/lib/data/changes/rows";
 import {
   ConflictAbort,
   findConflicts,
   findMissingListValues,
-  writeCitations,
   writeEdits,
-  type AppliedItem,
   type VersionConflict,
 } from "@/lib/data/changes/write-edits";
 
@@ -64,13 +62,6 @@ export async function applyChanges(userId: string, token: string, isPublic?: boo
   const edits = parseEdits(changeset.plan);
   // The plan is spent with the token, so a failed apply leaves no stored edits behind.
   await getPrisma().changeset.update({ where: { id: changeset.id }, data: { plan: Prisma.DbNull, previewExpiresAt: null } });
-  const evidence: Evidence = {
-    sourceId: changeset.sourceId ?? undefined,
-    recordingId: changeset.recordingId ?? undefined,
-    contributorId: changeset.contributorId ?? undefined,
-    place: changeset.place ?? undefined,
-    ownKnowledge: changeset.ownKnowledge || undefined,
-  };
   try {
     return await getPrisma().$transaction(async (tx) => {
       const messages = await findMissingListValues(tx, edits);
@@ -78,9 +69,8 @@ export async function applyChanges(userId: string, token: string, isPublic?: boo
       const conflicts = await findConflicts(tx, edits);
       if (conflicts.length > 0) throw new ConflictAbort(conflicts);
       const items = await writeEdits(tx, edits);
-      const all: AppliedItem[] = [...items, ...(await writeCitations(tx, items, evidence, items.length))];
       await tx.changesetItem.createMany({
-        data: all.map((item, position) => ({
+        data: items.map((item, position) => ({
           changesetId: changeset.id,
           position,
           tableName: modelInfo(item.type).table,

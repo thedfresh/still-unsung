@@ -1,7 +1,7 @@
 import { AppError } from "@/lib/errors";
 import type { Row } from "@/lib/changes/labels";
 import { isList, modelInfo, usesEntityPublicFlag } from "@/lib/content-access";
-import type { Evidence, FieldValue, ParsedEdit } from "@/lib/validation/content";
+import type { FieldValue, ParsedEdit } from "@/lib/validation/content";
 import { delegateOf, readRow, type Tx } from "@/lib/data/changes/rows";
 
 export interface AppliedItem {
@@ -132,28 +132,4 @@ export async function writeEdits(tx: Tx, edits: ParsedEdit[]): Promise<AppliedIt
     }
   }
   return items;
-}
-
-/**
- * Write one citation for every shared record the call created or changed (data-model item 42).
- * "Own knowledge" writes none. The citations join the changeset as new records.
- */
-export async function writeCitations(tx: Tx, items: AppliedItem[], evidence: Evidence, startIndex: number): Promise<AppliedItem[]> {
-  if (evidence.ownKnowledge) return [];
-  const out: AppliedItem[] = [];
-  for (const item of items) {
-    if (!modelInfo(item.type).entityKind) continue;
-    const row = await tx.citation.create({
-      data: {
-        entityId: item.id,
-        sourceId: evidence.sourceId,
-        recordingId: evidence.recordingId,
-        contributorId: evidence.contributorId,
-        place: evidence.place,
-      },
-    });
-    const after = JSON.parse(JSON.stringify(row)) as Row;
-    out.push({ index: startIndex + out.length, op: "create", type: "Citation", id: row.id, expectedRev: null, before: null, after });
-  }
-  return out;
 }

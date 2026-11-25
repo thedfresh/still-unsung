@@ -63,9 +63,9 @@ describe("preview and apply", () => {
     const item = change.items.find((i) => i.tableName === "shows");
     expect(item?.before).toMatchObject({ timeLabel: null, rev: show.rev });
     expect(item?.after).toMatchObject({ timeLabel: "Late" });
-    // One citation for the changed show, written from the evidence.
-    const citations = await db.citation.findMany({ where: { entityId: show.id } });
-    expect(citations.at(-1)).toMatchObject({ sourceId, place: "page 4" });
+    // The evidence stays on the changeset. No citation is written from it (item 109).
+    expect(await db.citation.count()).toBe(0);
+    expect(formatPreview(preview)).not.toContain("Citations written");
   });
 
   it("creates a show with its sets and segments that point at each other", async () => {
@@ -85,7 +85,7 @@ describe("preview and apply", () => {
     await applyChanges(agentId, preview.token as string);
     expect(await db.show.count()).toBe(1);
     expect(await db.segment.count()).toBe(1);
-    // Each new shared record has its entities row and a citation.
+    // Each new shared record has its entities row.
     expect(await db.entity.count({ where: { kind: { in: ["SHOW", "SET", "SEGMENT"] } } })).toBe(3);
   });
 
@@ -297,6 +297,33 @@ describe("read and search", () => {
     expect(record.sets[0].segments.map((x) => x.sortKey)).toEqual(["a", "b"]);
   });
 
+  it("lists the evidence of every change to a record, newest first", async () => {
+    const show = await makeShow();
+    const preview = await previewChanges(agentId, {
+      evidence: { ownKnowledge: true },
+      edits: [{ op: "update", type: "Show", id: show.id, rev: show.rev, fields: { timeLabel: "Late" } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    const record = await getRecord("Show", { id: show.id });
+    const from = record.whereThisCameFrom as Array<{ action: string; evidence: string }>;
+    expect(from.map((c) => c.action)).toEqual(["changed", "created"]);
+    expect(from[0].evidence).toBe("own knowledge");
+    expect(from[1].evidence).toContain("page 4");
+  });
+
+  it("still creates a deliberate citation", async () => {
+    const show = await makeShow();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Citation", fields: { entityId: show.id, sourceId, place: "page 9", excerpt: "Ad for the show" } }],
+    });
+    expect(preview.warnings).toEqual([]);
+    await applyChanges(agentId, preview.token as string);
+    expect(await db.citation.findMany({ where: { entityId: show.id } })).toEqual([expect.objectContaining({ place: "page 9", excerpt: "Ad for the show" })]);
+    const record = await getRecord("Show", { id: show.id });
+    expect((record.attachments as { citations: unknown[] }).citations).toHaveLength(1);
+  });
+
   it("finds a show by date and place and reads it with its citations", async () => {
     const place = await db.entity.create({ data: { kind: "PLACE" } });
     await db.place.create({ data: { id: place.id, slug: "keystone" } });
@@ -312,7 +339,10 @@ describe("read and search", () => {
     expect(hits[0].label).toBe("Show 1978-05-23, Keystone Berkeley");
     const record = await getRecord("Show", { id: hits[0].id as number });
     expect(record).toMatchObject({ dateYear: 1978, isPublic: true });
-    expect((record.attachments as { citations: unknown[] }).citations).toHaveLength(1);
+    expect((record.attachments as { citations: unknown[] }).citations).toHaveLength(0);
+    expect(record.whereThisCameFrom).toEqual([
+      expect.objectContaining({ action: "created", user: "agent@example.test", evidence: expect.stringContaining('source "Synthetic notebook'), changesetId: expect.any(Number) }),
+    ]);
     await expect(getRecord("User", { id: 1 })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(searchRecords({ type: "Session", query: "x" })).rejects.toMatchObject({ code: "invalid_input" });
   });
