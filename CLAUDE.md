@@ -12,7 +12,7 @@ schedules or private material live outside this repo (see *Local and private rul
 |---|---|
 | Setup, commands, CI | `README.md` |
 | How code is written here, and how each rule is enforced | `docs/CONVENTIONS.md` |
-| The agent workflow (Jira ticket → run → pull request), review and rework | `docs/agent-workflow.md` |
+| The agent workflow (Jira ticket → run → pull request), review and rework | the private planning repository, `docs/agent-workflow.md` (`/tmp/reference/docs/` in agent runs) |
 | Task status | Jira (key `HSA`); a pull request links its ticket with `Refs: HSA-<n>` |
 
 Read `docs/CONVENTIONS.md` before you change code. The build enforces part of it (type check and
@@ -62,3 +62,7 @@ The maintainer's Jira workflow, contact rules and operational notes are not in t
   `/tmp/reference` and read `/tmp/reference/CLAUDE.md`.
 
 If neither is available to you, follow only the rules in this file.
+
+**Docs in this repository are about the code only** (this file, the README, `docs/CONVENTIONS.md`,
+`docs/TESTING.md`). This repository is public. Specs, policies, research, designs, decision logs
+and runbooks go in the private planning repository's `docs/`, never here.

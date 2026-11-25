@@ -1,7 +1,7 @@
 # Claude agent: works one Jira ticket per run, and answers @claude on pull requests.
 #
 # Ticket runs start automatically when a ticket assigned to Claude moves to Ready (a Jira
-# Automation rule sends repository_dispatch; docs/agent-workflow.md), or by hand from Actions. Each run:
+# Automation rule sends repository_dispatch; the planning repo's docs/agent-workflow.md), or by hand from Actions. Each run:
 #   1. checks out main, plus the private planning repo's `main` branch read-only into
 #      /tmp/reference (outside the project, so it's never built, linted or committed)
 #   2. lets Claude claim the ticket (In Progress), do the work on branch hsa-<n> with tests,
@@ -10,7 +10,7 @@
 #   3. lets Claude move the ticket to In Review with the PR link
 #
 # Guard rails: never pushes to main (branch protection also blocks it), never merges, never
-# deploys, never touches the production database. Setup: docs/agent-workflow.md.
+# deploys, never touches the production database. Setup: the planning repo's docs/agent-workflow.md.
 name: Claude agent
 
 on:
@@ -442,7 +442,7 @@ jobs:
           # Keep the Jira ticket in step: after the fix, a short note on the ticket named in the PR's
           # "Refs:" line. No tag and no status change; the ticket's hand-back stays the summary.
           # The Jira config goes inline: in this job the action adds its own inline MCP config and
-          # then drops any config given as a file (HSA-146; docs/agent-workflow.md).
+          # then drops any config given as a file (HSA-146; the planning repo's docs/agent-workflow.md).
           claude_args: |
             --mcp-config '${{ env.JIRA_MCP_CONFIG }}'
             --add-dir /tmp/reference
