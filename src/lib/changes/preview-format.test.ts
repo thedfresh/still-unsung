@@ -20,6 +20,19 @@ describe("segment and set labels", () => {
     expect(segmentLabel("Man Of Constant Sorrow", "2002-04-30")).toBe("Man Of Constant Sorrow, 2002-04-30");
     expect(segmentLabel(null, "2002-04-30")).toBe("[spoken], 2002-04-30");
   });
+  it("names a spoken segment by its summary, and a sung one by its song", () => {
+    const summary = "Hunter reads a poem.";
+    expect(segmentLabel("WHFS interview", "1980-11-14", { delivery: "SPOKEN", summary })).toBe("Hunter reads a poem., 1980-11-14");
+    expect(segmentLabel(null, "1980-11-14", { delivery: null, summary })).toBe("Hunter reads a poem., 1980-11-14");
+    expect(segmentLabel("Ripple", "1980-11-14", { delivery: "SUNG", summary })).toBe("Ripple, 1980-11-14");
+    expect(segmentLabel("Ripple", "1980-11-14", { delivery: "RECORDING_PLAYED", summary })).toBe("Ripple, 1980-11-14");
+    expect(segmentLabel("WHFS interview", "1980-11-14", { delivery: "SPOKEN", summary: null })).toBe("WHFS interview, 1980-11-14");
+  });
+  it("cuts a long summary to about 80 characters", () => {
+    const label = segmentLabel("x", null, { delivery: "SPOKEN", summary: "word ".repeat(40) });
+    expect(label.length).toBeLessThanOrEqual(80);
+    expect(label.endsWith("...")).toBe(true);
+  });
   it("names a set by its show and position", () => {
     expect(setLabel({ position: 1 }, "2002-08-07")).toBe("2002-08-07, set 1");
     expect(setLabel({ id: 4 }, "2002-08-07")).toBeNull();

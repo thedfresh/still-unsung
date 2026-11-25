@@ -54,7 +54,7 @@ export async function labelRow(tx: Tx, type: string, row: Row, withId = true): P
   if (type === "Segment") {
     const set = typeof row.setId === "number" ? await tx.set.findUnique({ where: { id: row.setId }, select: { showId: true } }) : null;
     const work = typeof row.workId === "number" ? await tx.work.findUnique({ where: { id: row.workId }, select: { title: true } }) : null;
-    return segmentLabel(work?.title ?? null, await showDateOf(tx, set?.showId));
+    return segmentLabel(work?.title ?? null, await showDateOf(tx, set?.showId), row);
   }
   if (type !== "Show") return describeRecord(type, row, null, withId);
   const placeNameId = row.placeNameId;

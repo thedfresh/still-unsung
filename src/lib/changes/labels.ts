@@ -36,9 +36,22 @@ export function describeRecord(type: string, row: Row | null, extra?: string | n
   return withId && typeof row.id === "number" ? `${type} #${row.id}` : type;
 }
 
-/** A segment as its work title (or "[spoken]") and the date of its show, for example `Ripple, 1978-05-23`. */
-export function segmentLabel(workTitle: string | null, showDate: string | null): string {
-  const title = workTitle ?? "[spoken]";
+const SUMMARY_LABEL_MAX = 80;
+
+/**
+ * A segment as its work title (or "[spoken]") and the date of its show, for example
+ * `Ripple, 1978-05-23`. A spoken segment, or one with no work, that has a summary reads by the
+ * summary (cut to about 80 characters). A recording played keeps its song label.
+ */
+export function segmentLabel(
+  workTitle: string | null,
+  showDate: string | null,
+  talk?: { delivery?: unknown; summary?: unknown },
+): string {
+  const summary = typeof talk?.summary === "string" ? talk.summary.replace(/\s+/g, " ").trim() : "";
+  const byTalk = summary !== "" && talk?.delivery !== "RECORDING_PLAYED" && (talk?.delivery === "SPOKEN" || workTitle === null);
+  const text = byTalk ? summary : (workTitle ?? "[spoken]");
+  const title = byTalk && text.length > SUMMARY_LABEL_MAX ? `${text.slice(0, SUMMARY_LABEL_MAX - 3)}...` : text;
   return showDate ? `${title}, ${showDate}` : title;
 }
 

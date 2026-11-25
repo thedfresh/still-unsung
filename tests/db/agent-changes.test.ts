@@ -125,6 +125,32 @@ describe("preview and apply", () => {
 });
 
 describe("highlights (item 110)", () => {
+  it("links to a new source by ref in one preview, and reads a reference to a talk segment by its summary", async () => {
+    const partOf = await db.referenceKind.findUniqueOrThrow({ where: { name: "part of" } });
+    const summary = "Hunter talks about the new record.";
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [
+        { op: "create", type: "Show", ref: "show", fields: { dateYear: 1980, dateMonth: 11, dateDay: 14 } },
+        { op: "create", type: "Set", ref: "set", fields: { showId: { ref: "show" }, position: 1, setTypeId } },
+        { op: "create", type: "Segment", ref: "talk", fields: { setId: { ref: "set" }, sortKey: "a", delivery: "SPOKEN", summary } },
+        { op: "create", type: "Source", ref: "jor", fields: { key: "jor", title: "A new source", otherNames: [] } },
+        { op: "create", type: "Reference", fields: { fromId: { ref: "talk" }, toId: { ref: "jor" }, referenceKindId: partOf.id } },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    expect(await db.reference.count()).toBe(0);
+    await applyChanges(agentId, preview.token as string);
+    const reference = await db.reference.findFirstOrThrow();
+    expect(reference.toId).toBe((await db.source.findFirstOrThrow({ where: { key: "jor" } })).id);
+    // A later reference to the stored talk segment reads by its summary.
+    const next = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Reference", fields: { fromId: reference.fromId, toId: reference.toId, referenceKindId: partOf.id, note: "Again." } }],
+    });
+    expect(formatPreview(next)).toContain(`${summary}, 1980-11-14`);
+  });
+
   it("marks a show with a part-of reference to a highlight subject, with a note", async () => {
     const show = await makeShow();
     const kind = await db.subjectKind.findUniqueOrThrow({ where: { name: "highlight" } });

@@ -55,6 +55,19 @@ describe("parseEdits", () => {
     expect(problems([{ op: "create", type: "Place", ref: "p", fields: {} }, ok[1].fields.showId && { ...ok[1], fields: { ...ok[1].fields, showId: { ref: "p" } } }])).toHaveProperty(["edits.1.fields.showId"]);
   });
 
+  it("lets a field that points at the shared record ID take a ref to any new shared record", () => {
+    const create = [
+      { op: "create", type: "Source", ref: "jor", fields: { key: "jor", title: "A source", otherNames: [] } },
+      { op: "create", type: "Source", ref: "other", fields: { key: "other", title: "Another", otherNames: [] } },
+      { op: "create", type: "Reference", fields: { fromId: { ref: "jor" }, toId: { ref: "other" }, referenceKindId: 1 } },
+    ];
+    expect(parseEdits(create)).toHaveLength(3);
+    // A ref to a type with no entities row, or to the wrong type for a typed pointer, is still refused.
+    expect(problems([{ op: "create", type: "Place", ref: "p", fields: {} }, { ...create[2], fields: { ...create[2].fields, referenceKindId: { ref: "p" } } }])).toHaveProperty([
+      "edits.1.fields.referenceKindId",
+    ]);
+  });
+
   it("reads date and time columns", () => {
     const [edit] = parseEdits([{ op: "create", type: "Show", fields: { scheduledTime: "20:30" } }]);
     expect(edit.fields.scheduledTime).toEqual(new Date("1970-01-01T20:30:00.000Z"));
