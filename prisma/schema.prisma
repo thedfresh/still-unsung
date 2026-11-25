@@ -1688,8 +1688,8 @@ model ChangesetItem {
 }
 
 /// A person or agent who signs in (PLAN.md: Auth.js with roles; item 89). The tables below
-/// follow the Auth.js Prisma adapter (sign-in with Google or a passkey), written from memory:
-/// UNVERIFIED, check against the adapter's current docs in HSA-35.
+/// follow the Auth.js Prisma adapter (sign-in with Google or a passkey). Checked against
+/// @auth/prisma-adapter 2.11 and its documented schema in HSA-33: no difference.
 /// `role` has no default on purpose: users are created ahead of sign-in (the curator and the
 /// agent, from environment settings), and sign-in accepts only existing users.
 model User {
@@ -1707,6 +1707,7 @@ model User {
   sessions      Session[]
   authenticators Authenticator[]
   changesets    Changeset[]
+  agentTokens   AgentToken[]
 
   @@map("users")
 }
@@ -1769,6 +1770,24 @@ model Authenticator {
 
   @@id([userId, credentialID])
   @@map("authenticators")
+}
+
+/// An access token for an agent user (item 89). Only the SHA-256 hash is stored; the token is
+/// shown once, when the admin creates it. Only a user with the AGENT role may own one (the data
+/// layer checks it). A revoked token stays in the table, so the history shows it.
+model AgentToken {
+  id         Int       @id @default(autoincrement())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// What the token is for, for the admin's list (for example "MCP server on the Mac").
+  label      String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([userId])
+  @@map("agent_tokens")
 }
 
 // =============================================================================
