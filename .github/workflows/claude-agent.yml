@@ -24,6 +24,10 @@ on:
         type: choice
         options: [sonnet, opus, fable]
         default: sonnet
+      tried:
+        description: "Tickets already tried in this queue chain (set by the queue step; leave empty)"
+        required: false
+        default: ""
   repository_dispatch:
     types: [jira-ticket-ready]
   issue_comment:
@@ -46,6 +50,13 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # The queue step (HSA-157) starts the next run, which needs actions: write. Only this job gets it.
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: write
     # Same image as CI: Node 26, git, Chromium and its libraries are already in it, so setup
     # never waits on Ubuntu's package servers. Keep the tag in step with @playwright/test.
     container:
@@ -77,6 +88,7 @@ jobs:
       # Jira sends the ticket's labels (comma-separated); "fable" or "opus" picks a bigger model.
       LABELS: ${{ github.event.client_payload.labels }}
       MODEL_CHOICE: ${{ inputs.model }}
+      TRIED: ${{ inputs.tried }}
       # The user's Jira account, for the one mention in a hand-back or question (a repo variable,
       # so it isn't written in this public file).
       USER_JIRA_ID: ${{ vars.JIRA_USER_ACCOUNT_ID }}
@@ -208,6 +220,8 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_bun_executable: ${{ env.BUN_PATH }}
+          # A run the queue step starts has actor github-actions[bot] (HSA-157).
+          allowed_bots: github-actions
           prompt: |
             You are the Claude agent for the StillUnsung rebuild. Work Jira ticket ${{ env.TICKET }}
             in this repository (thedfresh/still-unsung), on the branch already checked out: ${{ env.BRANCH }}.
@@ -347,6 +361,8 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_bun_executable: ${{ env.BUN_PATH }}
+          # A run the queue step starts has actor github-actions[bot] (HSA-157).
+          allowed_bots: github-actions
           prompt: |
             In Jira (site dfresh.atlassian.net), for ticket ${{ env.TICKET }}: read
             ${{ env.AGENT_TMP }}/summary.md and add one comment in HTML (contentFormat "html"):
@@ -362,6 +378,21 @@ jobs:
             --add-dir ${{ env.AGENT_TMP }}
             --max-turns 10
             --allowedTools "Read,mcp__jira__getJiraIssue,mcp__jira__transitionJiraIssue,mcp__jira__addOrEditJiraIssueComment"
+
+      # GitHub keeps one pending run per concurrency group and cancels older pending ones, so
+      # tickets moved to Ready together lose their runs (HSA-157). Each run starts the next.
+      # Runs main's copy of the script, not the ticket branch's.
+      - name: Start the next Ready ticket
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JIRA_EMAIL: ${{ secrets.JIRA_CLAUDE_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_MCP_CLAUDE_TOKEN }}
+        run: |
+          git show "${{ github.sha }}:scripts/next-ready-ticket.mjs" > /tmp/next-ready-ticket.mjs
+          node /tmp/next-ready-ticket.mjs
 
   respond:
     name: Answer @claude on a pull request
