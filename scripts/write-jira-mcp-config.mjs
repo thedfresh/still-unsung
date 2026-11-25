@@ -5,7 +5,7 @@
 // Writes $AGENT_TMP/mcp.json and prints a short fingerprint of the credentials (not the secret),
 // to compare with the planning repo's .env when Jira rejects the login.
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 
 const { JIRA_EMAIL, JIRA_TOKEN, AGENT_TMP } = process.env;
 if (!JIRA_EMAIL || !JIRA_TOKEN || !AGENT_TMP) {
@@ -18,14 +18,25 @@ const clean = (value) => value.trim().replace(/^["']|["']$/g, "").replace(/[\r\n
 const pair = `${clean(JIRA_EMAIL)}:${clean(JIRA_TOKEN)}`;
 console.log(`Jira credential fingerprint: ${createHash("sha256").update(pair).digest("hex").slice(0, 8)}`);
 
+const encoded = Buffer.from(pair).toString("base64");
 const config = {
   mcpServers: {
     jira: {
       type: "http",
       url: "https://mcp.atlassian.com/v2/mcp",
-      headers: { Authorization: `Basic ${Buffer.from(pair).toString("base64")}` },
+      headers: { Authorization: `Basic ${encoded}` },
     },
   },
 };
+const json = JSON.stringify(config);
 mkdirSync(AGENT_TMP, { recursive: true });
-writeFileSync(`${AGENT_TMP}/mcp.json`, JSON.stringify(config));
+writeFileSync(`${AGENT_TMP}/mcp.json`, json);
+
+// The "respond" job also needs the config as inline JSON. In that job the action adds its own
+// inline MCP config, and it keeps only inline JSON when it merges several --mcp-config values:
+// a file path is dropped without a warning. So the job passes $JIRA_MCP_CONFIG inline.
+// Mask the encoded login first, so it never shows in the log.
+if (process.env.GITHUB_ENV) {
+  console.log(`::add-mask::${encoded}`);
+  appendFileSync(process.env.GITHUB_ENV, `JIRA_MCP_CONFIG=${json}\n`);
+}
