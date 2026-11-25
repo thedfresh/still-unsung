@@ -38,7 +38,7 @@ brew services start postgresql@18
 Create the local role and databases:
 
 ```bash
-psql -p 5433 -d postgres -c "create role still_unsung login password 'still_unsung' createdb;" -c "create database still_unsung_dev owner still_unsung;"
+psql -p 5433 -d postgres -c "create role still_unsung login password 'still_unsung' createdb;" -c "create database still_unsung_dev owner still_unsung;" -c "create database still_unsung_test owner still_unsung;"
 ```
 
 Then install, configure and migrate:
@@ -46,7 +46,9 @@ Then install, configure and migrate:
 ```bash
 npm install
 cp .env.example .env
+cp .env.test.example .env.test
 npm run db:migrate
+npm run db:deploy:test
 npx playwright install chromium
 ```
 
@@ -57,11 +59,14 @@ npx playwright install chromium
 | `npm run dev` | Development server on http://localhost:3000 |
 | `npm run build` | Type check, lint, then production build. Any type error or lint warning fails it |
 | `npm run start` | Serve the production build |
-| `npm test` | Unit tests and the database round-trip test (needs `DATABASE_URL`) |
+| `npm test` | Unit tests, then database tests. Same as `npm run test:unit` and `npm run test:db` |
+| `npm run test:unit` | Unit tests only. No database needed |
+| `npm run test:db` | Database tests, against the test database from `.env.test`. Refuses any database not named `*_test` |
 | `npm run test:e2e` | Playwright smoke and accessibility tests against the production build (run `npm run build` first) |
 | `npm run check` | Everything above, in order |
 | `npm run db:migrate` | Create and apply a migration locally (Prisma Migrate) |
 | `npm run db:deploy` | Apply pending migrations (staging and prod) |
+| `npm run db:deploy:test` | Apply pending migrations to the test database from `.env.test` |
 
 ## CI
 
@@ -89,6 +94,8 @@ when the database is unreachable. `version` is the `version` in `package.json`, 
 which release is live. Deploys use it to decide when to switch traffic.
 
 ## Rules
+
+Test layers, the mock rule and test data: [docs/TESTING.md](docs/TESTING.md).
 
 The full engineering conventions (where code goes, validation and errors, caching, migrations,
 component size, performance) are in [docs/CONVENTIONS.md](docs/CONVENTIONS.md). In short:
