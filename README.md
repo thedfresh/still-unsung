@@ -68,6 +68,7 @@ npx playwright install chromium
 | `npm run db:deploy` | Apply pending migrations (staging and prod) |
 | `npm run db:deploy:test` | Apply pending migrations to the test database from `.env.test` |
 | `npm run db:seed` | Load the synthetic sample archive into the database from `.env`. It skips a database that already has shows |
+| `npm run db:import-legacy` | Rebuild the database from `.env` out of the restored old database. See *Import from the old database* |
 
 ## Data model
 
@@ -76,6 +77,39 @@ Read the comments at the top of the file first. The migration also adds what Pri
 `pg_trgm` extension, check constraints and byte-order sort keys. `tests/db/constraints.test.ts` tests them.
 The seed (`prisma/seed/`) holds the starting values for the editable lists and a small invented sample
 archive. It contains no production data.
+
+## Import from the old database
+
+`scripts/import-legacy/` copies the restored old database into the new schema. It follows the
+migration plan and never classifies: where a value needs the curator's judgment, it writes the
+safe default and adds the case to a proposal file.
+
+Before the run:
+
+1. Restore the dump of the old database into a Postgres database, for example `hunter_archive_old`.
+   The script reads it and never writes to it. It never connects to old prod.
+2. Copy the settings at the end of `.env.example` into `.env`. Fill in the Zotero keys of the three
+   sources (legacy setlist list, GDSets, Whitegum) and the output folder.
+3. Put the output folder outside this repository. The proposal files quote old notes.
+
+Run it:
+
+```bash
+npm run db:import-legacy
+```
+
+Each run **empties** the target database and rebuilds it. The target name must end in `_dev`,
+`_test` or `_staging`, and it must not be the old copy. The script refuses any other name.
+
+The run writes these files to the output folder:
+
+- `report.md` and `report.json`: row counts by old and new table, the stress tests, every row that
+  did not map with its reason, and the proposal sizes. The report holds ids and counts only.
+- `proposals/*.json`: the 17 review lists. The script does not apply them.
+- `place-chains.tsv`: the place chain of every show.
+
+The exit code is 1 when the report finds an old row it cannot account for. The tests run the
+whole import against a small invented copy of the old tables (`tests/db/import-legacy.test.ts`).
 
 ## CI
 
