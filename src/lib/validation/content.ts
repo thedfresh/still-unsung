@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isUpdatable, MODEL, modelInfo, SYSTEM_FIELDS, writeRefusal } from "@/lib/content-access";
+import { AGENT_FORBIDDEN_FIELDS, isUpdatable, MODEL, modelInfo, SYSTEM_FIELDS, writeRefusal } from "@/lib/content-access";
 import type { FieldInfo } from "@/lib/content-model-types";
 import { AppError } from "@/lib/errors";
 
@@ -16,7 +16,7 @@ export interface RefValue {
   ref: string;
 }
 
-export type FieldValue = string | number | boolean | Date | null | RefValue;
+export type FieldValue = string | number | boolean | Date | null | RefValue | string[];
 
 export interface ParsedEdit {
   op: "create" | "update";
@@ -57,8 +57,22 @@ function scalarSchema(name: string, info: FieldInfo): z.ZodType {
   }
 }
 
-function fieldSchema(name: string, info: FieldInfo, forCreate: boolean): z.ZodType {
-  let schema = scalarSchema(name, info);
+/** Extra rules for single fields: a source needs a real title and a short key like "gallagher-list". */
+function sourceTextSchema(name: string, info: FieldInfo): z.ZodType | null {
+  if (name === "title") return z.string().trim().min(1, "Give a title.").max(info.maxLength ?? 20000);
+  if (name === "key") {
+    return z
+      .string()
+      .min(1, "Give a short key.")
+      .max(info.maxLength ?? 20000)
+      .regex(/^[a-z0-9-]+$/, "Use a short key of lower-case letters, digits and hyphens, like gallagher-list.");
+  }
+  return null;
+}
+
+function fieldSchema(type: string, name: string, info: FieldInfo, forCreate: boolean): z.ZodType {
+  let schema = (type === "Source" && !info.list && sourceTextSchema(name, info)) || scalarSchema(name, info);
+  if (info.list) schema = z.array(schema).max(100);
   if (info.fk) schema = z.union([schema, refSchema]);
   const nullable = !info.required;
   if (nullable) schema = schema.nullable();
@@ -86,7 +100,7 @@ function fieldsSchema(type: string, op: "create" | "update"): z.ZodType {
   if (cached) return cached;
   const shape: Record<string, z.ZodType> = {};
   for (const [name, field] of Object.entries(editableFields(type))) {
-    const schema = fieldSchema(name, field, op === "create");
+    const schema = fieldSchema(type, name, field, op === "create");
     shape[name] = op === "update" ? schema.optional() : schema;
   }
   const schema = z.object(shape).strict();
@@ -144,6 +158,13 @@ export function parseEdits(input: unknown): ParsedEdit[] {
     if (op === "update" && !isUpdatable(type)) {
       return void (problems[`${prefix}.type`] = [`A ${type} record cannot be changed after it is created.`]);
     }
+    const forbidden = (AGENT_FORBIDDEN_FIELDS[type] ?? []).filter((name) => Object.hasOwn(edit.data.fields, name));
+    if (forbidden.length > 0) {
+      for (const name of forbidden) {
+        problems[`${prefix}.fields.${name}`] = [`The tools never set ${type}.${name}. Only the admin and the Zotero sync set it.`];
+      }
+      return;
+    }
     const fields = fieldsSchema(type, op).safeParse(edit.data.fields);
     if (!fields.success) return addIssues(problems, `${prefix}.fields`, fields.error);
     const values = fields.data as Record<string, FieldValue>;
@@ -175,7 +196,7 @@ function checkRefs(
   problems: Record<string, string[]>,
 ): void {
   for (const [name, value] of Object.entries(values)) {
-    if (value === null || typeof value !== "object" || value instanceof Date) continue;
+    if (value === null || typeof value !== "object" || value instanceof Date || Array.isArray(value)) continue;
     const target = modelInfo(type).fields[name]?.fk;
     const kind = created.get(value.ref);
     if (kind === undefined) problems[`${prefix}.${name}`] = [`No earlier new record has the ref "${value.ref}".`];

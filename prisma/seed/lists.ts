@@ -61,7 +61,7 @@ export const instruments = [
 
 export const placeKinds = ["stage", "hall", "campus", "park", "farm", "village", "city", "region", "country"];
 
-export const sourceKinds = ["ticket", "poster", "advertisement", "review", "tape list", "album", "book", "image"];
+export const sourceKinds = ["ticket", "poster", "advertisement", "review", "tape list", "album", "article", "book", "image"];
 
 export const subjectKinds = ["theme", "place", "character", "song form", "event of the day"];
 

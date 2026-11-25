@@ -1327,11 +1327,14 @@ model Subject {
 
 /// A Zotero item (items 23, 34, 53, 68). Zotero owns the bibliographic part; this table
 /// holds a read-only cache of it, the extracted text and the archive-owned license fields.
+/// Item 108: the Zotero link is optional. An unlinked source has no zoteroKey, zoteroData or
+/// syncedAt, and the archive owns its title. When the curator sets the key of an unlinked source,
+/// the Zotero sync must fill that record and never create a second one.
 model Source {
   id     Int    @id
   entity Entity @relation(fields: [id], references: [id], onDelete: Cascade)
 
-  zoteroKey    String      @unique
+  zoteroKey    String?     @unique
   /// Item 42: short key ("gallagher-list") and other names, for "find source".
   key          String      @unique
   otherNames   String[]    @default([])
@@ -1340,8 +1343,8 @@ model Source {
 
   /// Read-only cache from Zotero (item 23): the title for search, the rest as received.
   title        String
-  zoteroData   Json
-  syncedAt     DateTime
+  zoteroData   Json?
+  syncedAt     DateTime?
   /// PRIVATE. Extracted text (OCR or a description for visual items). Never edited (section 6).
   extractedText String?
 

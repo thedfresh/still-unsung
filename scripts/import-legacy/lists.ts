@@ -37,7 +37,7 @@ const RECORDING_TYPE_NAMES = ["SBD", "FM", "Matrix", "Video", "Aud"];
 const SHOW_GROUP_KINDS = ["festival", "tour", "run", "residency", "benefit series"];
 const PLACE_KINDS = ["country", "region", "city", "campus", "park", "venue", "stage"];
 const SOURCE_KINDS = [
-  "album", "book", "tape list", "ticket", "poster", "advertisement", "review", "website",
+  "album", "article", "book", "tape list", "ticket", "poster", "advertisement", "review", "website",
   "letter", "email", "image",
 ];
 const SUBJECT_KINDS = ["theme", "place", "character", "song form", "event"];

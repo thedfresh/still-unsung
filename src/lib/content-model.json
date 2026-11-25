@@ -2945,7 +2945,7 @@
     },
     "zoteroKey": {
      "type": "String",
-     "required": true,
+     "required": false,
      "list": false,
      "hasDefault": false
     },
@@ -2976,13 +2976,13 @@
     },
     "zoteroData": {
      "type": "Json",
-     "required": true,
+     "required": false,
      "list": false,
      "hasDefault": false
     },
     "syncedAt": {
      "type": "DateTime",
-     "required": true,
+     "required": false,
      "list": false,
      "hasDefault": false
     },

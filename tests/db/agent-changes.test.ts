@@ -347,3 +347,87 @@ describe("read and search", () => {
     await expect(searchRecords({ type: "Session", query: "x" })).rejects.toMatchObject({ code: "invalid_input" });
   });
 });
+
+describe("sources without a Zotero link (item 108)", () => {
+  async function makeUnlinked() {
+    const kind = await db.sourceKind.findFirstOrThrow({ where: { name: "article" } });
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Source", fields: { title: "Synthetic interview", key: "synthetic-interview", sourceKindId: kind.id, otherNames: ["the interview"] } }],
+    });
+    expect(preview.warnings).toEqual([]);
+    expect(await db.source.count({ where: { key: "synthetic-interview" } })).toBe(0);
+    await applyChanges(agentId, preview.token as string);
+    return db.source.findFirstOrThrow({ where: { key: "synthetic-interview" } });
+  }
+
+  it("has the album and article source kinds", async () => {
+    const names = (await db.sourceKind.findMany()).map((k) => k.name);
+    expect(names).toEqual(expect.arrayContaining(["album", "article"]));
+  });
+
+  it("creates a source with no Zotero key through preview and apply", async () => {
+    const source = await makeUnlinked();
+    expect(source).toMatchObject({ zoteroKey: null, zoteroData: null, syncedAt: null, title: "Synthetic interview" });
+  });
+
+  it("stores the other names on create and on update", async () => {
+    const source = await makeUnlinked();
+    expect(source.otherNames).toEqual(["the interview"]);
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Source", id: source.id, rev: source.rev, fields: { otherNames: ["the interview", "radio talk"] } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    const after = await db.source.findUniqueOrThrow({ where: { id: source.id } });
+    expect(after.otherNames).toEqual(["the interview", "radio talk"]);
+    expect(after.rev).toBe(source.rev + 1);
+  });
+
+  it("changes the title of an unlinked source", async () => {
+    const source = await makeUnlinked();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Source", id: source.id, rev: source.rev, fields: { title: "Renamed interview" } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    expect((await db.source.findUniqueOrThrow({ where: { id: source.id } })).title).toBe("Renamed interview");
+  });
+
+  it("refuses to change the title of a linked source", async () => {
+    const linked = await db.source.findUniqueOrThrow({ where: { id: sourceId } });
+    await expect(
+      previewChanges(agentId, {
+        evidence: evidence(),
+        edits: [{ op: "update", type: "Source", id: linked.id, rev: linked.rev, fields: { title: "New title" } }],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    // Other fields of a linked source stay editable.
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Source", id: linked.id, rev: linked.rev, fields: { otherNames: ["notebook"] } }],
+    });
+    expect(preview.token).toMatch(/^suprev_/);
+  });
+
+  it("refuses a title change that applies after the source was linked", async () => {
+    const source = await makeUnlinked();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Source", id: source.id, rev: source.rev, fields: { title: "Late rename" } }],
+    });
+    await db.source.update({ where: { id: source.id }, data: { zoteroKey: "ZK2", zoteroData: {}, syncedAt: new Date() } });
+    await expect(applyChanges(agentId, preview.token as string)).rejects.toMatchObject({ code: "invalid_input" });
+    expect((await db.source.findUniqueOrThrow({ where: { id: source.id } })).title).toBe("Synthetic interview");
+  });
+
+  it("allows many unlinked sources (a unique key allows many nulls)", async () => {
+    await makeUnlinked();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Source", fields: { title: "Second", key: "second" } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    expect(await db.source.count({ where: { zoteroKey: null } })).toBe(2);
+  });
+});
