@@ -89,6 +89,23 @@ describe("preview and apply", () => {
     expect(await db.entity.count({ where: { kind: { in: ["SHOW", "SET", "SEGMENT"] } } })).toBe(3);
   });
 
+  it("previews and applies a segment with a summary and the delivery recording played", async () => {
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [
+        { op: "create", type: "Show", ref: "show", fields: { dateYear: 1980, dateMonth: 11, dateDay: 14 } },
+        { op: "create", type: "Set", ref: "set", fields: { showId: { ref: "show" }, position: 1, setTypeId } },
+        { op: "create", type: "Segment", fields: { setId: { ref: "set" }, sortKey: "a", delivery: "RECORDING_PLAYED", summary: "A tape of the band plays on air." } },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    const text = formatPreview(preview);
+    expect(text).toContain("delivery: recording played");
+    expect(text).toContain('summary: "A tape of the band plays on air."');
+    await applyChanges(agentId, preview.token as string);
+    expect(await db.segment.findFirstOrThrow()).toMatchObject({ delivery: "RECORDING_PLAYED", summary: "A tape of the band plays on air." });
+  });
+
   it("works once", async () => {
     const preview = await previewChanges(agentId, { evidence: { ownKnowledge: true }, edits: [{ op: "create", type: "Show", fields: { dateYear: 1990 } }] });
     await applyChanges(agentId, preview.token as string);

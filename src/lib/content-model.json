@@ -16,7 +16,8 @@
    "SUNG",
    "SUNG_A_CAPPELLA",
    "PLAYED",
-   "SPOKEN"
+   "SPOKEN",
+   "RECORDING_PLAYED"
   ],
   "Extent": [
    "COMPLETE",
@@ -552,7 +553,8 @@
       "SUNG",
       "SUNG_A_CAPPELLA",
       "PLAYED",
-      "SPOKEN"
+      "SPOKEN",
+      "RECORDING_PLAYED"
      ]
     },
     "workId": {
@@ -680,6 +682,13 @@
       "POSSIBLE",
       "UNKNOWN"
      ]
+    },
+    "summary": {
+     "type": "String",
+     "required": false,
+     "list": false,
+     "hasDefault": false,
+     "maxLength": 300
     },
     "wordsAsHeard": {
      "type": "String",
@@ -869,7 +878,8 @@
       "SUNG",
       "SUNG_A_CAPPELLA",
       "PLAYED",
-      "SPOKEN"
+      "SPOKEN",
+      "RECORDING_PLAYED"
      ]
     },
     "passageId": {
@@ -1828,7 +1838,8 @@
       "SUNG",
       "SUNG_A_CAPPELLA",
       "PLAYED",
-      "SPOKEN"
+      "SPOKEN",
+      "RECORDING_PLAYED"
      ]
     },
     "writtenForBandId": {

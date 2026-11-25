@@ -84,12 +84,14 @@ enum ShowStatus {
 
 /// Proposal section 2, segment: "sung, played without words, or spoken"; item 101 adds
 /// SUNG_A_CAPPELLA (counts as sung). Item 83: a vocal entry may override it for its scope.
-/// Item 94: PLAYED is the "instrumental" filter.
+/// Item 94: PLAYED is the "instrumental" filter. Item 107: RECORDING_PLAYED is a record or tape
+/// played on air, in order with the talk; it never counts as a performance.
 enum Delivery {
   SUNG
   SUNG_A_CAPPELLA
   PLAYED
   SPOKEN
+  RECORDING_PLAYED
 }
 
 /// Item 22, 80. COMPLETE is the presumed default, never checked one by one.
@@ -487,6 +489,10 @@ model Segment {
   deliveredById        Int?
   deliveredBy          Person?   @relation("SegmentDeliveredBy", fields: [deliveredById], references: [id], onDelete: Restrict)
   deliveredByCertainty Certainty @default(CONFIRMED)
+
+  /// PUBLIC. Item 106: a one-line summary of the segment (at most 300 characters). Unlike
+  /// wordsAsHeard, it is shown to readers.
+  summary String? @db.VarChar(300)
 
   /// PRIVATE. Words as heard, verbatim, in the curator's notation (items 24, 32, 79).
   wordsAsHeard    String?

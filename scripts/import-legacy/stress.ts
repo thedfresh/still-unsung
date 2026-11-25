@@ -1,3 +1,4 @@
+import { countsAsPerformance } from "../../src/lib/counting.ts";
 import type { Ctx } from "./context.ts";
 import { bool, dateOf, normalizeName, num, str, type Row } from "./rules.ts";
 
@@ -167,6 +168,7 @@ async function counts(ctx: Ctx): Promise<StressResult> {
   const perWork = new Map<number, { counted: number; fragment: number; setType: number; showType: number; spurious: number; total: number }>();
   for (const segment of segments) {
     if (!segment.legacyId?.startsWith("performances:")) continue;
+    if (!countsAsPerformance(segment.delivery)) continue;
     const row = perWork.get(segment.workId as number) ?? { counted: 0, fragment: 0, setType: 0, showType: 0, spurious: 0, total: 0 };
     row.total += 1;
     const fragment = segment.extent === "FRAGMENT" || segment.extent === "ABORTED";

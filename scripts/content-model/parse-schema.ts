@@ -63,6 +63,8 @@ export function parseSchema(source: string): ContentModel {
       if (type in enums) info.enum = enums[type];
       const db = /@db\.(Date|Time)\b/.exec(attrs);
       if (db) info.dbType = db[1] as "Date" | "Time";
+      const varChar = /@db\.VarChar\((\d+)\)/.exec(attrs);
+      if (varChar) info.maxLength = Number(varChar[1]);
       if (/@id\b/.test(attrs)) info.isId = true;
       if (attrs.includes("@updatedAt")) info.isUpdatedAt = true;
       fields[name] = info;

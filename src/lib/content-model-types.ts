@@ -10,6 +10,8 @@ export interface FieldInfo {
   enum?: string[];
   /** `Date` for `@db.Date`, `Time` for `@db.Time`: the column keeps only that part. */
   dbType?: "Date" | "Time";
+  /** The length limit of a `@db.VarChar(n)` column. */
+  maxLength?: number;
   isId?: boolean;
   isUpdatedAt?: boolean;
 }

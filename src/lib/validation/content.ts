@@ -42,7 +42,7 @@ function scalarSchema(name: string, info: FieldInfo): z.ZodType {
     case "Boolean":
       return z.boolean();
     case "String":
-      return z.string().max(20000);
+      return z.string().max(info.maxLength ?? 20000);
     case "DateTime":
       if (info.dbType === "Date") return z.iso.date().transform((v) => new Date(`${v}T00:00:00.000Z`));
       if (info.dbType === "Time") {
