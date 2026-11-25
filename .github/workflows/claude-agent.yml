@@ -113,10 +113,15 @@ jobs:
 
       # The workflow's own commit: main for real runs (dispatch from main, or Jira), or a
       # workflow-fix branch when testing a change to this file with --ref.
+      # No GITHUB_TOKEN credential kept: Claude's push must use the Claude GitHub App's token,
+      # which starts CI at once. A GITHUB_TOKEN push waits for approval, and a rework round has
+      # no PR-open event to start CI instead (HSA-147; the comment job's fix was HSA-146).
+      # The repo is public, so the branch steps below fetch without a credential.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       # The container runs as root but the checkout belongs to another user, so git refuses the
       # repo ("dubious ownership") until it is marked safe. The setup action does this too, but the
