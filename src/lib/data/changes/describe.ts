@@ -42,7 +42,8 @@ export async function describeItems(tx: Tx, items: AppliedItem[], options: Descr
   const withId = options.final ?? false;
   // A changed record is named by its stored value; a new record is named by its new value.
   for (const item of items) {
-    const label = item.op === "update" && item.before ? await labelRow(tx, item.type, item.before, true, cache) : await labelRow(tx, item.type, item.after, withId, cache);
+    const label =
+      item.op !== "create" && item.before ? await labelRow(tx, item.type, item.before, true, cache) : await labelRow(tx, item.type, item.after ?? {}, withId, cache);
     labels.set(keyOf(item.type, item.id), label);
   }
   const rowOf = (type: string, id: number): Promise<Row | null> =>
@@ -96,10 +97,11 @@ export async function describeItems(tx: Tx, items: AppliedItem[], options: Descr
     let parent: ParentInfo | null = null;
     if (type === "Note" && depth < MAX_DEPTH) {
       // A note has no parent of its own: it sits with the record it is attached to.
-      const attachment = items.find((i) => i.type === "NoteAttachment" && i.after.noteId === id);
-      if (attachment) parent = await parentOf("NoteAttachment", attachment.id, attachment.after, depth + 1);
+      const attachment = items.find((i) => i.type === "NoteAttachment" && (i.after ?? i.before)?.noteId === id);
+      if (attachment) parent = await parentOf("NoteAttachment", attachment.id, attachment.after ?? attachment.before, depth + 1);
     } else if (!ROOT_TYPES.has(type) && depth < MAX_DEPTH) {
       const state = row ?? (await rowOf(type, id));
+      // A parent field of a deleted record still names the record it sat under.
       for (const field of PARENT_FIELDS) {
         const target = state ? await targetOf(type, field, state[field]) : null;
         if (target) {
@@ -116,8 +118,10 @@ export async function describeItems(tx: Tx, items: AppliedItem[], options: Descr
   for (const item of items) {
     const label = labels.get(keyOf(item.type, item.id)) as string;
     const links = { before: await linksOf(item.type, item.before), after: await linksOf(item.type, item.after) };
-    const parent = await parentOf(item.type, item.id, item.after);
-    described.push({ op: item.op, type: item.type, label, before: item.before, after: item.after, links, parent });
+    // A deleted record has no `after`: the readout reads its `before` instead, like a stored delete.
+    const state = (item.after ?? item.before) as Row;
+    const parent = await parentOf(item.type, item.id, state);
+    described.push({ op: item.op, type: item.type, label, before: item.before, after: state, links, parent });
   }
   return described;
 }

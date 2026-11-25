@@ -1,4 +1,4 @@
-import { modelInfo } from "@/lib/content-access";
+import { LIST_TABLES, modelInfo } from "@/lib/content-access";
 import { bareLabel, changedFields, filledFields, isPrivateText, showValue, withType, type Row } from "@/lib/changes/labels";
 
 /**
@@ -80,7 +80,7 @@ export const EARLIER_KEY = "earlier";
 const EARLIER: ParentInfo = { key: EARLIER_KEY, type: "Earlier change", label: "Earlier change (no grouping stored)" };
 
 /** New records of these types are listed first, so the user can catch a duplicate. */
-const NEW_RECORD_TYPES = new Set(["Person", "Place", "Work", "Band", "Subject", "Source"]);
+const NEW_RECORD_TYPES = new Set<string>(["Person", "Place", "Work", "Band", "Subject", "Source", ...LIST_TABLES]);
 /** Fields that are not worth a line: system values, and flags that the readout words itself. */
 const SKIPPED_FIELDS = new Set(["sortKey", "legacyId", "isPublic", "wordsPublic"]);
 /** Fields that say where a record sits: its parent and its order. */
@@ -102,7 +102,7 @@ function plural(word: string, count: number): string {
 }
 
 /** `53 segments and 82 references`. */
-function countList(counts: Map<string, number>): string {
+export function countList(counts: Map<string, number>): string {
   const parts = [...counts].map(([type, n]) => `${n} ${plural(words(type), n)}`);
   return parts.length < 2 ? parts.join("") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
@@ -249,10 +249,16 @@ function recordTitle(item: ReadoutItem): { title: string; skip: Set<string> } {
   return { title: withType(item.type, item.label), skip: new Set() };
 }
 
+/** The key fields of a deleted record, as it was before: the same lines as a new record, with the old links. */
+function deletedFields(item: ReadoutItem, skip: Set<string>): ReadoutField[] {
+  const was = item.before ?? item.after;
+  return fillFields({ ...item, after: was, links: { ...item.links, after: item.links.before } }, skip);
+}
+
 /** One card for one record. */
 function recordCard(item: ReadoutItem): ReadoutCard {
   const { title, skip } = recordTitle(item);
-  if (item.op === "delete") return { action: "Deleted", title, fields: [] };
+  if (item.op === "delete") return { action: "", title: `Deleted · ${title}`, fields: deletedFields(item, skip) };
   if (item.op === "create") {
     return { action: "New", title, fields: fillFields(item, skip) };
   }
@@ -276,7 +282,10 @@ function unusualCards(items: ReadoutItem[]): ReadoutCard[] {
     if (item.op === "create" && NEW_RECORD_TYPES.has(item.type)) {
       cards.push({ action: "", title: `New ${words(item.type)}: ${bareLabel(item.type, item.label)}`, fields: [] });
     }
-    if (item.op === "delete") cards.push({ action: "", title: `Deleted ${name}`, fields: [] });
+    if (item.op === "delete") {
+      const { title, skip } = recordTitle(item);
+      cards.push({ action: "", title: `Deleted · ${title}`, fields: deletedFields(item, skip) });
+    }
     const overwritten = item.op === "update" ? changeFields(item).filter((f) => f.overwrite) : [];
     if (overwritten.length > 0) cards.push({ action: "", title: `Changed value in ${name}`, fields: overwritten });
     if (item.op === "delete") continue;

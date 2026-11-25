@@ -294,9 +294,22 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   read. One general edit tool covers every content table; add a task-specific tool only when a
   job proves clumsy. (review)
 - **Which tables.** `src/lib/content-access.ts` decides. The agent never writes users, roles,
-  tokens, sessions, changesets, the `entities` table, backlinks or addresses. It never writes an
-  editable list (item 91): a preview that needs a new list value stops and names it. It never
-  deletes or merges. (test: `tests/db/agent-changes.test.ts`)
+  tokens, sessions, changesets, the `entities` table, backlinks or addresses. It may create a
+  value in an editable list (items 91, 116) with `op: "create"`, and a ref in the same call may
+  use it. It never updates or deletes a list value: the refusal says "Ask the user to change
+  list values in the admin". A fixed list (an enum) is not a table and is never written. It
+  never merges. (test: `tests/db/agent-changes.test.ts`, `src/lib/content-access.test.ts`)
+- **Edit ops.** An edit is `create`, `update` or `delete`. A delete is
+  `{ op: "delete", type, id, rev }`. `rev` is required for a type that has a version number and
+  must be left out for one that has none (for example `NoteAttachment`). It follows the same
+  rules as the other ops: a stale `rev` refuses the call, a preview comes first, one call is one
+  changeset. `ChangesetItem.before` keeps the full row and `after` is null. The record's
+  `entities` row goes in the same transaction. Deletes run after the creates and updates of the
+  call, in the order given, so a call can move the attachments of a record and then delete it.
+  A record that still has anything attached (citations, notes, references, external IDs, or
+  children such as the segments of a set) is refused with a plain message that names the count
+  and the first few records. The database `ON DELETE` rules are a last guard, never the check.
+  (`findAttached` in `write-edits.ts`; test: `tests/db/agent-changes.test.ts`)
 - **Zotero fields.** A source may have no Zotero link (item 108). The tools may create a
   source with `title`, `key`, `sourceKindId` and `otherNames`, and change them while it is
   unlinked. They never set `zoteroKey`, `zoteroData` or `syncedAt` (`AGENT_FORBIDDEN_FIELDS`).
@@ -314,7 +327,8 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   the Changes page. Change the wording there only. `src/lib/changes/preview-format.ts` adds only
   the warnings, the evidence and the apply token. The readout has the counts first, then the
   unusual lines (new people, places, works, bands, subjects and sources; a value changed from
-  one value to another; certainty below CONFIRMED), then one heading per parent (show, work,
+  one value to another; certainty below CONFIRMED; every delete, as "Deleted · <record name>"
+  with its key fields from `before`; new list values, such as "New subject kind: brand"), then one heading per parent (show, work,
   person) with one plain line per record. It never prints raw flags or system fields: it says
   who can see a record in words. It shows a field of a new record only when the value differs
   from the column default. `src/lib/changes/labels.ts` and `labelRow` write the record labels.
@@ -344,7 +358,7 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   `/admin/changes` is a log, newest first, 50 to a page: one line for each change (the counts
   sentence, who made it, its evidence and the time). Opening a line shows the readout.
 - **Not built yet:** the call to the cache-refresh route after an apply (no cached page reads
-  content yet; section 5), and undo.
+  content yet; section 5), undo, and merge.
 
 ## 12. Admin edit forms and the shared save
 
@@ -380,4 +394,5 @@ kind of change (data-model items 19, 42, 87, 102, 109).
   (`src/lib/evidence-choice.ts`) turns the choice into the `evidence` of the save.
 - **The public mark** keeps the changeset default (`defaultPublicMark`). A form does not set it
   yet.
-- **Not built yet:** undo from the admin (the changeset keeps `before`), and delete edits.
+- **Not built yet:** undo from the admin (the changeset keeps `before`), and deletes from the
+  admin screens. The shared save can use the `delete` op later.

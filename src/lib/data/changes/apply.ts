@@ -80,10 +80,10 @@ export async function applyChanges(userId: string, token: string, isPublic?: boo
           position,
           tableName: modelInfo(item.type).table,
           recordId: item.id,
-          action: item.op === "create" ? ("CREATE" as const) : ("UPDATE" as const),
+          action: ({ create: "CREATE", update: "UPDATE", delete: "DELETE" } as const)[item.op],
           expectedRev: item.expectedRev,
           before: (item.before ?? Prisma.DbNull) as Prisma.InputJsonValue,
-          after: item.after as Prisma.InputJsonValue,
+          after: (item.after ?? Prisma.DbNull) as Prisma.InputJsonValue,
         })),
       });
       await tx.changeset.update({

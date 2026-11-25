@@ -4,7 +4,7 @@ import { showValue } from "@/lib/changes/labels";
 /** The apply result as plain text. A conflict shows the stored version and the agent's version. */
 export function formatApplyResult(result: ApplyResult): string {
   if (result.ok) {
-    const lines = result.applied.map((a) => `- ${a.op === "create" ? "created" : "changed"} ${a.record}`);
+    const lines = result.applied.map((a) => `- ${a.op === "create" ? "created" : a.op === "delete" ? "deleted" : "changed"} ${a.record}`);
     return [`Applied as changeset ${result.changesetId}.`, ...lines].join("\n");
   }
   if (result.reason === "blocked") return ["Nothing was written.", ...result.messages.map((m) => `- ${m}`)].join("\n");

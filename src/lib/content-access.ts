@@ -114,11 +114,16 @@ export function isList(type: string): boolean {
   return LISTS.has(type);
 }
 
-/** Why the tools refuse to write a type, or null when the agent may write it. */
-export function writeRefusal(type: string): string | null {
+export type EditOp = "create" | "update" | "delete";
+
+/**
+ * Why the tools refuse an edit of a type, or null when the agent may make it. The agent may
+ * create a value in an editable list (item 116), but never change or delete one.
+ */
+export function writeRefusal(type: string, op: EditOp = "create"): string | null {
   if (!isKnownType(type)) return `${type} is not a record type.`;
   if (LISTS.has(type)) {
-    return `${type} is an editable list. Ask the user to add the value in the admin, then use its ID.`;
+    return op === "create" ? null : `${type} is an editable list. Ask the user to change list values in the admin.`;
   }
   if (!WRITABLE.has(type)) return `${type} cannot be changed with this tool.`;
   return null;
@@ -143,6 +148,7 @@ export function defaultPublicMark(types: Iterable<string>): boolean {
   return false;
 }
 
+/** Types the agent may create: the content types and the editable lists. */
 export function writableTypes(): string[] {
   return Object.keys(MODEL.models).filter((type) => writeRefusal(type) === null);
 }

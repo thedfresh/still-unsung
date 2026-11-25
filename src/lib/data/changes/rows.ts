@@ -11,6 +11,8 @@ export interface Delegate {
   findMany(args: object): Promise<Row[]>;
   create(args: object): Promise<Row>;
   updateMany(args: object): Promise<{ count: number }>;
+  deleteMany(args: object): Promise<{ count: number }>;
+  count(args: object): Promise<number>;
 }
 
 export function delegateOf(tx: Tx, type: string): Delegate {

@@ -326,12 +326,13 @@ describe("version check", () => {
 describe("what an agent may not do", () => {
   const ownKnowledge = { ownKnowledge: true };
 
-  it.each(["SetType", "User", "AgentToken", "Changeset", "ChangesetItem", "Entity", "Session", "Account"])("refuses to create a %s", async (type) => {
+  it.each(["User", "AgentToken", "Changeset", "ChangesetItem", "Entity", "Session", "Account"])("refuses to create a %s", async (type) => {
     await expect(previewChanges(agentId, { evidence: ownKnowledge, edits: [{ op: "create", type, fields: { name: "x" } }] })).rejects.toMatchObject({ code: "invalid_input" });
     expect(await db.user.count()).toBe(1);
   });
 
   it("refuses to change a list value or a user", async () => {
+    // A list value can only be created (item 116); a change is refused.
     const setType = await db.setType.findFirstOrThrow();
     await expect(
       previewChanges(agentId, { evidence: ownKnowledge, edits: [{ op: "update", type: "SetType", id: setType.id, rev: setType.rev, fields: { name: "Hacked" } }] }),
@@ -730,5 +731,171 @@ describe("sources without a Zotero link (item 108)", () => {
     });
     await applyChanges(agentId, preview.token as string);
     expect(await db.source.count({ where: { zoteroKey: null } })).toBe(2);
+  });
+});
+
+describe("delete edits (HSA-167)", () => {
+  const own = { ownKnowledge: true };
+
+  /** A show with one set, two talk segments and a reference from the first one to the source. */
+  async function makeSegments() {
+    const partOf = await db.referenceKind.findUniqueOrThrow({ where: { name: "part of" } });
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [
+        { op: "create", type: "Show", ref: "show", fields: { dateYear: 1980, dateMonth: 11, dateDay: 14 } },
+        { op: "create", type: "Set", ref: "set", fields: { showId: { ref: "show" }, position: 1, setTypeId } },
+        { op: "create", type: "Segment", ref: "a", fields: { setId: { ref: "set" }, sortKey: "a", delivery: "SPOKEN", summary: "First talk." } },
+        { op: "create", type: "Segment", ref: "b", fields: { setId: { ref: "set" }, sortKey: "b", delivery: "SPOKEN", summary: "Second talk." } },
+        { op: "create", type: "Reference", fields: { fromId: { ref: "a" }, toId: sourceId, referenceKindId: partOf.id } },
+      ],
+    });
+    await applyChanges(agentId, preview.token as string);
+    const [a, b] = await db.segment.findMany({ orderBy: { sortKey: "asc" } });
+    return { a, b, reference: await db.reference.findFirstOrThrow() };
+  }
+
+  async function addCitation(entityId: number) {
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Citation", fields: { entityId, sourceId, place: "page 1" } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    return db.citation.findFirstOrThrow({ where: { entityId }, orderBy: { id: "desc" } });
+  }
+
+  it("deletes a citation in one changeset that keeps the row", async () => {
+    const show = await makeShow();
+    const citation = await addCitation(show.id);
+    const changesets = await db.changeset.count();
+    const preview = await previewChanges(agentId, { evidence: own, edits: [{ op: "delete", type: "Citation", id: citation.id, rev: citation.rev }] });
+    expect(preview.warnings).toEqual([]);
+    expect(await db.citation.count()).toBe(1);
+    const text = formatPreview(preview);
+    expect(text).toContain("Look at these first:");
+    expect(text).toContain("Deleted · Citation");
+    const applied = await applyChanges(agentId, preview.token as string);
+    expect(formatApplyResult(applied)).toContain("deleted");
+    expect(await db.citation.count()).toBe(0);
+    expect(await db.changeset.count()).toBe(changesets + 1);
+    const item = await db.changesetItem.findFirstOrThrow({ where: { action: "DELETE" } });
+    expect(item.before).toMatchObject({ id: citation.id, place: "page 1", entityId: show.id });
+    expect(item.after).toBeNull();
+  });
+
+  it("removes the entity row of a deleted record in the same transaction", async () => {
+    const { a, b, reference } = await makeSegments();
+    const preview = await previewChanges(agentId, {
+      evidence: own,
+      edits: [
+        { op: "delete", type: "Reference", id: reference.id, rev: reference.rev },
+        { op: "delete", type: "Segment", id: b.id, rev: b.rev },
+      ],
+    });
+    await applyChanges(agentId, preview.token as string);
+    expect(await db.segment.findUnique({ where: { id: b.id } })).toBeNull();
+    expect(await db.entity.findUnique({ where: { id: b.id } })).toBeNull();
+    expect(await db.entity.findUnique({ where: { id: reference.id } })).toBeNull();
+    expect(await db.segment.findUnique({ where: { id: a.id } })).not.toBeNull();
+  });
+
+  it("refuses a stale rev", async () => {
+    const show = await makeShow();
+    const citation = await addCitation(show.id);
+    const preview = await previewChanges(agentId, { evidence: own, edits: [{ op: "delete", type: "Citation", id: citation.id, rev: citation.rev + 1 }] });
+    expect(preview.token).toBeNull();
+    expect(preview.warnings[0]).toMatch(/changed since you read it/);
+    expect(await db.citation.count()).toBe(1);
+  });
+
+  it("refuses to delete a segment that still has a reference, and names the reference", async () => {
+    const { a, reference } = await makeSegments();
+    const error = await previewChanges(agentId, { evidence: own, edits: [{ op: "delete", type: "Segment", id: a.id, rev: a.rev }] }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "invalid_input" });
+    expect((error as Error).message).toContain(`1 reference attached (Reference ${reference.id})`);
+    expect(await db.segment.count()).toBe(2);
+  });
+
+  it("refuses to delete a set that still has segments", async () => {
+    await makeSegments();
+    const set = await db.set.findFirstOrThrow();
+    const error = await previewChanges(agentId, { evidence: own, edits: [{ op: "delete", type: "Set", id: set.id, rev: set.rev }] }).catch((e: unknown) => e);
+    expect((error as Error).message).toContain("2 segments");
+  });
+
+  it("moves a reference off a segment and then deletes the segment in one call", async () => {
+    const { a, b, reference } = await makeSegments();
+    const preview = await previewChanges(agentId, {
+      evidence: own,
+      edits: [
+        // The delete is listed first. Deletes still run after the update.
+        { op: "delete", type: "Segment", id: a.id, rev: a.rev },
+        { op: "update", type: "Reference", id: reference.id, rev: reference.rev, fields: { fromId: b.id } },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    await applyChanges(agentId, preview.token as string);
+    expect(await db.segment.findUnique({ where: { id: a.id } })).toBeNull();
+    expect((await db.reference.findFirstOrThrow()).fromId).toBe(b.id);
+  });
+
+  it("refuses to delete a list value, and a record changed and deleted in one call", async () => {
+    const setType = await db.setType.findFirstOrThrow();
+    await expect(
+      previewChanges(agentId, { evidence: own, edits: [{ op: "delete", type: "SetType", id: setType.id, rev: setType.rev }] }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    const show = await makeShow();
+    const citation = await addCitation(show.id);
+    await expect(
+      previewChanges(agentId, {
+        evidence: own,
+        edits: [
+          { op: "update", type: "Citation", id: citation.id, rev: citation.rev, fields: { place: "x" } },
+          { op: "delete", type: "Citation", id: citation.id, rev: citation.rev },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("reads a delete on the Changes page", async () => {
+    const show = await makeShow();
+    const citation = await addCitation(show.id);
+    const preview = await previewChanges(agentId, { evidence: own, edits: [{ op: "delete", type: "Citation", id: citation.id, rev: citation.rev }] });
+    await applyChanges(agentId, preview.token as string);
+    const { changes } = await listChangesets(1);
+    expect(changes[0].counts).toBe("Deleted 1 citation.");
+    expect(changes[0].readout).toContain("Deleted · Citation");
+  });
+});
+
+describe("list values (HSA-167, item 116)", () => {
+  const own = { ownKnowledge: true };
+
+  it("creates a subject kind and uses it in the same call", async () => {
+    const preview = await previewChanges(agentId, {
+      evidence: own,
+      edits: [
+        { op: "create", type: "SubjectKind", ref: "kind", fields: { name: "brand" } },
+        { op: "create", type: "Subject", fields: { name: "Zippo", subjectKindId: { ref: "kind" } } },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    expect(formatPreview(preview)).toContain("New subject kind: brand");
+    await applyChanges(agentId, preview.token as string);
+    const kind = await db.subjectKind.findFirstOrThrow({ where: { name: "brand" } });
+    expect((await db.subject.findFirstOrThrow()).subjectKindId).toBe(kind.id);
+  });
+
+  it("refuses to update or delete a list value, with a plain message", async () => {
+    const kind = await db.subjectKind.create({ data: { name: "drinking" } });
+    for (const edit of [
+      { op: "update", type: "SubjectKind", id: kind.id, rev: kind.rev, fields: { name: "x" } },
+      { op: "delete", type: "SubjectKind", id: kind.id, rev: kind.rev },
+    ]) {
+      const error = await previewChanges(agentId, { evidence: own, edits: [edit] }).catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: "invalid_input" });
+      expect(JSON.stringify(error)).toContain("Ask the user to change list values in the admin");
+    }
+    expect((await db.subjectKind.findUniqueOrThrow({ where: { id: kind.id } })).name).toBe("drinking");
   });
 });
