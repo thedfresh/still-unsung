@@ -25,6 +25,8 @@ export interface ParsedEdit {
   ref?: string;
   id?: number;
   rev?: number;
+  /** A new segment goes next to an existing or earlier new segment; the server makes its sort key. */
+  placement?: { side: "before" | "after"; target: number | RefValue };
   fields: Record<string, FieldValue>;
 }
 
@@ -94,14 +96,15 @@ export function editableFields(type: string): Record<string, FieldInfo> {
 
 const fieldsCache = new Map<string, z.ZodType>();
 
-function fieldsSchema(type: string, op: "create" | "update"): z.ZodType {
-  const key = `${type}:${op}`;
+function fieldsSchema(type: string, op: "create" | "update", placed = false): z.ZodType {
+  const key = `${type}:${op}:${placed}`;
   const cached = fieldsCache.get(key);
   if (cached) return cached;
   const shape: Record<string, z.ZodType> = {};
   for (const [name, field] of Object.entries(editableFields(type))) {
     const schema = fieldSchema(type, name, field, op === "create");
-    shape[name] = op === "update" ? schema.optional() : schema;
+    // A placed segment takes its set and sort key from the segment it goes next to.
+    shape[name] = op === "update" || (placed && (name === "setId" || name === "sortKey")) ? schema.optional() : schema;
   }
   const schema = z.object(shape).strict();
   fieldsCache.set(key, schema);
@@ -114,8 +117,10 @@ const editShape = {
   fields: z.record(z.string(), z.unknown()),
 };
 
+const neighbourSchema = z.union([z.number().int().positive(), refSchema]);
+
 const editSchema = z.discriminatedUnion("op", [
-  z.object({ op: z.literal("create"), ...editShape }).strict(),
+  z.object({ op: z.literal("create"), ...editShape, before: neighbourSchema.optional(), after: neighbourSchema.optional() }).strict(),
   z.object({
     op: z.literal("update"),
     ...editShape,
@@ -165,9 +170,14 @@ export function parseEdits(input: unknown): ParsedEdit[] {
       }
       return;
     }
-    const fields = fieldsSchema(type, op).safeParse(edit.data.fields);
+    const problemCount = Object.keys(problems).length;
+    const placement = edit.data.op === "create" ? placementOf(edit.data, type, `${prefix}`, created, problems) : undefined;
+    // A before/after error comes first: do not add errors about setId or sortKey as well.
+    if (Object.keys(problems).length > problemCount) return;
+    const fields = fieldsSchema(type, op, placement !== undefined).safeParse(edit.data.fields);
     if (!fields.success) return addIssues(problems, `${prefix}.fields`, fields.error);
     const values = fields.data as Record<string, FieldValue>;
+    if (placement && "sortKey" in values) problems[`${prefix}.fields.sortKey`] = ["Use before or after, or sortKey, not both."];
     if (op === "update" && Object.keys(values).length === 0) {
       return void (problems[`${prefix}.fields`] = ["Name at least one field to change."]);
     }
@@ -182,10 +192,30 @@ export function parseEdits(input: unknown): ParsedEdit[] {
       else if (created.has(edit.data.ref)) problems[`${prefix}.ref`] = ["This ref is used twice."];
       else created.set(edit.data.ref, type);
     }
-    parsed.push({ op, type, ref: edit.data.ref, id: edit.data.op === "update" ? edit.data.id : undefined, rev: edit.data.op === "update" ? edit.data.rev : undefined, fields: values });
+    parsed.push({ op, type, ref: edit.data.ref, ...(placement ? { placement } : {}), id: edit.data.op === "update" ? edit.data.id : undefined, rev: edit.data.op === "update" ? edit.data.rev : undefined, fields: values });
   });
   if (Object.keys(problems).length > 0) throw new AppError("invalid_input", undefined, problems);
   return parsed;
+}
+
+/** Read `before` or `after` of a new segment. Reports a misuse in `problems`. */
+function placementOf(
+  edit: { before?: number | RefValue; after?: number | RefValue },
+  type: string,
+  prefix: string,
+  created: Map<string, string>,
+  problems: Record<string, string[]>,
+): ParsedEdit["placement"] {
+  const { before, after } = edit;
+  if (before === undefined && after === undefined) return undefined;
+  if (type !== "Segment") return void (problems[`${prefix}.type`] = ["Only a new Segment can use before or after."]);
+  if (before !== undefined && after !== undefined) return void (problems[`${prefix}.before`] = ["Use before or after, not both."]);
+  const side = before !== undefined ? "before" : "after";
+  const target = (before ?? after) as number | RefValue;
+  if (typeof target === "object" && created.get(target.ref) !== "Segment") {
+    problems[`${prefix}.${side}`] = [`No earlier new Segment has the ref "${target.ref}".`];
+  }
+  return { side, target };
 }
 
 function checkRefs(

@@ -1,5 +1,6 @@
 import { getPrisma } from "@/lib/db";
-import type { Row } from "@/lib/changes/labels";
+import { describeRecord, withType, type Row } from "@/lib/changes/labels";
+import { MODEL } from "@/lib/content-access";
 
 export interface ChangesetRow {
   id: number;
@@ -14,7 +15,7 @@ export interface ChangesetRow {
   userRole: string;
   /** The evidence, in words. */
   evidence: string;
-  items: Array<{ position: number; tableName: string; recordId: number; action: string; before: Row | null; after: Row | null }>;
+  items: Array<{ position: number; tableName: string; label: string; recordId: number; action: string; before: Row | null; after: Row | null }>;
 }
 
 interface EvidenceFields {
@@ -52,6 +53,17 @@ export async function listChangesets(limit = 50): Promise<ChangesetRow[]> {
       items: { orderBy: { position: "asc" } },
     },
   });
+  const typeOfTable = (table: string) => Object.keys(MODEL.models).find((type) => MODEL.models[type].table === table);
+  /**
+   * The name the record had when it changed, stored at apply time. An item from before that
+   * column falls back to a name made from its stored state, with no database query.
+   */
+  const labelOf = (item: (typeof rows)[number]["items"][number]): string => {
+    if (item.label) return item.label;
+    const type = typeOfTable(item.tableName);
+    const state = (item.after ?? item.before) as Row | null;
+    return type && state ? withType(type, describeRecord(type, state)) : `${item.tableName} #${item.recordId}`;
+  };
   return rows.map((row) => {
     return {
       id: row.id,
@@ -67,6 +79,7 @@ export async function listChangesets(limit = 50): Promise<ChangesetRow[]> {
       items: row.items.map((item) => ({
         position: item.position,
         tableName: item.tableName,
+        label: labelOf(item),
         recordId: item.recordId,
         action: item.action,
         before: item.before as Row | null,

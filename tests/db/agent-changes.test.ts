@@ -294,7 +294,7 @@ describe("preview wording", () => {
       ],
     });
     const text = formatPreview(preview);
-    expect(text).toContain("entityId: Show 1978-05-23");
+    expect(text).toMatch(/entityId: \d+ \(1978-05-23\)/);
     expect(text).toContain("attaches to: Show 1978-05-23");
     expect(text).not.toMatch(/#\d+/);
     expect(text).toContain("Listed in recent changes:");
@@ -306,6 +306,122 @@ describe("preview wording", () => {
       edits: [{ op: "update", type: "Note", id: note.id, rev: note.rev, fields: { body: "New words" } }],
     });
     expect(formatPreview(edit)).toContain('CHANGE Note "Old words"');
+  });
+});
+
+describe("labels, defaults and position", () => {
+  /** A show with one set, a work and three segments a, b, c in order. Returns their IDs. */
+  async function setup() {
+    const work = await db.entity.create({ data: { kind: "WORK" } });
+    const workKindId = (await db.workKind.findFirstOrThrow()).id;
+    await db.work.create({ data: { id: work.id, title: "Man Of Constant Sorrow", workKindId } });
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [
+        { op: "create", type: "Show", ref: "show", fields: { dateYear: 2002, dateMonth: 4, dateDay: 30 } },
+        { op: "create", type: "Set", ref: "set", fields: { showId: { ref: "show" }, position: 1, setTypeId } },
+        { op: "create", type: "Segment", fields: { setId: { ref: "set" }, sortKey: "a1" } },
+        { op: "create", type: "Segment", fields: { setId: { ref: "set" }, sortKey: "a2" } },
+        { op: "create", type: "Segment", fields: { setId: { ref: "set" }, sortKey: "a3" } },
+      ],
+    });
+    await applyChanges(agentId, preview.token as string);
+    const segments = await db.segment.findMany({ orderBy: { sortKey: "asc" } });
+    return { workId: work.id, setId: segments[0].setId, ids: segments.map((x) => x.id) };
+  }
+
+  async function orderAfter(edit: Record<string, unknown>, workId: number) {
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Segment", fields: { workId }, ...edit }],
+    });
+    expect(preview.warnings).toEqual([]);
+    await applyChanges(agentId, preview.token as string);
+    const rows = await db.segment.findMany({ orderBy: { sortKey: "asc" }, select: { id: true } });
+    return { preview, order: rows.map((r) => r.id) };
+  }
+
+  it("previews a new segment inserted with before: with labels and no defaults", async () => {
+    const { workId, ids } = await setup();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Segment", before: ids[1], fields: { workId } }],
+    });
+    expect(preview.warnings).toEqual([]);
+    const text = formatPreview(preview);
+    expect(text).toContain("NEW Segment: Man Of Constant Sorrow, 2002-04-30");
+    expect(text).toMatch(/setId: \d+ \(2002-04-30, set 1\)/);
+    expect(text).toMatch(/workId: \d+ \(Man Of Constant Sorrow\)/);
+    for (const word of ["joinsNext", "workCertainty", "cutAtStart", "cutAtEnd", "extent", "isPublic"]) {
+      expect(text).not.toContain(word);
+    }
+    expect(await db.segment.count()).toBe(3);
+  });
+
+  it("does not say a new work attaches to its kind", async () => {
+    const workKindId = (await db.workKind.findFirstOrThrow()).id;
+    const preview = await previewChanges(agentId, { evidence: evidence(), edits: [{ op: "create", type: "Work", fields: { title: "Ripple", workKindId } }] });
+    const text = formatPreview(preview);
+    expect(text).toContain('workKindId:');
+    expect(text).not.toContain("attaches to");
+  });
+
+  it("inserts first, in the middle and last in a set", async () => {
+    const { workId, ids } = await setup();
+    const [a, b, c] = ids;
+    const first = await orderAfter({ before: a }, workId);
+    expect(first.order.slice(1)).toEqual([a, b, c]);
+    const [n1] = first.order;
+    const middle = await orderAfter({ after: a }, workId);
+    expect(middle.order[0]).toBe(n1);
+    expect(middle.order.filter((id) => ![n1, a, b, c].includes(id))).toHaveLength(1);
+    expect([middle.order[1], middle.order[3], middle.order[4]]).toEqual([a, b, c]);
+    const last = await orderAfter({ after: c }, workId);
+    expect(last.order.slice(0, 5)).toEqual(middle.order);
+    expect(last.order).toHaveLength(6);
+    const rows = await db.segment.findMany();
+    expect(new Set(rows.map((x) => x.sortKey)).size).toBe(6);
+    expect(new Set(rows.map((x) => x.setId)).size).toBe(1);
+  });
+
+  it("puts a new segment next to another new segment of the same call", async () => {
+    const { workId, setId } = await setup();
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [
+        { op: "create", type: "Segment", ref: "x", fields: { setId, sortKey: "b0" } },
+        { op: "create", type: "Segment", ref: "y", after: { ref: "x" }, fields: { workId } },
+        { op: "create", type: "Segment", before: { ref: "y" }, fields: { workId } },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    await applyChanges(agentId, preview.token as string);
+    const rows = await db.segment.findMany({ where: { sortKey: { gte: "b0" } }, orderBy: { sortKey: "asc" } });
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.workId)).toEqual([null, workId, workId]);
+  });
+
+  it("refuses a sortKey together with before, and a neighbour in another set", async () => {
+    const { workId, ids } = await setup();
+    await expect(
+      previewChanges(agentId, { evidence: evidence(), edits: [{ op: "create", type: "Segment", before: ids[0], fields: { sortKey: "a0", workId } }] }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(
+      previewChanges(agentId, { evidence: evidence(), edits: [{ op: "create", type: "Segment", before: ids[0], fields: { setId: ids[0] } }] }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("names segments and sets in apply results, get_record and search", async () => {
+    const { workId, ids, setId } = await setup();
+    const preview = await previewChanges(agentId, { evidence: evidence(), edits: [{ op: "create", type: "Segment", after: ids[2], fields: { workId } }] });
+    const applied = formatApplyResult(await applyChanges(agentId, preview.token as string));
+    expect(applied).toContain("created Segment: Man Of Constant Sorrow, 2002-04-30");
+    expect(await getRecord("Segment", { id: ids[0] })).toMatchObject({ label: "Segment: [spoken], 2002-04-30" });
+    expect(await getRecord("Set", { id: setId })).toMatchObject({ label: "Set: 2002-04-30, set 1" });
+    const hits = await searchRecords({ type: "Work", query: "Constant" });
+    expect(hits[0].label).toBe('Work "Man Of Constant Sorrow"');
+    const [change] = await listChangesets();
+    expect(change.items[0].label).toBe("Segment: Man Of Constant Sorrow, 2002-04-30");
   });
 });
 

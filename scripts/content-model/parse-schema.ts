@@ -12,6 +12,19 @@ function snake(name: string): string {
   return name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toUpperCase();
 }
 
+/** The value of a literal `@default(...)`: a boolean, a number, an enum name or `[]`. Else undefined. */
+function literalDefault(attrs: string): FieldInfo["default"] {
+  const match = /@default\(([^()]*(?:\([^()]*\))?[^()]*)\)/.exec(attrs);
+  if (!match) return undefined;
+  const text = match[1].trim();
+  if (text === "true") return true;
+  if (text === "false") return false;
+  if (text === "[]") return [];
+  if (/^-?\d+$/.test(text)) return Number(text);
+  if (/^[A-Z][A-Z0-9_]*$/.test(text)) return text;
+  return undefined;
+}
+
 function blocks(source: string, keyword: "model" | "enum"): Array<{ name: string; lines: string[] }> {
   const out: Array<{ name: string; lines: string[] }> = [];
   const re = new RegExp(`^${keyword}\\s+(\\w+)\\s*\\{([\\s\\S]*?)^\\}`, "gm");
@@ -61,6 +74,8 @@ export function parseSchema(source: string): ContentModel {
       if (!SCALARS.has(type) && !(type in enums)) throw new Error(`Unknown type ${type} on ${block.name}.${name}`);
       const info: FieldInfo = { type, required: !optional && !list, list: Boolean(list), hasDefault: attrs.includes("@default(") };
       if (type in enums) info.enum = enums[type];
+      const literal = literalDefault(attrs);
+      if (literal !== undefined) info.default = literal;
       const db = /@db\.(Date|Time)\b/.exec(attrs);
       if (db) info.dbType = db[1] as "Date" | "Time";
       const varChar = /@db\.VarChar\((\d+)\)/.exec(attrs);

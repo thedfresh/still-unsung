@@ -86,7 +86,7 @@ test.describe("the MCP endpoint", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Changes" })).toBeVisible();
     const change = page.locator("details", { hasText: agent.email }).first();
     await change.locator("summary").click();
-    await expect(change).toContainText("CREATE shows");
+    await expect(change).toContainText(`CREATE Show ${year}-03-04`);
     await expect(change).toContainText("own knowledge");
     const results = await new AxeBuilder({ page }).withTags(WCAG).analyze();
     expect(results.violations).toEqual([]);

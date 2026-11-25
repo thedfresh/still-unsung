@@ -216,7 +216,8 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": true
     },
     "createdAt": {
      "type": "DateTime",
@@ -291,7 +292,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "timeLabel": {
      "type": "String",
@@ -336,7 +338,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "billedAs": {
      "type": "String",
@@ -368,7 +371,8 @@
       "CANCELED",
       "SPURIOUS",
       "UNKNOWN"
-     ]
+     ],
+     "default": "TOOK_PLACE"
     },
     "statusCertainty": {
      "type": "Certainty",
@@ -380,7 +384,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "hunterParticipationCertainty": {
      "type": "Certainty",
@@ -392,7 +397,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "slug": {
      "type": "String",
@@ -410,7 +416,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -484,7 +491,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -542,7 +550,8 @@
      "enum": [
       "STOPS",
       "RUNS_INTO"
-     ]
+     ],
+     "default": "STOPS"
     },
     "delivery": {
      "type": "Delivery",
@@ -574,7 +583,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "wordsFromWorkId": {
      "type": "Int",
@@ -593,7 +603,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "tuneFromWorkId": {
      "type": "Int",
@@ -612,7 +623,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "wordsVersionId": {
      "type": "Int",
@@ -638,7 +650,8 @@
       "PARTIAL",
       "FRAGMENT",
       "ABORTED"
-     ]
+     ],
+     "default": "COMPLETE"
     },
     "portionNote": {
      "type": "String",
@@ -650,19 +663,22 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "cutAtEnd": {
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "hasGaps": {
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "deliveredById": {
      "type": "Int",
@@ -681,7 +697,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "summary": {
      "type": "String",
@@ -707,7 +724,8 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "legacyId": {
      "type": "String",
@@ -719,7 +737,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -773,7 +792,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -821,7 +841,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -867,7 +888,8 @@
       "LEAD",
       "HARMONY",
       "BACKING"
-     ]
+     ],
+     "default": "LEAD"
     },
     "delivery": {
      "type": "Delivery",
@@ -905,7 +927,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1022,13 +1045,15 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "absent": {
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "memberOverride": {
      "type": "MemberOverride",
@@ -1044,7 +1069,8 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "legacyId": {
      "type": "String",
@@ -1056,7 +1082,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1169,13 +1196,15 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1242,13 +1271,15 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": true
     },
     "featured": {
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "featuredText": {
      "type": "String",
@@ -1266,7 +1297,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1326,7 +1358,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1385,7 +1418,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1438,7 +1472,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1486,7 +1521,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1567,7 +1603,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "bandId": {
      "type": "Int",
@@ -1586,7 +1623,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1632,7 +1670,8 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": true
     },
     "slug": {
      "type": "String",
@@ -1650,7 +1689,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1708,7 +1748,8 @@
      "type": "String",
      "required": false,
      "list": true,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": []
     },
     "email": {
      "type": "String",
@@ -1732,7 +1773,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -1800,7 +1842,8 @@
      "type": "String",
      "required": false,
      "list": true,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": []
     },
     "titleStatus": {
      "type": "TitleStatus",
@@ -1810,7 +1853,8 @@
      "enum": [
       "KNOWN",
       "WORKING_TITLE"
-     ]
+     ],
+     "default": "KNOWN"
     },
     "workKindId": {
      "type": "Int",
@@ -1866,7 +1910,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "dateYear": {
      "type": "Int",
@@ -1920,7 +1965,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "placeWrittenId": {
      "type": "Int",
@@ -1958,7 +2004,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2019,7 +2066,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2097,13 +2145,15 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "position": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "legacyId": {
      "type": "String",
@@ -2115,7 +2165,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2169,7 +2220,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2214,7 +2266,8 @@
      "enum": [
       "FIXED",
       "MOTIF"
-     ]
+     ],
+     "default": "FIXED"
     },
     "label": {
      "type": "String",
@@ -2251,13 +2304,15 @@
      "type": "String",
      "required": false,
      "list": true,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": []
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2302,7 +2357,8 @@
      "enum": [
       "WORDS",
       "TUNE"
-     ]
+     ],
+     "default": "WORDS"
     },
     "name": {
      "type": "String",
@@ -2368,7 +2424,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "firstKnownFromId": {
      "type": "Int",
@@ -2394,7 +2451,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "changedById": {
      "type": "Int",
@@ -2413,7 +2471,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "evidenceKindId": {
      "type": "Int",
@@ -2426,13 +2485,15 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "wordingPublic": {
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "legacyId": {
      "type": "String",
@@ -2444,7 +2505,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2492,7 +2554,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2545,13 +2608,15 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": true
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2631,13 +2696,15 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2702,7 +2769,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2807,13 +2875,15 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2861,7 +2931,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2894,7 +2965,8 @@
      "type": "String",
      "required": false,
      "list": true,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": []
     },
     "subjectKindId": {
      "type": "Int",
@@ -2913,7 +2985,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -2959,7 +3032,8 @@
      "type": "String",
      "required": false,
      "list": true,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": []
     },
     "sourceKindId": {
      "type": "Int",
@@ -3032,7 +3106,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -3145,7 +3220,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -3206,7 +3282,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "saidById": {
      "type": "Int",
@@ -3267,7 +3344,8 @@
       "PROBABLE",
       "POSSIBLE",
       "UNKNOWN"
-     ]
+     ],
+     "default": "CONFIRMED"
     },
     "note": {
      "type": "String",
@@ -3285,7 +3363,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -3406,7 +3485,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -3445,7 +3525,8 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "legacyId": {
      "type": "String",
@@ -3457,7 +3538,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -3543,7 +3625,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -3637,7 +3720,8 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": true
     },
     "checkedAt": {
      "type": "DateTime",
@@ -3655,7 +3739,8 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "createdAt": {
      "type": "DateTime",
@@ -3744,7 +3829,8 @@
       "PREVIEWED",
       "APPLIED",
       "UNDONE"
-     ]
+     ],
+     "default": "PREVIEWED"
     },
     "sourceId": {
      "type": "Int",
@@ -3777,13 +3863,15 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "isPublic": {
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "summary": {
      "type": "String",
@@ -3891,6 +3979,12 @@
     },
     "after": {
      "type": "Json",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
+    "label": {
+     "type": "String",
      "required": false,
      "list": false,
      "hasDefault": false
@@ -4238,19 +4332,22 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": false
     },
     "position": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4282,19 +4379,22 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": true
     },
     "position": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4320,19 +4420,22 @@
      "type": "Boolean",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": true
     },
     "position": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4358,13 +4461,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4390,13 +4495,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4428,13 +4535,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4478,13 +4587,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4516,13 +4627,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4554,13 +4667,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4586,13 +4701,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4618,13 +4735,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4650,13 +4769,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     },
     "description": {
      "type": "String",
@@ -4688,13 +4809,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null
@@ -4720,13 +4843,15 @@
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 0
     },
     "rev": {
      "type": "Int",
      "required": true,
      "list": false,
-     "hasDefault": true
+     "hasDefault": true,
+     "default": 1
     }
    },
    "entityKind": null

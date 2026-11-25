@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
-import { defaultPublicMark, MODEL, modelInfo } from "@/lib/content-access";
+import { defaultPublicMark, isList, MODEL, modelInfo } from "@/lib/content-access";
 import { getPrisma } from "@/lib/db";
 import { AppError } from "@/lib/errors";
-import type { Row } from "@/lib/changes/labels";
-import type { PreviewData, PreviewItem } from "@/lib/changes/preview-format";
+import { bareLabel, withType, type Row } from "@/lib/changes/labels";
+import type { LinkInfo, PreviewData, PreviewItem } from "@/lib/changes/preview-format";
 import { hashToken } from "@/lib/tokens";
 import { MAX_EDITS, parseEdits, parseEvidence, type Evidence, type ParsedEdit } from "@/lib/validation/content";
 import { labelRow, readRow, type Tx } from "@/lib/data/changes/rows";
@@ -54,16 +54,21 @@ async function describeItems(tx: Tx, items: AppliedItem[]) {
     return label;
   };
   /** The name of the record a field points at, or null when the field is not a link. */
-  const linkLabel = async (type: string, field: string, value: unknown): Promise<string | null> => {
+  const linkTo = async (type: string, id: number): Promise<LinkInfo> => {
+    const label = await nameOf(type, id);
+    const isNew = items.some((i) => i.op === "create" && i.type === type && i.id === id);
+    return { type, label, name: bareLabel(type, label), isNew };
+  };
+  const linkLabel = async (type: string, field: string, value: unknown): Promise<LinkInfo | null> => {
     const target = modelInfo(type).fields[field]?.fk;
     if (field === "id" || !target || typeof value !== "number") return null;
-    if (target !== "Entity") return nameOf(target, value);
+    if (target !== "Entity") return linkTo(target, value);
     const entity = await tx.entity.findUnique({ where: { id: value }, select: { kind: true } });
     const entityType = entity ? typeOfKind(entity.kind) : null;
-    return entityType ? nameOf(entityType, value) : null;
+    return entityType ? linkTo(entityType, value) : null;
   };
-  const linksOf = async (type: string, row: Row | null): Promise<Record<string, string>> => {
-    const out: Record<string, string> = {};
+  const linksOf = async (type: string, row: Row | null): Promise<Record<string, LinkInfo>> => {
+    const out: Record<string, LinkInfo> = {};
     for (const [field, value] of Object.entries(row ?? {})) {
       const label = await linkLabel(type, field, value);
       if (label) out[field] = label;
@@ -77,9 +82,9 @@ async function describeItems(tx: Tx, items: AppliedItem[]) {
     const attachesTo: string[] = [];
     if (item.op === "create") {
       // A record that points at a shared record (a note attachment) attaches to that record.
-      const fields = Object.entries(modelInfo(item.type).fields).filter(([name, f]) => name !== "id" && f.fk);
+      const fields = Object.entries(modelInfo(item.type).fields).filter(([name, f]) => name !== "id" && f.fk && !isList(f.fk));
       const toEntity = fields.filter(([, f]) => f.fk === "Entity");
-      for (const [name] of toEntity.length > 0 ? toEntity : fields) if (links.after[name]) attachesTo.push(links.after[name]);
+      for (const [name] of toEntity.length > 0 ? toEntity : fields) if (links.after[name]) attachesTo.push(links.after[name].label);
     }
     described.push({ op: item.op, type: item.type, label, before: item.before, after: item.after, attachesTo, links });
   }
@@ -111,7 +116,7 @@ async function describeEvidence(tx: Tx, evidence: Evidence): Promise<string> {
 function summarize(items: PreviewItem[]): string {
   const created = items.filter((i) => i.op === "create").length;
   const changed = items.length - created;
-  return `Agent edit: ${created} new, ${changed} changed. ${items.map((i) => i.label).slice(0, 3).join("; ")}`.slice(0, 500);
+  return `Agent edit: ${created} new, ${changed} changed. ${items.map((i) => withType(i.type, i.label)).slice(0, 3).join("; ")}`.slice(0, 500);
 }
 
 async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<PreviewData["warnings"]> {

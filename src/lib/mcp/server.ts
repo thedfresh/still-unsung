@@ -26,6 +26,7 @@ async function run(work: () => Promise<string>): Promise<ToolResult> {
 
 const EDIT_HELP = `Each edit is { op: "create", type, ref?, fields } or { op: "update", type, id, rev, fields }.
 Give "rev" as you read it. A field that points at a new record in the same call takes { "ref": "<that record's ref>" }.
+A new Segment takes "before": <segment id or { "ref" }> or "after": the same, next to the segment it goes beside. "before" and "after" sit beside "fields" in the edit, never inside it. Example: { "op": "create", "type": "Segment", "after": 4152, "fields": { "workId": 1485 } }. The server makes the sort key and takes the set from that segment. Send "sortKey" and "setId" only for the first segment of an empty set.
 Writable types: ${writableTypes().join(", ")}. Lists (such as SetType) are not writable: ask the user to add a value.`;
 
 /**
@@ -69,7 +70,7 @@ export function createContentMcpServer(user: CurrentUser): McpServer {
   server.registerTool(
     "get_record",
     {
-      description: `Read one record by ID or legacy ID, with its citations, notes and external IDs, and "whereThisCameFrom": the evidence of the changes that made and changed it, newest first. A show also comes with its sets in order and the segments of each set in order. Private fields are included. Types: ${readableTypes().join(", ")}.`,
+      description: `Read one record by ID or legacy ID, with its citations, notes and external IDs, and "whereThisCameFrom": the evidence of the changes that made and changed it, newest first. A show also comes with its sets in order and the segments of each set in order, with their sortKey. Private fields are included. Types: ${readableTypes().join(", ")}.`,
       inputSchema: { type: z.string(), id: z.number().int().positive().optional(), legacyId: z.string().max(200).optional() },
     },
     ({ type, id, legacyId }) => run(async () => JSON.stringify(await getRecord(type, { id, legacyId }), null, 1)),

@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { describeRecord, type Row } from "@/lib/changes/labels";
+import { datePart, describeRecord, segmentLabel, setLabel, type Row } from "@/lib/changes/labels";
 import { modelInfo, usesEntityPublicFlag } from "@/lib/content-access";
 
 export type Tx = Prisma.TransactionClient;
@@ -38,8 +38,24 @@ export async function readRow(tx: Tx, type: string, id: number): Promise<Row | n
   return toJson(usesEntityPublicFlag(type) ? { ...rest, isPublic: entity?.isPublic ?? true } : rest);
 }
 
-/** A readable name for a record. A show also gets the name of its place. */
+/** The date of a show, as text, or null when the show is unknown or has no date. */
+async function showDateOf(tx: Tx, showId: unknown): Promise<string | null> {
+  if (typeof showId !== "number") return null;
+  const show = await tx.show.findUnique({ where: { id: showId }, select: { dateYear: true, dateMonth: true, dateDay: true, dateAsWritten: true } });
+  return show ? datePart(show) : null;
+}
+
+/**
+ * A readable name for a record. A show also gets the name of its place. A set is named by its
+ * show and position, a segment by its work and show.
+ */
 export async function labelRow(tx: Tx, type: string, row: Row, withId = true): Promise<string> {
+  if (type === "Set") return setLabel(row, await showDateOf(tx, row.showId)) ?? describeRecord(type, row, null, withId);
+  if (type === "Segment") {
+    const set = typeof row.setId === "number" ? await tx.set.findUnique({ where: { id: row.setId }, select: { showId: true } }) : null;
+    const work = typeof row.workId === "number" ? await tx.work.findUnique({ where: { id: row.workId }, select: { title: true } }) : null;
+    return segmentLabel(work?.title ?? null, await showDateOf(tx, set?.showId));
+  }
   if (type !== "Show") return describeRecord(type, row, null, withId);
   const placeNameId = row.placeNameId;
   const placeId = row.placeId;
