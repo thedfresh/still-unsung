@@ -74,7 +74,16 @@ function summarize(items: PreviewItem[]): string {
   return `${countsSentence(items)} ${names}`.slice(0, 500);
 }
 
-async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<{ warnings: PreviewData["warnings"]; conflicts: PreviewConflict[] }> {
+/**
+ * The counts sentence at the start of a stored summary. A counts sentence has no full stop
+ * inside it, so the first full stop ends it.
+ */
+export function countsOfSummary(summary: string): string {
+  const end = summary.indexOf(".");
+  return end === -1 ? summary : summary.slice(0, end + 1);
+}
+
+export async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<{ warnings: PreviewData["warnings"]; conflicts: PreviewConflict[] }> {
   const warnings = await findMissingListValues(tx, edits);
   const conflicts: PreviewConflict[] = [];
   for (const c of await findConflicts(tx, edits)) {

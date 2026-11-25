@@ -16,6 +16,15 @@ export default function AdminHomePage() {
             Open the show list
           </Link>
         </section>
+        <section aria-labelledby="previews" className="flex flex-col gap-3">
+          <h2 id="previews" className="text-xl font-semibold">
+            Open previews
+          </h2>
+          <p>Read a change that an agent proposed, as cards, before you approve it.</p>
+          <Link href="/admin/changes/pending" className="underline">
+            Open the list of previews
+          </Link>
+        </section>
         <section aria-labelledby="passkey" className="flex flex-col gap-3">
           <h2 id="passkey" className="text-xl font-semibold">
             Passkey

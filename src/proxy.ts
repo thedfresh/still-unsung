@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClosedAdapter } from "@/lib/data/auth-adapter";
+import { changesetExists } from "@/lib/data/changes/pending";
 import { showExists } from "@/lib/data/shows/review";
 import { findCurrentUser } from "@/lib/data/users";
 import { parseId } from "@/lib/ids";
@@ -31,10 +32,12 @@ export async function proxy(request: NextRequest) {
   const userId = await sessionUserId(request);
   const user = userId ? await findCurrentUser(userId) : null;
   if (user?.role !== "ADMIN") return NextResponse.next();
-  const id = parseId(request.nextUrl.pathname.split("/")[3]);
-  if (id !== null && (await showExists(id))) return NextResponse.next();
+  const parts = request.nextUrl.pathname.split("/");
+  const pending = parts[2] === "changes";
+  const id = parseId(parts[pending ? 4 : 3]);
+  if (id !== null && (await (pending ? changesetExists(id) : showExists(id)))) return NextResponse.next();
   // A path with no route renders the app's not-found page, with status 404.
   return NextResponse.rewrite(new URL("/_not-found", request.url), { status: 404 });
 }
 
-export const config = { matcher: "/admin/shows/:id" };
+export const config = { matcher: ["/admin/shows/:id", "/admin/changes/pending/:id"] };

@@ -123,4 +123,57 @@ test.describe("the MCP endpoint", () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });
+
+  test("a preview ends with a link to its page, and the admin reads the same counts as cards", async ({ browser, page, context, baseURL, request }) => {
+    const admin = await seedSignedInUser("ADMIN");
+    const agent = await seedSignedInUser("AGENT");
+    await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
+    await page.goto("/admin/tokens");
+    await page.getByLabel("Agent user").selectOption({ label: agent.email });
+    await page.getByLabel("Label").fill("preview page e2e");
+    await page.getByRole("button", { name: "Make token" }).click();
+    const token = (await page.getByTestId("new-token").textContent())!;
+
+    const year = 1900 + Math.floor(Math.random() * 90);
+    const preview = await callTool(request, token, "preview_changes", {
+      evidence: { ownKnowledge: true },
+      edits: [{ op: "create", type: "Show", fields: { dateYear: year, dateMonth: 6, dateDay: 7 } }],
+    });
+    expect(preview.isError).toBe(false);
+    const link = /(\S+\/admin\/changes\/pending\/\d+)\s*$/.exec(preview.text)![1];
+    expect(link.startsWith(baseURL!)).toBe(true);
+    const counts = preview.text.split("\n")[0];
+
+    // A signed-out request reads nothing.
+    const signedOut = await request.get(link, { maxRedirects: 0 });
+    expect(await signedOut.text()).not.toContain(counts);
+    expect(await signedOut.text()).not.toContain("This preview is open");
+    const anonymous = await browser.newContext();
+    const anonymousPage = await anonymous.newPage();
+    await anonymousPage.goto(link);
+    await expect(anonymousPage).toHaveURL(/\/admin\/sign-in/);
+    await expect(anonymousPage.getByText(counts, { exact: true })).toHaveCount(0);
+    await anonymous.close();
+
+    await page.goto(link);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Preview");
+    await expect(page.getByText(counts, { exact: true })).toBeVisible();
+    await expect(page.getByText(`New · Show ${year}-06-07`)).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("This preview is open");
+    const results = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+    expect(results.violations).toEqual([]);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+
+    // The list shows it with its counts.
+    await page.goto("/admin/changes/pending");
+    const path = new URL(link).pathname;
+    await expect(page.locator(`a[href="${path}"]`)).toHaveText(counts);
+    const axeList = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+    expect(axeList.violations).toEqual([]);
+
+    // An unknown preview is a real 404.
+    const missing = await page.goto("/admin/changes/pending/2147483000");
+    expect(missing?.status()).toBe(404);
+  });
 });
