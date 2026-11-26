@@ -107,7 +107,9 @@ signed-in user, from a session or from an agent access token.
 ## Agent edits (MCP server)
 
 An agent edits content only through the MCP server at `POST /api/v1/mcp`, with an agent token as
-above. The tools are `preview_changes`, `apply_changes`, `get_record` and `search_records`.
+above. The tools are `preview_changes`, `apply_changes`, `get_record`, `search_records` and
+`get_import_rules`. The import rules sit in a private guide page; on a new database, make the
+page with `npm run db:seed -- --import-rules-only`.
 A preview shows each change as before and after, and gives a one-time token (30 minutes). The
 agent applies it only after the user approves. Each apply makes a changeset. `/admin/changes`
 lists the changes with who made each one. Rules: `docs/CONVENTIONS.md`, section 11.

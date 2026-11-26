@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../../src/generated/prisma/client.ts";
+import { IMPORT_RULES_PLACEHOLDER, IMPORT_RULES_SLUG, IMPORT_RULES_TITLE } from "../../src/lib/import-rules.ts";
 import * as lists from "./lists.ts";
 
 // Synthetic seed data for tests and staging (HSA-35). Every name, title and date below is
@@ -12,6 +13,18 @@ type Db = PrismaClient;
 async function createEntity(db: Db, kind: Parameters<Db["entity"]["create"]>[0]["data"]["kind"]) {
   const row = await db.entity.create({ data: { kind } });
   return row.id;
+}
+
+/**
+ * Make the private page that holds the agent import rules, if it is missing. It never changes an
+ * existing page: the real text is loaded through the MCP tools, not from this repository.
+ */
+export async function seedImportRulesPage(db: Db): Promise<void> {
+  if (await db.guidePage.findUnique({ where: { slug: IMPORT_RULES_SLUG } })) return;
+  const entity = await db.entity.create({ data: { kind: "GUIDE_PAGE", isPublic: false } });
+  await db.guidePage.create({
+    data: { id: entity.id, slug: IMPORT_RULES_SLUG, title: IMPORT_RULES_TITLE, body: IMPORT_RULES_PLACEHOLDER },
+  });
 }
 
 /** Fill the editable lists and the two accounts that evidence rows name. Safe to run twice. */
@@ -54,6 +67,7 @@ export async function seedLists(db: Db): Promise<void> {
     const id = await createEntity(db, "PERSON");
     await db.person.create({ data: { id, key, name } });
   }
+  await seedImportRulesPage(db);
 }
 
 /**

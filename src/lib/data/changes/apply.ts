@@ -6,6 +6,7 @@ import { hashToken } from "@/lib/tokens";
 import { parseEdits } from "@/lib/validation/content";
 import { withType, type Row } from "@/lib/changes/labels";
 import { describeItems, itemDetail } from "@/lib/data/changes/describe";
+import { findRulesPageRefusals, touchesRulesPage } from "@/lib/data/changes/rules-page";
 import {
   ConflictAbort,
   findConflicts,
@@ -60,11 +61,15 @@ async function report(conflicts: VersionConflict[]): Promise<ConflictReport[]> {
 export async function applyChanges(userId: string, token: string, isPublic?: boolean): Promise<ApplyResult> {
   const changeset = await claim(userId, token, isPublic);
   const edits = parseEdits(changeset.plan);
+  // A change to the import rules page is never public, even when the apply call says so.
+  if (await touchesRulesPage(getPrisma(), edits)) {
+    await getPrisma().changeset.update({ where: { id: changeset.id }, data: { isPublic: false } });
+  }
   // The plan is spent with the token, so a failed apply leaves no stored edits behind.
   await getPrisma().changeset.update({ where: { id: changeset.id }, data: { plan: Prisma.DbNull, previewExpiresAt: null } });
   try {
     return await getPrisma().$transaction(async (tx) => {
-      const messages = await findMissingListValues(tx, edits);
+      const messages = [...(await findRulesPageRefusals(tx, edits)), ...(await findMissingListValues(tx, edits))];
       if (messages.length > 0) return { ok: false as const, reason: "blocked" as const, messages };
       const conflicts = await findConflicts(tx, edits);
       if (conflicts.length > 0) throw new ConflictAbort(conflicts);

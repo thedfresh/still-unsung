@@ -10,6 +10,7 @@ import { hashToken } from "@/lib/tokens";
 import { MAX_EDITS, parseEdits, parseEvidence, type Evidence, type ParsedEdit } from "@/lib/validation/content";
 import { describeItems } from "@/lib/data/changes/describe";
 import type { Tx } from "@/lib/data/changes/rows";
+import { findRulesPageRefusals, touchesRulesPage } from "@/lib/data/changes/rules-page";
 import { findConflicts, findMissingListValues, writeEdits } from "@/lib/data/changes/write-edits";
 
 /** A preview token works once and for 30 minutes. */
@@ -84,7 +85,7 @@ export function countsOfSummary(summary: string): string {
 }
 
 export async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<{ warnings: PreviewData["warnings"]; conflicts: PreviewConflict[] }> {
-  const warnings = await findMissingListValues(tx, edits);
+  const warnings = [...(await findRulesPageRefusals(tx, edits)), ...(await findMissingListValues(tx, edits))];
   const conflicts: PreviewConflict[] = [];
   for (const c of await findConflicts(tx, edits)) {
     conflicts.push({ record: `${c.type} ${c.id}`, expectedRev: c.expectedRev, current: c.current, proposed: c.proposed });
@@ -105,9 +106,10 @@ export async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<{ warnings:
 export async function previewChanges(userId: string, input: PreviewInput): Promise<PreviewResult> {
   const edits = parseEdits(input.edits);
   const evidence = parseEvidence(input.evidence);
-  const isPublic = input.isPublic ?? defaultPublicMark(edits.map((e) => e.type));
-  const base = { items: [], isPublic, expiresAt: null, token: null, changesetId: null, conflicts: [] as PreviewConflict[] };
   const db = getPrisma();
+  // A change to the import rules page is always private, whatever the caller passes.
+  const isPublic = (await touchesRulesPage(db, edits)) ? false : (input.isPublic ?? defaultPublicMark(edits.map((e) => e.type)));
+  const base = { items: [], isPublic, expiresAt: null, token: null, changesetId: null, conflicts: [] as PreviewConflict[] };
   const live = await db.changeset.count({ where: { userId, previewToken: { not: null }, previewExpiresAt: { gt: new Date() } } });
   if (live >= MAX_LIVE_PREVIEWS) throw new AppError("rate_limited", "Too many open previews. Apply one or wait for them to expire.");
   let evidenceText = "";

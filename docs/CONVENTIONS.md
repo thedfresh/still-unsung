@@ -290,8 +290,18 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
 
 - **Sign-in.** The route accepts only an agent access token (role `AGENT`, `via: "token"`).
   A session never opens it. (test: e2e)
-- **Four tools.** `preview_changes` and `apply_changes` write. `get_record` and `search_records`
-  read. One general edit tool covers every content table; add a task-specific tool only when a
+- **Import rules come from the server.** The rules are policy, so the text is not in this
+  repository. It lives in one private guide page (slug `agent-import-rules`, entity not public).
+  The server `instructions` (`MCP_INSTRUCTIONS`, `src/lib/import-rules.ts`) tell a new client to
+  call `get_import_rules`, which reads the page on every call and returns the body and `rev`.
+  Edit it with an agent `update` on `GuidePage`. `seedImportRulesPage` makes the page with a
+  placeholder when it is missing (`npm run db:seed -- --import-rules-only`). Every public read of a
+  guide page goes through `src/lib/data/guide-pages.ts`, which leaves out private pages. No public
+  reader of guide pages exists yet. Any future one must use those `isPublic` helpers. The page
+  refuses an agent edit of `isPublic` or `slug`, and a delete. A change to it is always private.
+  (test: `tests/db/import-rules.test.ts`, `tests/e2e/agent-mcp.spec.ts`)
+- **Five tools.** `preview_changes` and `apply_changes` write. `get_record`, `search_records`
+  and `get_import_rules` read. One general edit tool covers every content table; add a task-specific tool only when a
   job proves clumsy. (review)
 - **Which tables.** `src/lib/content-access.ts` decides. The agent never writes users, roles,
   tokens, sessions, changesets, the `entities` table, backlinks or addresses. It may create a
