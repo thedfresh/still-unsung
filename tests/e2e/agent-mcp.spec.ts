@@ -267,3 +267,81 @@ test.describe("the MCP endpoint", () => {
     expect(missing?.status()).toBe(404);
   });
 });
+
+// The import rules page is one shared row, and the tests above and below change it. Run this file's
+// tests one after the other in each project.
+test.describe.configure({ mode: "serial" });
+
+const WIDE_TABLE =
+  "| Field | Rule |\n|---|---|\n| speaker | Name the person as the source spells it, and add a note when the source is unclear about who it is. |\n";
+
+test.describe("the import rules admin page", () => {
+  test("a signed-out request reads nothing", async ({ page, request }) => {
+    await page.goto("/admin/import-rules");
+    await expect(page).toHaveURL(/\/admin\/sign-in$/);
+    const raw = await request.get("/admin/import-rules", { maxRedirects: 0 });
+    expect(await raw.text()).not.toContain("Agent import rules");
+  });
+
+  test("an agent session cannot open it", async ({ page, context, baseURL }) => {
+    const agent = await seedSignedInUser("AGENT");
+    await context.addCookies([{ name: "authjs.session-token", value: agent.sessionToken, url: baseURL! }]);
+    await page.goto("/admin/import-rules");
+    await expect(page).toHaveURL(/\/admin\/sign-in\?error=AccessDenied$/);
+  });
+
+  test("shows the rules as formatted text, with the version, and raw HTML as text", async ({ page, context, baseURL }, testInfo) => {
+    // All projects share one rules page, so only the desktop project changes it.
+    test.skip(testInfo.project.name !== "desktop", "The projects share one rules page.");
+    const admin = await seedSignedInUser("ADMIN");
+    await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
+    const pageId = await ensureImportRulesPage();
+    const body = `# Import rules heading\n\n- first point\n- second point\n\nUse \`inline code\` here.\n\n${WIDE_TABLE}\n<script>window.__ran = true</script>\n`;
+    await query(`UPDATE guide_pages SET body = $1, rev = 7 WHERE id = $2`, [body, pageId]);
+
+    await page.goto("/admin");
+    await page.getByRole("link", { name: "Read the import rules" }).click();
+    await expect(page).toHaveURL(/\/admin\/import-rules$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Import rules" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Import rules heading" })).toBeVisible();
+    await expect(page.getByRole("table")).toBeVisible();
+    await expect(page.getByRole("cell", { name: /Name the person/ })).toBeVisible();
+    await expect(page.getByRole("listitem").filter({ hasText: "first point" })).toBeVisible();
+    await expect(page.getByText("Version")).toBeVisible();
+    await expect(page.getByText("7", { exact: true })).toBeVisible();
+    // The script tag shows as text and never runs.
+    await expect(page.getByText("<script>window.__ran = true</script>")).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { __ran?: boolean }).__ran)).toBeUndefined();
+
+    await page.goto("/admin/changes");
+    await page.getByRole("link", { name: /Import rules/ }).click();
+    await expect(page).toHaveURL(/\/admin\/import-rules$/);
+  });
+
+  test("says plainly when the page does not exist", async ({ page, context, baseURL }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "The projects share one rules page.");
+    const admin = await seedSignedInUser("ADMIN");
+    await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
+    const pageId = await ensureImportRulesPage();
+    await query(`UPDATE guide_pages SET slug = 'agent-import-rules-away' WHERE id = $1`, [pageId]);
+    try {
+      await page.goto("/admin/import-rules");
+      await expect(
+        page.getByText("The import rules page does not exist yet. An agent can create it through the tools; ask in a session."),
+      ).toBeVisible();
+      expect((await new AxeBuilder({ page }).withTags(WCAG).analyze()).violations).toEqual([]);
+    } finally {
+      await query(`UPDATE guide_pages SET slug = 'agent-import-rules' WHERE id = $1`, [pageId]);
+    }
+  });
+
+  test("passes axe and does not scroll sideways", async ({ page, context, baseURL }) => {
+    const admin = await seedSignedInUser("ADMIN");
+    await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
+    await page.goto("/admin/import-rules");
+    await expect(page.getByRole("heading", { level: 1, name: "Import rules" })).toBeVisible();
+    expect((await new AxeBuilder({ page }).withTags(WCAG).analyze()).violations).toEqual([]);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+});

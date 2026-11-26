@@ -301,6 +301,13 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   refuses an agent edit of `isPublic` or `slug`, and a delete. An agent also cannot create a
   guide page with that slug or rename a page to it. A change to it is always private.
   (test: `tests/db/import-rules.test.ts`, `tests/e2e/agent-mcp.spec.ts`)
+- **Import rules admin page.** `/admin/import-rules` shows the page body as formatted text, with
+  its `rev`, its last change time and a link to the change that made the last edit. It reads
+  through `getImportRulesForAdmin` (`src/lib/data/guide-pages.ts`), which ignores the public
+  mark, after `requireAdminPage()`. `MarkdownBody` (`src/components/admin/markdown-body.tsx`)
+  renders the markdown in a server component. It never parses raw HTML, and links and images
+  show as text. The page is read-only. (test: `tests/db/import-rules-admin.test.ts`,
+  `src/components/admin/import-rules-view.test.tsx`, `tests/e2e/agent-mcp.spec.ts`)
 - **Five tools.** `preview_changes` and `apply_changes` write. `get_record`, `search_records`
   and `get_import_rules` read. One general edit tool covers every content table; add a task-specific tool only when a
   job proves clumsy. (review)
