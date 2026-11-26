@@ -453,7 +453,8 @@ const HINT_PATTERNS: Record<NoteHint, RegExp> = {
   // Hunter is in the lineup but does not play on this song.
   "hunter-absent": /\b(hunter (does not|doesn'?t|did not|didn'?t) (play|perform|appear)|without hunter|hunter (is )?not (playing|on (this|the) (song|track)))/i,
   // "From X's album": the song's source is an album.
-  "from-album": /\bfrom [\w'’. -]{1,60}['’]s (album|record|lp)\b|\bfrom the album\b/i,
+  // Also with the title between: From Barry Melton's "Level With Me" album.
+  "from-album": /\bfrom [\w'’. -]{1,60}['’]s (?:["“][^"”]{1,80}["”] )?(album|record|lp)\b|\bfrom the album\b/i,
 };
 
 const FOOTNOTE_PATTERNS: Record<FootnoteKind, RegExp> = {
@@ -477,14 +478,18 @@ export function footnoteKinds(text: string): FootnoteKind[] {
 // ---------------------------------------------------------------------------------------------
 // Items 118 to 121 (audit of 2026-11-25)
 
-/** The page name of a Whitegum link, with any `#anchor` (item 121). */
-export function whitegumValue(url: string): string {
+/**
+ * The page name of a Whitegum song link, with any `#anchor` (item 121). The page may sit in the
+ * path (`/songfile/Ripple.htm`) or in a query (`introjs.htm?/songfile/STAGGERL.HTM`). Returns null
+ * for a page outside `/songfile/`: the URL template cannot build its address, so the caller lists it.
+ */
+export function whitegumValue(url: string): string | null {
   const hashAt = url.indexOf("#");
   const hash = hashAt >= 0 ? url.slice(hashAt) : "";
-  const base = (hashAt >= 0 ? url.slice(0, hashAt) : url).replace(/\?.*$/, "").replace(/\/+$/, "");
-  const afterSongfile = /\/songfile\/(.+)$/i.exec(base);
-  const page = afterSongfile ? afterSongfile[1] : (base.split("/").pop() ?? "");
-  return `${page}${hash}`;
+  const base = (hashAt >= 0 ? url.slice(0, hashAt) : url).replace(/\/+$/, "");
+  const found = /\/songfile\/([^?#]+)/i.exec(base);
+  if (!found) return null;
+  return `${found[1].replace(/\/+$/, "")}${hash}`;
 }
 
 function splitNames(text: string): string[] {
@@ -507,12 +512,17 @@ export interface TraditionalCredit {
  */
 export function parseTraditional(text: string): TraditionalCredit | null {
   const t = text.trim();
-  if (/^traditional\.?$/i.test(t)) return { arrangers: [], authors: [] };
+  // "Tradititional" is a typing slip in the old data: it means "Traditional".
+  const trad = String.raw`trad(?:it)+ional`;
+  if (new RegExp(String.raw`^${trad}\.?$`, "i").test(t)) return { arrangers: [], authors: [] };
   const arr = String.raw`arr(?:\.|anged)?(?:\s+by)?`;
-  const both = new RegExp(String.raw`^traditional\s*\/\s*(.+?)\s*[,(]\s*${arr}\s+(.+?)\)?$`, "i").exec(t);
+  const both = new RegExp(String.raw`^${trad}\s*\/\s*(.+?)\s*[,(]\s*${arr}\s+(.+?)\)?$`, "i").exec(t);
   if (both) return { authors: splitNames(both[1]), arrangers: splitNames(both[2]) };
-  const only = new RegExp(String.raw`^traditional\s*[,(\/;]?\s*${arr}\s+(.+?)\)?$`, "i").exec(t);
+  const only = new RegExp(String.raw`^${trad}\s*[,(\/;]?\s*${arr}\s+(.+?)\)?$`, "i").exec(t);
   if (only) return { authors: [], arrangers: splitNames(only[1]) };
+  // "Traditional (Hunter)": a name alone in brackets is the arranger, when it looks like a name.
+  const bracket = new RegExp(String.raw`^${trad}\s*\(\s*([^()]+?)\s*\)$`, "i").exec(t);
+  if (bracket && splitCredit(bracket[1]) !== null) return { authors: [], arrangers: splitNames(bracket[1]) };
   return null;
 }
 
@@ -529,9 +539,12 @@ export function surnameOf(name: string): string | null {
   return words.length > 1 ? words[words.length - 1] : null;
 }
 
-/** Item 15: only a true billed name goes to `billedAs`. "Opened for…" and "Performed between…" do not. */
+/**
+ * Item 15: only a true billed name of Hunter's act goes to `billedAs`. A text that says who opened
+ * for whom, a co-headline, a rally or a festival does not, wherever those words sit in the text.
+ */
 export function isBilledName(text: string): boolean {
-  return !/^\s*((opened|opening)\s+for|(performed|played)\s+(between|before|after))\b/i.test(text);
+  return !/\b((opened|opening)\s+for|(performed|played)\s+(between|before|after)|co-?headline|rally|festival)\b/i.test(text);
 }
 
 /**
@@ -539,6 +552,15 @@ export function isBilledName(text: string): boolean {
  * Returns the title without the first copy, or the title as it is.
  */
 export function fixDoubledTitle(title: string): string {
+  // The whole title is one text written twice, with no space between the copies
+  // ("…bonus discTales Of…") or with one.
+  const whole = title.trim();
+  for (const gap of [0, 1]) {
+    const half = (whole.length - gap) / 2;
+    if (Number.isInteger(half) && half >= 8 && whole.slice(0, half).toLowerCase() === whole.slice(half + gap).toLowerCase()) {
+      return whole.slice(half + gap);
+    }
+  }
   const tokens = title.split(/\s+/).filter(Boolean);
   const norm = tokens.map((token) => normalizeName(token).replace(/[^a-z0-9]/g, ""));
   const real = norm.map((value, index) => (value === "" ? -1 : index)).filter((index) => index >= 0);
@@ -590,7 +612,7 @@ export function isFestivalName(text: string): boolean {
 
 /** A venue the old data does not know: the show sits at its town (item 121). */
 export function isUnknownVenue(name: string): boolean {
-  return /^unknown (venue|studio location)\b/.test(normalizeName(name));
+  return /^unknown (venue|studio)( location)?$/.test(normalizeName(name));
 }
 
 /** "Unknown Song" and "Unknown Instrumental" get no work (item 121). */

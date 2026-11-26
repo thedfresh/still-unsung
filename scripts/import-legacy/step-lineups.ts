@@ -248,10 +248,17 @@ async function importSegmentLineups(ctx: Ctx, input: SegmentLineupInput): Promis
 
   // Item 121 (14): a row for the "Unknown" musician that sang is a vocal entry with no person. A
   // row that did not sing has no one to place, and stays listed as not mapped.
+  // The old data marks singing with a "vocals" instrument row; the flag alone is often false.
+  const vocalOwners = new Set<number>();
+  for (const link of await ctx.read("performance_musician_instruments")) {
+    if (ctx.vocalsInstruments.has(Number(link.instrument_id))) vocalOwners.add(Number(link.performance_musician_id));
+  }
+  const sang = (row: Row): boolean =>
+    bool(row, "includes_vocals") || vocalOwners.has(Number(row.id)) || ctx.vocalsInstruments.has(num(row, "instrument_id") ?? -1);
   const unknownSingers = rows.filter(
     (row) =>
       ctx.personByMusician.get(num(row, "musician_id") ?? -1) === null &&
-      bool(row, "includes_vocals") &&
+      sang(row) &&
       ctx.segmentByPerformance.has(Number(row.performance_id)),
   );
   const unknownSingerIds = new Set(unknownSingers.map((row) => Number(row.id)));

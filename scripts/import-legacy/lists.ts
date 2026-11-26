@@ -188,6 +188,7 @@ export async function seedLists(ctx: Ctx): Promise<void> {
     const id = instrumentByName.get(instrumentRows[index].name);
     if (id !== undefined) {
       ctx.instrumentByInstrument.set(Number(row.id), id);
+      if (/^(vocals?|vocalist)\b/.test(normalizeName(instrumentRows[index].name))) ctx.vocalsInstruments.add(Number(row.id));
       ctx.tally.mapped("instruments", row.id);
     }
   });

@@ -233,6 +233,8 @@ export class Ctx {
   readonly segmentByPerformance = new Map<number, number>();
   readonly segmentByBanter = new Map<number, number>();
   readonly instrumentByInstrument = new Map<number, number>();
+  /** Old instrument ids that mean singing ("vocals"): the old data marks a singer this way. */
+  readonly vocalsInstruments = new Set<number>();
   /** Ids of the test show and its children: dropped by the test-show rule. */
   readonly testEvents = new Set<number>();
   readonly testSets = new Set<number>();

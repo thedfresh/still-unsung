@@ -107,7 +107,7 @@ describe("legacy import: accounting", () => {
 
 describe("legacy import: shows", () => {
   it("leaves out the 2099 test show and everything under it, and counts every row under it as dropped", async () => {
-    expect(await prisma.show.count()).toBe(15);
+    expect(await prisma.show.count()).toBe(16);
     expect(await prisma.show.findFirst({ where: { dateYear: 2099 } })).toBeNull();
     expect(await prisma.recording.count()).toBe(0);
     const json = JSON.parse(await readFile(path.join(outputDir, "report.json"), "utf8"));
@@ -209,6 +209,9 @@ describe("legacy import: shows", () => {
     const second = byLegacy(await prisma.show.findMany(), "events:2");
     expect(second.legacyData).toEqual({ contributors: [{ name: "Test Contributor", description: "Provided the tape" }] });
     expect(byLegacy(await prisma.show.findMany(), "events:10").legacyData).toBeNull();
+    // A raw entry that holds JSON is stored as parsed JSON, not as a string.
+    const json = byLegacy(await prisma.show.findMany(), "events:3");
+    expect(json.legacyData).toEqual({ rawData: { setlist: ["Alpha Song", "Beta Song"] } });
   });
 
   it("makes no citation and no contributor person (items 119, 120)", async () => {
@@ -227,6 +230,11 @@ describe("legacy import: shows", () => {
     expect(opened.legacyData).toMatchObject({ billing: "Opened for Test Act" });
     const bill = JSON.parse(await readFile(path.join(outputDir, "proposals", "01-bill.json"), "utf8"));
     expect(bill.rows.some((r: { legacyId: string; text?: string }) => r.legacyId === "events:13" && r.text === "Opened for Test Act")).toBe(true);
+    // The words may sit in the middle of the text.
+    const middle = byLegacy(shows, "events:14");
+    expect(middle.billedAs).toBeNull();
+    expect(middle.legacyData).toMatchObject({ billing: "Comfort opened for the Jerry Garcia Band" });
+    expect(bill.rows.some((r: { legacyId: string; text?: string }) => r.legacyId === "events:14" && r.text === "Comfort opened for the Jerry Garcia Band")).toBe(true);
   });
 
   it("clears the month of a season date and moves a time of day to the time label (item 22)", async () => {
@@ -246,6 +254,10 @@ describe("legacy import: shows", () => {
     const place = await prisma.place.findUniqueOrThrow({ where: { id: show.placeId as number }, include: { names: true } });
     expect(place.names[0].name).toBe("Testville");
     expect(await prisma.placeName.count({ where: { name: { startsWith: "Unknown" } } })).toBe(0);
+    // "Unknown Studio" is treated the same way.
+    const studio = byLegacy(await prisma.show.findMany(), "events:17");
+    expect(studio.placeNameId).toBeNull();
+    expect(studio.placeId).toBe(show.placeId);
   });
 
   it("is not public in any public read of a show (item 120)", async () => {
@@ -338,6 +350,8 @@ describe("legacy import: segments", () => {
     expect(await rowsOf("19-reported-not-on-tape.json")).toContain("performances:6");
     expect(await rowsOf("20-hunter-does-not-play.json")).toContain("performances:8");
     expect(await rowsOf("21-from-an-album.json")).toContain("performances:8");
+    // The text of a song note feeds the lists too.
+    expect(await rowsOf("21-from-an-album.json")).toContain("songs:9");
   });
 
   it("maps the performance flags", async () => {
@@ -441,6 +455,31 @@ describe("legacy import: works, people and places", () => {
     const { work, lines } = await creditsOf("songs:7");
     expect(work.traditional).toBe(true);
     expect(lines).toEqual(["arrangement:Jerry Garcia", "music:Arthur Smith", "words:Arthur Smith"]);
+  });
+
+  it("reads the typo \"Tradititional\" as Traditional, and \"Traditional (Hunter)\" as an arrangement credit", async () => {
+    const typo = await creditsOf("songs:12");
+    expect(typo.work.traditional).toBe(true);
+    expect(typo.lines).toEqual([]);
+    expect(await prisma.person.count({ where: { name: { startsWith: "Tradit" } } })).toBe(0);
+    const bracket = await creditsOf("songs:13");
+    expect(bracket.work.traditional).toBe(true);
+    expect(bracket.lines).toEqual(["arrangement:Robert Hunter"]);
+  });
+
+  it("resolves \"arr. Sebastian\" to John Sebastian, not to a surname-only person", async () => {
+    const { work, lines } = await creditsOf("songs:14");
+    expect(work.traditional).toBe(true);
+    expect(lines).toEqual(["arrangement:John Sebastian"]);
+    expect(await prisma.person.count({ where: { name: "Sebastian" } })).toBe(0);
+  });
+
+  it("resolves a surname to one of several first-name forms and lists the merge; lists a name with no match", async () => {
+    expect((await creditsOf("songs:18")).lines).toEqual(["words:David Freiberg"]);
+    expect(await prisma.person.count({ where: { name: "Freiberg" } })).toBe(0);
+    const merges = JSON.parse(await readFile(path.join(outputDir, "proposals", "06-person-merges.json"), "utf8")).rows as Array<{ name: string; reason: string }>;
+    expect(merges.some((r) => r.name === "Freiberg" && r.reason.includes("first-name forms"))).toBe(true);
+    expect(merges.some((r) => r.name === "Pigpen" && r.reason.includes("no full-name person"))).toBe(true);
   });
 
   it("makes no credit for a name on the review list, and lists it (item 121)", async () => {
@@ -593,9 +632,13 @@ describe("legacy import: recordings and links", () => {
     expect(header.split(",")).toEqual(expect.arrayContaining(["showId", "showDate", "oldEventId", "oldRecordingId", "recordingType", "description", "taper", "lengthMinutes", "linkSystem", "value", "url", "linkTitle", "linkDescription"]));
     // Recording 1 has two links of its own (SHN and Live Music Archive) and one link row; the
     // recording of the test show and the recording with no link make no row.
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     const byValue = (value: string) => rows.find((row) => row.split(",").includes(value)) as string;
     expect(byValue("shn1")).toContain("SHN");
+    // An SHN ID gets its address from the EtreeDB template.
+    expect(byValue("shn1")).toContain("https://db.etree.org/shn/shn1");
+    // A stray tab, a doubled slash and a trailing slash are trimmed from an old value.
+    expect(byValue("gd00-01-01.messy")).toContain("https://archive.org/details/gd00-01-01.messy");
     expect(byValue("shn1")).toContain("1999-01-02");
     expect(byValue("shn1")).toContain("Test Taper");
     expect(byValue("gd99-01-02.test")).toContain("https://archive.org/details/gd99-01-02.test");
@@ -622,9 +665,13 @@ describe("legacy import: recordings and links", () => {
     const system = await prisma.linkSystem.findUniqueOrThrow({ where: { name: "Whitegum" } });
     expect(system).toMatchObject({ purpose: "READ", urlTemplate: "https://www.whitegum.com/songfile/{value}" });
     const ids = await prisma.externalId.findMany({ where: { linkSystemId: system.id } });
-    expect(ids.map((i) => `${i.legacyId}:${i.value}`).sort()).toEqual(["links:2:alpha", "links:6:Beta.htm#verse"]);
+    // Link 8 keeps its page from the query; link 9 sits outside /songfile/ and is listed.
+    expect(ids.map((i) => `${i.legacyId}:${i.value}`).sort()).toEqual(["links:6:Beta.htm#verse", "links:8:STAGGERL.HTM"]);
     const works = await prisma.work.findMany({ where: { id: { in: ids.map((i) => i.entityId) } } });
-    expect(works.map((w) => w.legacyId).sort()).toEqual(["songs:1", "songs:2"]);
+    expect(works.map((w) => w.legacyId).sort()).toEqual(["songs:2", "songs:3"]);
+    const report = await readFile(path.join(outputDir, "report.md"), "utf8");
+    expect(report).toContain("Whitegum links outside /songfile/");
+    expect(report).toContain("links:9");
   });
 });
 
@@ -651,13 +698,14 @@ describe("legacy import: albums and suites (item 121)", () => {
   it("matches hyphenated suite tags, makes the suite works and the part-of references", async () => {
     const eagle = await prisma.work.findFirstOrThrow({ where: { title: "Eagle Mall" } });
     expect(eagle).toMatchObject({ suiteStructure: "FIXED" });
-    const amagamalin = await prisma.work.findFirstOrThrow({ where: { title: "Amagamalin Street" } });
+    const amagamalin = await prisma.work.findFirstOrThrow({ where: { title: "Amagamalin Street", suiteStructure: { not: null } } });
     expect(amagamalin).toMatchObject({ suiteStructure: "VARIABLE" });
     const parts = await prisma.reference.findMany({ where: { toId: amagamalin.id }, include: { referenceKind: true } });
-    expect(parts.map((p) => p.referenceKind.name)).toEqual(["part of"]);
-    // An album song that is also a suite part gets both links.
+    expect(parts.map((p) => p.referenceKind.name)).toEqual(["part of", "part of"]);
+    // An album song that is also a suite part gets both links. The title song is a part too.
     const peggy = byLegacy(await prisma.work.findMany(), "songs:5");
-    expect(parts[0].fromId).toBe(peggy.id);
+    const titleSong = byLegacy(await prisma.work.findMany(), "songs:15");
+    expect(parts.map((p) => p.fromId).sort()).toEqual([peggy.id, titleSong.id].sort());
     expect(await prisma.sourceWork.count({ where: { workId: peggy.id, source: { title: "Amagamalin Street" } } })).toBe(1);
   });
 
@@ -665,7 +713,7 @@ describe("legacy import: albums and suites (item 121)", () => {
     const list = JSON.parse(await readFile(path.join(outputDir, "proposals", "09-suite-parts.json"), "utf8"));
     expect(list.rows.map((r: { suite: string }) => r.suite).sort()).toEqual(["Amagamalin Street", "Eagle Mall"]);
     const amagamalin = list.rows.find((r: { suite: string }) => r.suite === "Amagamalin Street");
-    expect(amagamalin.parts).toBe("Peggy Test");
+    expect(amagamalin.parts).toBe("Peggy Test | Amagamalin Street");
   });
 
   it("rewrites an old internal song link as a wikilink and leaves an unknown slug alone (item 23)", async () => {

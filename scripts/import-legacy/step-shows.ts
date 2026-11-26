@@ -63,6 +63,19 @@ function compact(data: Record<string, unknown>): Record<string, unknown> | null 
   return entries.length === 0 ? null : Object.fromEntries(entries);
 }
 
+/** A raw-entry column as parsed JSON when it holds JSON (text or an object), else as the text. */
+function jsonOrText(row: Row, key: string): unknown {
+  const value = row[key];
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) return value;
+  const text = str(row, key);
+  if (text === null) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
 interface ShowPlan {
   row: Row;
   status: ShowStatus;
@@ -149,8 +162,8 @@ export async function importShows(ctx: Ctx): Promise<void> {
       legacyData: compact({
         contributors: credits.get(oldId),
         contributorLinesInPublicNotes: lineNames,
-        rawData: str(row, "raw_data"),
-        rawDataGdsets: str(row, "raw_data_gdsets"),
+        rawData: jsonOrText(row, "raw_data"),
+        rawDataGdsets: jsonOrText(row, "raw_data_gdsets"),
         privateNotes: str(row, "private_notes"),
         billing: str(row, "billing"),
         etreeShowId: str(row, "etree_show_id"),

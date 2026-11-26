@@ -193,6 +193,7 @@ describe("audit decisions (items 118 to 121)", () => {
     expect(noteHints("Reportedly played; not on the tape.")).toContain("reported");
     expect(noteHints("Hunter does not play on this song.")).toContain("hunter-absent");
     expect(noteHints("From Jerry's album, Test Record.")).toContain("from-album");
+    expect(noteHints('From Barry Melton\'s "Level With Me" album')).toContain("from-album");
     expect(noteHints("Hunter plays guitar.")).toEqual([]);
   });
 
@@ -206,7 +207,17 @@ describe("audit decisions (items 118 to 121)", () => {
   it("takes the Whitegum page name with any anchor", () => {
     expect(whitegumValue("https://www.whitegum.com/songfile/Ripple.htm")).toBe("Ripple.htm");
     expect(whitegumValue("https://www.whitegum.com/songfile/Ripple.htm#verse2")).toBe("Ripple.htm#verse2");
-    expect(whitegumValue("https://whitegum.example/alpha")).toBe("alpha");
+    // The page sits in a query string.
+    expect(whitegumValue("https://www.whitegum.com/introjs.htm?/songfile/STAGGERL.HTM")).toBe("STAGGERL.HTM");
+    // A page outside /songfile/ has no address in the template: the caller lists it.
+    expect(whitegumValue("https://www.whitegum.com/stagroot.htm")).toBeNull();
+    expect(whitegumValue("https://whitegum.example/alpha")).toBeNull();
+  });
+
+  it("reads the typo and the bracket form of Traditional", () => {
+    expect(parseTraditional("Tradititional")).toEqual({ arrangers: [], authors: [] });
+    expect(parseTraditional("Traditional (Hunter)")).toEqual({ arrangers: ["Hunter"], authors: [] });
+    expect(parseTraditional("Traditional (public domain)")).toBeNull();
   });
 
   it("reads \"Traditional\" as a marker, with arrangers and a second author", () => {
@@ -230,11 +241,20 @@ describe("audit decisions (items 118 to 121)", () => {
     expect(isBilledName("Test Band with Test Opener")).toBe(true);
     expect(isBilledName("Opened for Test Act")).toBe(false);
     expect(isBilledName("Performed between two bands")).toBe(false);
+    // The words may sit anywhere in the text.
+    expect(isBilledName("Comfort opened for the Jerry Garcia Band")).toBe(false);
+    expect(isBilledName("Comfort opened for Robert Palmer / Bonnie Raitt")).toBe(false);
+    expect(isBilledName("Co-headline with Jorma Kaukonen")).toBe(false);
+    expect(isBilledName("No Nukes Rally")).toBe(false);
+    expect(isBilledName("Furthur Festival")).toBe(false);
+    expect(isBilledName("Whole Earth Festival")).toBe(false);
   });
 
   it("fixes a doubled album title and finds the books", () => {
     expect(fixDoubledTitle("Tales of the Great Rum Runners Tales of the Great Rum Runners 50th Bonus Disc")).toBe("Tales of the Great Rum Runners 50th Bonus Disc");
     expect(fixDoubledTitle("Rum Runners (Rum Runners 50th Bonus Disc)")).toBe("(Rum Runners 50th Bonus Disc)");
+    // The real form: a whole-string repeat with no space between the copies.
+    expect(fixDoubledTitle("Tales Of The Great Rum Runners 50th Anniversary Bonus DiscTales Of The Great Rum Runners 50th Anniversary Bonus Disc")).toBe("Tales Of The Great Rum Runners 50th Anniversary Bonus Disc");
     expect(fixDoubledTitle("Bye Bye Love")).toBe("Bye Bye Love");
     expect(fixDoubledTitle("Rock Columbia")).toBe("Rock Columbia");
     for (const title of ["A Box of Rain", "Sentinel", "Rilke: Duino Elegies"]) expect(isBookTitle(title)).toBe(true);
@@ -256,6 +276,7 @@ describe("audit decisions (items 118 to 121)", () => {
   it("finds unknown venues and unknown songs", () => {
     expect(isUnknownVenue("Unknown Venue")).toBe(true);
     expect(isUnknownVenue("Unknown Studio Location")).toBe(true);
+    expect(isUnknownVenue("Unknown Studio")).toBe(true);
     expect(isUnknownVenue("Unknown Hall of Fame")).toBe(false);
     expect(isUnknownSong("Unknown Song")).toBe(true);
     expect(isUnknownSong("Unknown Instrumental")).toBe(true);

@@ -1,10 +1,12 @@
-import { bulk, uniqueKey, type Ctx } from "./context.ts";
+import { HINT_LISTS, bulk, uniqueKey, type Ctx } from "./context.ts";
 import {
   SUITES,
   dateOf,
   isDroppedTag,
   isReviewCredit,
   isUnknownSong,
+  matchedText,
+  noteHints,
   normalizeName,
   num,
   parseTraditional,
@@ -68,6 +70,14 @@ export async function importWorks(ctx: Ctx): Promise<void> {
     ctx.tally.mapped("songs", id);
     ctx.note(workId, str(row, "public_notes"), true, `songs:${id}:publicNotes`);
     ctx.note(workId, str(row, "private_notes"), false, `songs:${id}:privateNotes`);
+    // The review lists also read song notes ("From X's album" sits in them).
+    for (const [source, text] of [["publicNotes", str(row, "public_notes")], ["privateNotes", str(row, "private_notes")]] as const) {
+      if (!text) continue;
+      for (const hint of noteHints(text)) {
+        if (hint === "bill") continue;
+        ctx.propose(HINT_LISTS[hint], { workId, legacyId: `songs:${id}`, proposal: "check this note", source, matchedText: matchedText(text, hint), text });
+      }
+    }
     const slug = str(row, "slug");
     if (slug) {
       ctx.addresses.push({ path: `/song/${slug}`, entityId: workId, slug });
@@ -128,6 +138,19 @@ function traditionalSongs(songs: Array<Record<string, unknown>>): Set<number> {
   }
   return out;
 }
+
+/**
+ * Arrangers the old credit text names by surname (item 121). Each is a full-name person the
+ * archive has or makes once: a surname-only person would be a duplicate.
+ */
+const KNOWN_ARRANGERS = new Map([
+  ["guard", "Dave Guard"],
+  ["white", "Josh White"],
+  ["albin", "Peter Albin"],
+  ["melton", "Barry Melton"],
+  ["sebastian", "John Sebastian"],
+  ["garcia", "Jerry Garcia"],
+]);
 
 /** The name forms (normalized) that always mean the seeded Robert Hunter in a credit. */
 const HUNTER_FORMS = new Set(["robert hunter", "hunter", "bob hunter", "robert c hunter", "robert c. hunter"]);
@@ -202,22 +225,49 @@ async function importCredits(ctx: Ctx, songs: Array<Record<string, unknown>>): P
   // Item 20: first the full names, so a surname-only name finds its person whatever the song order.
   const personFor = new Map<CreditName, number>();
   for (const entry of names.filter((n) => !isSurnameOnly(n.name))) personFor.set(entry, await personForName(ctx, entry.name, entry.legacyId));
-  const bySurname = new Map<string, Set<number>>();
+  // A one-word name matches a person whose full name has that word (a surname, or a nickname such
+  // as "Pigpen" inside a quoted name). Only people with a full name count.
+  const byWord = new Map<string, Set<number>>();
   for (const [name, personId] of ctx.personByName) {
-    const surname = surnameOf(name);
-    if (surname) bySurname.set(surname, (bySurname.get(surname) ?? new Set<number>()).add(personId));
+    const words = name.split(" ");
+    if (words.length < 2) continue;
+    for (const word of new Set(words.map((w) => w.replace(/[^a-z0-9]/g, "")).filter(Boolean))) {
+      byWord.set(word, (byWord.get(word) ?? new Set<number>()).add(personId));
+    }
   }
+  const nameOfPerson = new Map([...ctx.personByName].map(([name, id]) => [id, name]));
   for (const entry of names.filter((n) => isSurnameOnly(n.name))) {
-    const matches = [...(bySurname.get(normalizeName(entry.name)) ?? [])];
-    if (matches.length === 1) {
+    const word = normalizeName(entry.name).replace(/[^a-z0-9]/g, "");
+    // A known arranger: the old text names only the surname of an existing person.
+    const alias = entry.roles.includes("arrangement") ? KNOWN_ARRANGERS.get(word) : undefined;
+    if (alias !== undefined) {
+      personFor.set(entry, await personForName(ctx, alias, entry.legacyId));
+      ctx.line("Surname-only credit names resolved to a full-name person", `${entry.legacyId}: "${entry.name}" is "${alias}"`);
+      continue;
+    }
+    const matches = [...(byWord.get(word) ?? [])].sort((a, b) => a - b);
+    const lastNames = new Set(matches.map((id) => surnameOf(nameOfPerson.get(id) ?? "")));
+    if (matches.length >= 1 && lastNames.size === 1) {
+      // One person, or one surname with spelling variants of the first name (Dave and David).
       personFor.set(entry, matches[0]);
       ctx.line("Surname-only credit names resolved to a full-name person", `${entry.legacyId}: "${entry.name}" is person ${matches[0]}`);
+      if (matches.length > 1) {
+        ctx.line("Surname-only credit names with several full-name variants (person-merge list)", `${entry.legacyId}: "${entry.name}" matches people ${matches.join(", ")}`);
+        ctx.propose("06-person-merges", { personIds: matches.join(","), legacyIds: matches.map((id) => `person ${id}`).join(","), name: entry.name, reason: "one surname, several first-name forms" });
+      }
     } else {
       ctx.line(
-        "Surname-only credit names not resolved (kept as written; review)",
+        "Surname-only credit names not resolved (kept as written; person-merge list)",
         `${entry.legacyId}: "${entry.name}" ${matches.length === 0 ? "matches no full-name person" : `matches ${matches.length} people`}`,
       );
-      personFor.set(entry, await personForName(ctx, entry.name, entry.legacyId));
+      const personId = await personForName(ctx, entry.name, entry.legacyId);
+      personFor.set(entry, personId);
+      ctx.propose("06-person-merges", {
+        personIds: [personId, ...matches].join(","),
+        legacyIds: entry.legacyId,
+        name: entry.name,
+        reason: matches.length === 0 ? "surname-only name: no full-name person found" : "surname-only name: several different people share the word",
+      });
     }
   }
 
@@ -344,6 +394,20 @@ async function importSuites(ctx: Ctx, songs: Array<Record<string, unknown>>): Pr
       ctx.tally.drop("song_tags", row.id, "dylan-and-beatles-tags-are-derived-from-credits (item 35)");
     } else {
       ctx.tally.notMapped("song_tags", row.id, "tag is not a suite tag and has no rule");
+    }
+  }
+  // A song with the suite's own title ("Amagamalin Street") is its title song, so a part of it,
+  // even when no tag says so. The link is made and listed for the user to check.
+  for (const suite of SUITES) {
+    const suiteId = suiteWork.get(suite.match);
+    if (suiteId === undefined) continue;
+    for (const row of songs) {
+      const workId = ctx.workBySong.get(Number(row.id));
+      if (workId === undefined || normalizeName(str(row, "title") ?? "") !== normalizeName(suite.title)) continue;
+      if ((partsOf.get(suite.match) ?? []).some((part) => part.workId === workId)) continue;
+      links.push({ fromWork: workId, toWork: suiteId, legacyId: `songs:${row.id}:titleSongOfSuite` });
+      partsOf.set(suite.match, [...(partsOf.get(suite.match) ?? []), { workId, title: titleBySong.get(Number(row.id)) ?? "" }]);
+      ctx.line("Title songs linked as a part of their suite (check)", `songs:${row.id} "${suite.title}" is a part of work ${suiteId}`);
     }
   }
   // Part positions: no order is known yet. A fixed suite, or a concept album, needs its parts in

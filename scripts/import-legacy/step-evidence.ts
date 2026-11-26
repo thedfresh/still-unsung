@@ -56,9 +56,18 @@ const RECORDING_LINK_FIELDS = [
   ["url", "Old recording URL"],
 ] as const;
 
+/** An old SHN ID is an EtreeDB show ID: its address uses the EtreeDB template. */
 function fullUrl(system: string, value: string): string {
-  const template = LINK_SYSTEMS.find((entry) => entry.system === system)?.urlTemplate;
+  const name = system === "SHN" ? "EtreeDB" : system;
+  const template = LINK_SYSTEMS.find((entry) => entry.system === name)?.urlTemplate;
   return template ? template.replace("{value}", value) : "";
+}
+
+/** A stray tab or space, a doubled slash and a slash at either end are typing slips in an old value. */
+function cleanValue(value: string): string {
+  const trimmed = value.replace(/[\t\r\n]+/g, " ").trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return trimmed.replace(/\/{2,}/g, "/").replace(/^\/+|\/+$/g, "").trim();
 }
 
 function partialDate(row: Row): string {
@@ -127,7 +136,7 @@ export async function importRecordingCandidates(ctx: Ctx, outputDir: string): Pr
       ctx.tally.drop("recordings", id, CANDIDATE_RULE);
       let own = 0;
       for (const [field, system] of RECORDING_LINK_FIELDS) {
-        const value = str(recording, field);
+        const value = cleanValue(str(recording, field) ?? "");
         if (!value) continue;
         own += 1;
         row(recording, { linkSystem: system, value, url: field === "url" ? value : fullUrl(system, value) });
@@ -153,7 +162,7 @@ export async function importRecordingCandidates(ctx: Ctx, outputDir: string): Pr
     const system = route?.kind === "external" ? route.system : route?.kind === "whitegum" ? "Whitegum" : "";
     row(recording, {
       linkSystem: system,
-      value: route?.kind === "external" ? externalValue(route.system, url) : route?.kind === "whitegum" ? whitegumValue(url) : url,
+      value: cleanValue(route?.kind === "external" ? externalValue(route.system, url) : route?.kind === "whitegum" ? (whitegumValue(url) ?? url) : url),
       url,
       linkTitle: str(link, "title"),
       linkDescription: str(link, "description"),
@@ -219,7 +228,14 @@ function importLink(ctx: Ctx, row: Row, types: Map<number, string | null>): void
       ctx.tally.notMapped("links", id, "a Whitegum link that is not on a song");
       return;
     }
-    ctx.externalIds.push({ entityId: target, system: "Whitegum", value: whitegumValue(url), legacyId: `links:${id}`, isActive, checkedAt: dateOf(row, "date_fetched") });
+    const page = whitegumValue(url);
+    if (page === null) {
+      // The template builds only /songfile/ pages: list the link, do not guess an address.
+      ctx.tally.notMapped("links", id, "a Whitegum page outside /songfile/: no URL template fits it");
+      ctx.line("Whitegum links outside /songfile/ (no address can be built; review)", `links:${id}`);
+      return;
+    }
+    ctx.externalIds.push({ entityId: target, system: "Whitegum", value: page, legacyId: `links:${id}`, isActive, checkedAt: dateOf(row, "date_fetched") });
     ctx.tally.mapped("links", id);
   } else if (route.kind === "report") {
     ctx.tally.notMapped("links", id, route.reason);

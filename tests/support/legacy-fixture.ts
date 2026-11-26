@@ -52,7 +52,7 @@ const T = true;
 const F = false;
 type Value = string | number | boolean | null;
 const DATA: Array<[string, string[], Value[][]]> = [
-  ["instruments", ["id", "name", "display_name"], [[1, "guitar", "guitar"], [2, "bass", "bass"]]],
+  ["instruments", ["id", "name", "display_name"], [[1, "guitar", "guitar"], [2, "bass", "bass"], [3, "vocals", "vocals"]]],
   ["event_types", ["id", "name", "include_in_stats"], [[1, "Public Performance", T], [2, "Errata", F], [3, "Studio Session", F]]],
   ["content_types", ["id", "name"], [[1, "Concert"], [2, "Interview"], [3, "Poetry Reading"]]],
   ["set_types", ["id", "name", "display_name", "include_in_stats"], [[1, "Complete Set", "Set", T], [2, "Partial Set", "Partial", T], [3, "Encore 1", "Encore", T], [4, "Soundcheck", "Soundcheck", F], [5, "Weird Type", "Weird", F]]],
@@ -64,7 +64,7 @@ const DATA: Array<[string, string[], Value[][]]> = [
   ["band_musicians", ["id", "band_id", "musician_id", "joined_date", "left_date"], [[1, 1, 2, "1990-01-01", null], [2, 1, 4, "1990-01-01", "1995-12-31"]]],
   ["band_musician_instruments", ["id", "band_musician_id", "instrument_id"], [[1, 1, 1], [2, 2, 2]]],
   ["musician_default_instruments", ["id", "musician_id", "instrument_id"], [[1, 4, 2]]],
-  ["venues", ["id", "name", "city", "state_province", "country", "context", "slug"], [[1, "Test Hall", "Testville", "TS", "Testland", null, "test-hall"], [2, "Other Hall", "Testville", "TS", "Testland", "Test Campus", "other-hall"], [3, "Fest Field", "Testville", "TS", "Testland", "Summer Test Festival", "fest-field"], [4, "Test Town", null, null, null, "Songwriters Hall of Fame", "test-town"], [5, "Unknown Venue", "Testville", "TS", "Testland", null, "unknown-venue"], [6, "US Hall", "Springfield", "CA", null, null, "us-hall"], [7, "Leus Park", "Testville", "TS", "Testland", "Fete des Leus", "leus-park"]]],
+  ["venues", ["id", "name", "city", "state_province", "country", "context", "slug"], [[1, "Test Hall", "Testville", "TS", "Testland", null, "test-hall"], [2, "Other Hall", "Testville", "TS", "Testland", "Test Campus", "other-hall"], [3, "Fest Field", "Testville", "TS", "Testland", "Summer Test Festival", "fest-field"], [4, "Test Town", null, null, null, "Songwriters Hall of Fame", "test-town"], [5, "Unknown Venue", "Testville", "TS", "Testland", null, "unknown-venue"], [6, "US Hall", "Springfield", "CA", null, null, "us-hall"], [7, "Leus Park", "Testville", "TS", "Testland", "Fete des Leus", "leus-park"], [8, "Unknown Studio", "Testville", "TS", "Testland", null, "unknown-studio"]]],
   ["songs", ["id", "title", "alternate_title", "lyrics_by", "music_by", "song_by", "arrangement", "original_artist", "parent_song_id", "lead_vocals_id", "is_uncertain", "in_box_of_rain", "is_instrumental", "slug", "public_notes"], [
     [1, "Alpha Song", null, "Test Author / Second Author", "Test Author", null, null, "Test Group", null, 4, F, F, F, "alpha-song", "See https://example.test/page for more."],
     [2, "Beta Song", "Beta Alt", "Traditional", null, null, null, null, 1, null, T, F, F, "beta-song", null],
@@ -74,9 +74,17 @@ const DATA: Array<[string, string[], Value[][]]> = [
     [6, "Arranged Test", null, null, null, "Traditional, arr. Garcia", null, null, null, null, F, F, F, "arranged-test", null],
     [7, "Smith Test", null, null, null, "Traditional/Arthur Smith, arr. Garcia", null, null, null, null, F, F, F, "smith-test", null],
     [8, "Review Test", null, null, null, "Grateful Dead", null, null, null, null, F, F, F, "review-test", null],
-    [9, "Version Test", null, "Garcia / Lesh", null, null, "Lloyd Price version", null, null, null, F, F, F, "version-test", null],
+    [9, "Version Test", null, "Garcia / Lesh", null, null, "Lloyd Price version", null, null, null, F, F, F, "version-test", "From Barry Melton's \"Level With Me\" album"],
     [10, "Unknown Song", null, null, null, null, null, null, null, null, F, F, F, "unknown-song", null],
     [11, "Unknown Instrumental", null, null, null, null, null, null, null, null, F, F, T, "unknown-instrumental", null],
+    [12, "Typo Test", null, null, null, "Tradititional", null, null, null, null, F, F, F, "typo-test", null],
+    [13, "Bracket Test", null, null, null, "Traditional (Hunter)", null, null, null, null, F, F, F, "bracket-test", null],
+    [14, "Sebastian Test", null, null, null, "Traditional, arr. Sebastian", null, null, null, null, F, F, F, "sebastian-test", null],
+    [15, "Amagamalin Street", null, null, null, null, null, null, null, null, F, F, F, "amagamalin-street", null],
+    [16, "Freiberg One", null, "David Freiberg", null, null, null, null, null, null, F, F, F, "freiberg-one", null],
+    [17, "Freiberg Two", null, "Dave Freiberg", null, null, null, null, null, null, F, F, F, "freiberg-two", null],
+    [18, "Freiberg Three", null, "Freiberg", null, null, null, null, null, null, F, F, F, "freiberg-three", null],
+    [19, "Pigpen Test", null, "Pigpen", null, null, null, null, null, null, F, F, F, "pigpen-test", null],
   ]],
   ["song_vocalists", ["id", "song_id", "musician_id", "vocal_role"], [[1, 2, 3, "lead"], [2, 1, 2, "harmony"], [3, 3, 4, "mystery"]]],
   ["tags", ["id", "name"], [[1, "Terrapin"], [2, "dylan"], [3, "unused"], [4, "amagamalin-suite"], [5, "eagle-mall-suite"]]],
@@ -95,9 +103,10 @@ const DATA: Array<[string, string[], Value[][]]> = [
     [11, 1993, 3, 3, "1993-03-03", F, 1, F, 1, 1, 1, F, null, null, F, F, null, null, T, null, "e11"],
     [12, 1993, 4, 4, "1993-04-04", F, 1, F, 1, 1, 1, F, null, null, F, F, "8:00", null, T, null, "e12"],
     [13, 1976, 6, null, "Summer 1976", F, 1, F, 1, 1, 1, F, "Opened for Test Act", null, F, F, null, null, T, null, "e13"],
-    [14, 1977, 6, 5, "June 5, 1977 (Afternoon)", F, 1, F, 1, 1, 1, F, null, null, F, F, null, null, T, null, "e14"],
+    [14, 1977, 6, 5, "June 5, 1977 (Afternoon)", F, 1, F, 1, 1, 1, F, "Comfort opened for the Jerry Garcia Band", null, F, F, null, null, T, null, "e14"],
     [15, 1978, 2, 2, "1978-02-02", F, 5, F, 1, 1, 1, F, null, null, F, F, null, null, T, null, "e15"],
     [16, 1979, 3, 3, "1979-03-03", F, 1, F, 1, 3, 1, F, null, null, F, F, null, null, T, null, "e16"],
+    [17, 1981, 4, 4, "1981-04-04", F, 8, F, 3, 1, 1, F, null, null, F, F, null, null, T, null, "e17"],
   ]],
   ["event_musicians", ["id", "event_id", "musician_id", "instrument_id", "includes_vocals", "private_notes"], [
     [1, 1, 2, 1, F, null],
@@ -125,10 +134,11 @@ const DATA: Array<[string, string[], Value[][]]> = [
     [12, 3, 11, 3, F, F, F, F, null, F, null, F, F, F, F, F],
   ]],
   ["performance_vocalists", ["id", "performance_id", "musician_id", "vocal_role"], [[1, 1, 3, "Harmony"], [2, 1, 4, "backing"], [3, 2, 4, "scat"]]],
-  ["performance_musicians", ["id", "performance_id", "musician_id", "instrument_id", "includes_vocals"], [[1, 1, 2, 1, F], [2, 2, 1, null, F], [3, 7, 2, 1, F], [4, 5, 3, null, T]]],
-  ["performance_musician_instruments", ["id", "performance_musician_id", "instrument_id"], [[1, 2, 2]]],
+  ["performance_musicians", ["id", "performance_id", "musician_id", "instrument_id", "includes_vocals"], [[1, 1, 2, 1, F], [2, 2, 1, null, F], [3, 7, 2, 1, F], [4, 5, 3, null, F]]],
+  // The real form: the flag is false and a "vocals" instrument row marks the singer (row 4).
+  ["performance_musician_instruments", ["id", "performance_musician_id", "instrument_id"], [[1, 2, 2], [2, 4, 3]]],
   ["show_banter", ["id", "performance_id", "banter_text", "is_before_song", "is_verbatim"], [[1, 1, "Banter text one", T, T], [2, 1, "Banter text two", F, F], [3, 7, "Banter in the test show", T, T]]],
-  ["recordings", ["id", "event_id", "recording_type_id", "taper", "shn_id", "lma_identifier", "contributor_id", "length_minutes"], [[1, 1, 1, "Test Taper", "shn1", "gd99-01-02.test", 1, 90], [2, 5, 1, null, null, null, null, null], [3, 1, 2, null, null, null, null, null]]],
+  ["recordings", ["id", "event_id", "recording_type_id", "taper", "shn_id", "lma_identifier", "contributor_id", "length_minutes"], [[1, 1, 1, "Test Taper", "shn1", "gd99-01-02.test", 1, 90], [2, 5, 1, null, null, null, null, null], [3, 1, 2, null, null, "\tgd00-01-01.messy//", null, null]]],
   ["links", ["id", "url", "title", "isActive", "is_public", "event_id", "song_id", "link_type_id", "recording_id"], [
     [1, "https://en.wikipedia.org/wiki/Test", "A title", T, T, null, 1, 1, null],
     [2, "https://whitegum.example/alpha", null, T, T, null, 1, null, null],
@@ -137,11 +147,14 @@ const DATA: Array<[string, string[], Value[][]]> = [
     [5, "https://www.youtube.com/watch?v=zyxwvutsrqp", null, F, T, 1, null, 3, null],
     [6, "https://www.whitegum.com/songfile/Beta.htm#verse", null, T, T, null, 2, null, null],
     [7, "https://archive.org/details/gd99-01-02.test2", "LMA copy", T, T, null, null, 4, 1],
+    // A page in a query string, and a page outside /songfile/ (listed, no outside ID).
+    [8, "https://www.whitegum.com/introjs.htm?/songfile/STAGGERL.HTM", null, T, T, null, 3, null, null],
+    [9, "https://www.whitegum.com/stagroot.htm", null, T, T, null, 3, null, null],
   ]],
   ["albums", ["id", "title", "artist", "release_year", "is_official", "slug"], [
     [1, "Test Album", "Test Group", 1990, T, "test-album"],
     [2, "Rock Columbia", null, null, T, "rock-columbia"],
-    [3, "Doubled Title Doubled Title 50th Bonus Disc", null, null, T, null],
+    [3, "Doubled Title 50th Bonus DiscDoubled Title 50th Bonus Disc", null, null, T, null],
     [4, "Sentinel", null, null, T, null],
     [5, "Amagamalin Street", null, 1984, T, null],
   ]],
@@ -155,6 +168,8 @@ const DATA: Array<[string, string[], Value[][]]> = [
 const EXTRA: Array<[string, number, string, string]> = [
   ["events", 1, "private_notes", "Old private note of the show"],
   ["events", 1, "raw_data_gdsets", "gdsets entry text"],
+  // A raw entry that holds JSON text: the archive keeps it as parsed JSON.
+  ["events", 3, "raw_data", '{"setlist":["Alpha Song","Beta Song"]}'],
 ];
 
 const CREATED: Array<[string, number, string]> = [
