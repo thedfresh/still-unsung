@@ -358,7 +358,8 @@ describe("what an agent may not do", () => {
       ],
     });
     expect(preview.token).toBeNull();
-    expect(preview.warnings[0]).toMatch(/SetType 999999 does not exist.*admin/);
+    expect(preview.warnings[0]).toMatch(/SetType 999999 does not exist.*op "create"/);
+    expect(preview.warnings[0]).not.toContain("Ask the user");
     expect(await db.show.count()).toBe(0);
   });
 
@@ -857,6 +858,73 @@ describe("delete edits (HSA-167)", () => {
     ).rejects.toMatchObject({ code: "invalid_input" });
   });
 
+  it("says plainly that a record is the evidence of earlier changes (HSA-170)", async () => {
+    const show = await makeShow();
+    await addCitation(show.id);
+    const person = await db.person.create({ data: { id: (await db.entity.create({ data: { kind: "PERSON" } })).id, name: "Synthetic Helper", key: "synthetic-helper" } });
+    const noted = await previewChanges(agentId, {
+      evidence: { contributorId: person.id },
+      edits: [{ op: "update", type: "Show", id: show.id, rev: show.rev, fields: { timeLabel: "Late" } }],
+    });
+    await applyChanges(agentId, noted.token as string);
+    const source = await db.source.findUniqueOrThrow({ where: { id: sourceId } });
+    const refusals = [
+      { op: "delete", type: "Source", id: sourceId, rev: source.rev },
+      { op: "delete", type: "Person", id: person.id, rev: person.rev },
+    ];
+    const counts = [await db.changeset.count({ where: { sourceId } }), 1];
+    for (const [i, edit] of refusals.entries()) {
+      const error = await previewChanges(agentId, { evidence: own, edits: [edit] }).catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: "invalid_input" });
+      expect((error as Error).message).toMatch(new RegExp(`is the evidence for ${counts[i]} changes? and cannot be deleted\\.$`));
+      expect((error as Error).message).not.toContain("Delete them or move them");
+    }
+  });
+
+  it("refuses at preview a call that deletes its own evidence, before any token is used (HSA-170)", async () => {
+    const source = await db.source.findUniqueOrThrow({ where: { id: sourceId } });
+    const preview = await previewChanges(agentId, {
+      evidence: { sourceId },
+      edits: [{ op: "delete", type: "Source", id: sourceId, rev: source.rev }],
+    });
+    expect(preview.token).toBeNull();
+    expect(preview.warnings[0]).toContain("is the evidence for this change and cannot be deleted in the same call");
+    expect(await db.changeset.count()).toBe(0);
+  });
+
+  it("deletes in any order: a set may come before its segments (HSA-170)", async () => {
+    const { a, b, reference } = await makeSegments();
+    const set = await db.set.findFirstOrThrow();
+    const show = await db.show.findFirstOrThrow();
+    const preview = await previewChanges(agentId, {
+      evidence: own,
+      edits: [
+        { op: "delete", type: "Show", id: show.id, rev: show.rev },
+        { op: "delete", type: "Set", id: set.id, rev: set.rev },
+        { op: "delete", type: "Segment", id: a.id, rev: a.rev },
+        { op: "delete", type: "Segment", id: b.id, rev: b.rev },
+        { op: "delete", type: "Reference", id: reference.id, rev: reference.rev },
+      ],
+    });
+    expect(preview.warnings).toEqual([]);
+    await applyChanges(agentId, preview.token as string);
+    expect(await db.show.count()).toBe(0);
+    expect(await db.set.count()).toBe(0);
+    expect(await db.segment.count()).toBe(0);
+    expect(await db.reference.count()).toBe(0);
+  });
+
+  it("leaves JSON columns and fields the agent cannot set out of a delete card (HSA-170)", async () => {
+    await db.source.update({ where: { id: sourceId }, data: { zoteroData: { title: "Raw" }, syncedAt: new Date() } });
+    const source = await db.source.findUniqueOrThrow({ where: { id: sourceId } });
+    await db.changeset.deleteMany();
+    const preview = await previewChanges(agentId, { evidence: own, edits: [{ op: "delete", type: "Source", id: source.id, rev: source.rev }] });
+    expect(preview.warnings).toEqual([]);
+    const text = formatPreview(preview);
+    expect(text).toContain("Deleted · Source");
+    expect(text).not.toMatch(/object Object|zotero|synced/i);
+  });
+
   it("reads a delete on the Changes page", async () => {
     const show = await makeShow();
     const citation = await addCitation(show.id);
@@ -884,6 +952,13 @@ describe("list values (HSA-167, item 116)", () => {
     await applyChanges(agentId, preview.token as string);
     const kind = await db.subjectKind.findFirstOrThrow({ where: { name: "brand" } });
     expect((await db.subject.findFirstOrThrow()).subjectKindId).toBe(kind.id);
+  });
+
+  it("names the list and the value when a list value already exists (HSA-170)", async () => {
+    await db.subjectKind.create({ data: { name: "brand" } });
+    const error = await previewChanges(agentId, { evidence: own, edits: [{ op: "create", type: "SubjectKind", fields: { name: "brand" } }] }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "conflict" });
+    expect((error as Error).message).toContain('SubjectKind "brand" already exists');
   });
 
   it("refuses to update or delete a list value, with a plain message", async () => {

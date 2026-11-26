@@ -1,5 +1,5 @@
 import { LIST_TABLES, modelInfo } from "@/lib/content-access";
-import { bareLabel, changedFields, filledFields, isPrivateText, showValue, withType, type Row } from "@/lib/changes/labels";
+import { bareLabel, changedFields, filledFields, isPrivateText, notKeyFields, showValue, withType, type Row } from "@/lib/changes/labels";
 
 /**
  * The readout: one plain-words view of what a set of changes adds and changes. The MCP preview
@@ -256,7 +256,7 @@ function recordTitle(item: ReadoutItem): { title: string; skip: Set<string> } {
 /** The key fields of a deleted record, as it was before: the same lines as a new record, with the old links. */
 function deletedFields(item: ReadoutItem, skip: Set<string>): ReadoutField[] {
   const was = item.before ?? item.after;
-  return fillFields({ ...item, after: was, links: { ...item.links, after: item.links.before } }, skip);
+  return fillFields({ ...item, after: was, links: { ...item.links, after: item.links.before } }, new Set([...skip, ...notKeyFields(item.type)]));
 }
 
 /** One card for one record. */

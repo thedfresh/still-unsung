@@ -84,6 +84,24 @@ export function countsOfSummary(summary: string): string {
   return end === -1 ? summary : summary.slice(0, end + 1);
 }
 
+/** The evidence field that names a record of each type. */
+const EVIDENCE_FIELD_OF = { Source: "sourceId", Recording: "recordingId", Person: "contributorId" } as const;
+
+/**
+ * Messages for a delete of the record that the call names as its own evidence. The change would
+ * point at a record that is gone, so the apply would fail after it used the one-time token.
+ */
+export function findOwnEvidenceDeletes(edits: ParsedEdit[], evidence: Evidence): string[] {
+  const messages: string[] = [];
+  for (const [index, edit] of edits.entries()) {
+    if (edit.op !== "delete" || !(edit.type in EVIDENCE_FIELD_OF)) continue;
+    if (evidence[EVIDENCE_FIELD_OF[edit.type as keyof typeof EVIDENCE_FIELD_OF]] === edit.id) {
+      messages.push(`Edit ${index}: ${edit.type} ${edit.id} is the evidence for this change and cannot be deleted in the same call.`);
+    }
+  }
+  return messages;
+}
+
 export async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<{ warnings: PreviewData["warnings"]; conflicts: PreviewConflict[] }> {
   const warnings = [...(await findRulesPageRefusals(tx, edits)), ...(await findMissingListValues(tx, edits))];
   const conflicts: PreviewConflict[] = [];
@@ -123,6 +141,7 @@ export async function previewChanges(userId: string, input: PreviewInput): Promi
     await db.$transaction(async (tx) => {
       evidenceText = await describeEvidence(tx, evidence);
       ({ warnings, conflicts } = await trialRun(tx, edits));
+      warnings = [...findOwnEvidenceDeletes(edits, evidence), ...warnings];
       if (warnings.length > 0) return;
       const items = await writeEdits(tx, edits);
       throw new Rollback({ items: await describeItems(tx, items) });

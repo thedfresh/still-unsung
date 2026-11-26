@@ -29,6 +29,11 @@ async function makeShow() {
   return db.show.findFirstOrThrow();
 }
 
+async function makeSource() {
+  const entity = await db.entity.create({ data: { kind: "SOURCE" } });
+  return db.source.create({ data: { id: entity.id, key: "k1", title: "Synthetic notebook" } });
+}
+
 async function rowCounts() {
   return [await db.show.count(), await db.entity.count(), await db.changesetItem.count(), await db.changeset.count()];
 }
@@ -75,6 +80,42 @@ describe("pending preview page (HSA-169)", () => {
     expect(await getPendingPreview(999_999)).toBeNull();
     expect(await rowCounts()).toEqual(before);
     expect(await listPendingPreviews()).toEqual([]);
+  });
+
+  it("warns, and does not crash, when the plan no longer fits the database (HSA-170)", async () => {
+    // Preview a delete of a show, then add a set to the show. The show keeps rev 1.
+    const show = await makeShow();
+    const preview = await previewChanges(agentId, { evidence: own, edits: [{ op: "delete", type: "Show", id: show.id, rev: show.rev }] });
+    expect(preview.warnings).toEqual([]);
+    const setTypeId = (await db.setType.findFirstOrThrow()).id;
+    await db.set.create({ data: { id: (await db.entity.create({ data: { kind: "SET" } })).id, showId: show.id, position: 1, setTypeId } });
+    const page = await getPendingPreview(preview.changesetId as number);
+    expect(page?.state).toBe("open");
+    expect(page?.readout).toBeNull();
+    expect(page?.warnings[0]).toMatch(/^Edit 0: Show .* cannot be deleted\. It still has 1 set attached/);
+  });
+
+  it("warns when a record the plan deletes has gone (HSA-170)", async () => {
+    const show = await makeShow();
+    const citation = await db.citation.create({ data: { entityId: show.id, sourceId: (await makeSource()).id, place: "p. 1" } });
+    const preview = await previewChanges(agentId, { evidence: own, edits: [{ op: "delete", type: "Citation", id: citation.id, rev: citation.rev }] });
+    await db.citation.delete({ where: { id: citation.id } });
+    const page = await getPendingPreview(preview.changesetId as number);
+    expect(page?.readout).toBeNull();
+    expect(page?.warnings[0]).toContain(`Citation ${citation.id}`);
+  });
+
+  it("points an applied change to the page of the Changes log that lists it (HSA-170)", async () => {
+    const first = await previewChanges(agentId, { evidence: own, edits: [createShow(1960)] });
+    await applyChanges(agentId, first.token as string);
+    const rows = [];
+    for (let i = 0; i < 51; i++) {
+      const next = await previewChanges(agentId, { evidence: own, edits: [createShow(1961 + i)] });
+      await applyChanges(agentId, next.token as string);
+      rows.push(next);
+    }
+    expect((await getPendingPreview(first.changesetId as number))?.appliedPage).toBe(2);
+    expect((await getPendingPreview(rows[rows.length - 1].changesetId as number))?.appliedPage).toBe(1);
   });
 
   it("warns when a record changed after the preview", async () => {

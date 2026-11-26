@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import type { APIRequestContext } from "@playwright/test";
 import { expect, test } from "../support/e2e";
@@ -167,12 +168,16 @@ test.describe("the MCP endpoint", () => {
     expect(applied.text).toContain("Applied as changeset");
 
     // The agent cites the new show, then previews a delete of the citation, sees "Deleted" and applies it.
-    const found = JSON.parse((await callTool(request, token, "search_records", { type: "Show", date: `${year}-03-04` })).text);
-    const showId = found[0].id as number;
+    // The show is found by the ID that its own change stored, not by date: other projects run in parallel
+    // and may make a show with the same date.
+    const changesetId = Number(/Applied as changeset (\d+)/.exec(applied.text)![1]);
+    const items = await query<{ recordId: number }>(`SELECT "recordId" FROM changeset_items WHERE "changesetId" = $1 AND "tableName" = 'shows'`, [changesetId]);
+    expect(items).toHaveLength(1);
+    const showId = items[0].recordId;
     const cite = await callTool(request, token, "preview_changes", {
       evidence: { ownKnowledge: true },
       edits: [
-        { op: "create", type: "Source", ref: "src", fields: { key: `e2e-${year}-${Date.now()}`, title: "A test notebook" } },
+        { op: "create", type: "Source", ref: "src", fields: { key: `e2e-${randomUUID()}`, title: "A test notebook" } },
         { op: "create", type: "Citation", fields: { entityId: showId, sourceId: { ref: "src" }, place: "page 1" } },
       ],
     });

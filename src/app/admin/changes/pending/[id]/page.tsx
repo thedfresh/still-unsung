@@ -15,7 +15,7 @@ function Status({ preview }: { preview: PendingPreview }) {
     return (
       <p role="status">
         This change was applied.{" "}
-        <Link href={`/admin/changes#change-${preview.id}`} className="underline">
+        <Link href={`/admin/changes?page=${preview.appliedPage ?? 1}#change-${preview.id}`} className="underline">
           Read it in the applied changes
         </Link>
       </p>

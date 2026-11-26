@@ -298,7 +298,8 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   placeholder when it is missing (`npm run db:seed -- --import-rules-only`). Every public read of a
   guide page goes through `src/lib/data/guide-pages.ts`, which leaves out private pages. No public
   reader of guide pages exists yet. Any future one must use those `isPublic` helpers. The page
-  refuses an agent edit of `isPublic` or `slug`, and a delete. A change to it is always private.
+  refuses an agent edit of `isPublic` or `slug`, and a delete. An agent also cannot create a
+  guide page with that slug or rename a page to it. A change to it is always private.
   (test: `tests/db/import-rules.test.ts`, `tests/e2e/agent-mcp.spec.ts`)
 - **Five tools.** `preview_changes` and `apply_changes` write. `get_record`, `search_records`
   and `get_import_rules` read. One general edit tool covers every content table; add a task-specific tool only when a
@@ -315,7 +316,11 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   rules as the other ops: a stale `rev` refuses the call, a preview comes first, one call is one
   changeset. `ChangesetItem.before` keeps the full row and `after` is null. The record's
   `entities` row goes in the same transaction. Deletes run after the creates and updates of the
-  call, in the order given, so a call can move the attachments of a record and then delete it.
+  call, so a call can move the attachments of a record and then delete it. A delete waits for the
+  deletes of the records that point at it (`orderDeletes`), so the order given does not matter.
+  A source, recording or person that is the evidence of a change is refused with "It is the
+  evidence for N changes and cannot be deleted"; a call that deletes its own evidence is refused
+  at preview.
   A record that still has anything attached (citations, notes, references, external IDs, or
   children such as the segments of a set) is refused with a plain message that names the count
   and the first few records. The database `ON DELETE` rules are a last guard, never the check.
@@ -375,7 +380,9 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   expired, used or applied preview says so and is not rebuilt. A card links to its show page when
   the record sits in a show. `preview_changes` ends its text with the page address, built from
   `AUTH_URL` (`src/lib/changes/preview-link.ts`); with no `AUTH_URL` it adds no link. The proxy
-  gives an unknown ID a real 404. The page does not apply or discard.
+  gives an unknown ID a real 404. When the stored plan no longer fits the database (a record
+  changed, gone or taken), the page shows the message as a warning, not an error. An applied
+  change links to the page of the Changes log that lists it. The page does not apply or discard.
   (test: `tests/db/pending-preview.test.ts`, `tests/e2e/agent-mcp.spec.ts`)
 - **Not built yet:** the call to the cache-refresh route after an apply (no cached page reads
   content yet; section 5), undo, and merge.
