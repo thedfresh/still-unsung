@@ -25,6 +25,15 @@ export default function AdminHomePage() {
             Open the list of previews
           </Link>
         </section>
+        <section aria-labelledby="rules" className="flex flex-col gap-3">
+          <h2 id="rules" className="text-xl font-semibold">
+            Import rules
+          </h2>
+          <p>Read the rules an agent follows when it imports, exactly as it receives them.</p>
+          <Link href="/admin/import-rules" className="underline">
+            Read the import rules
+          </Link>
+        </section>
         <section aria-labelledby="passkey" className="flex flex-col gap-3">
           <h2 id="passkey" className="text-xl font-semibold">
             Passkey

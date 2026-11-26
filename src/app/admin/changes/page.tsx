@@ -59,6 +59,11 @@ async function Changes({ pageParam }: { pageParam: Promise<number> }) {
           Open previews: changes an agent proposed and nobody applied yet
         </Link>
       </p>
+      <p>
+        <Link href="/admin/import-rules" className="underline">
+          Import rules: the text an agent receives
+        </Link>
+      </p>
       {changes.length === 0 ? (
         <p>No changes yet.</p>
       ) : (
