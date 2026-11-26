@@ -100,6 +100,7 @@ export function isPrivateText(type: string, field: string, row: Row | null): boo
     case "VariantPassage.wording":
     case "Person.email":
     case "Source.extractedText":
+    case "Show.legacyData":
       return true;
     case "VersionPassage.wording":
       return row?.wordingPublic !== true;

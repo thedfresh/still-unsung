@@ -112,6 +112,12 @@ describe("parseEdits", () => {
     }
   });
 
+  it("refuses the private legacy archive of a show on create and update (item 120)", () => {
+    const create = problems([{ op: "create", type: "Show", fields: { dateYear: 1978, legacyData: { rawData: "x" } } }]);
+    expect(create["edits.0.fields.legacyData"][0]).toContain("Only the legacy import sets it");
+    expect(problems([{ op: "update", type: "Show", id: 1, rev: 1, fields: { legacyData: null } }])).toHaveProperty(["edits.0.fields.legacyData"]);
+  });
+
   it("refuses an empty or blank source title and a key that is not a short key", () => {
     for (const title of ["", "   "]) {
       expect(problems([{ op: "create", type: "Source", fields: { title, key: "k" } }])).toHaveProperty(["edits.0.fields.title"]);

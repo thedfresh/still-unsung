@@ -336,6 +336,9 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   source with `title`, `key`, `sourceKindId` and `otherNames`, and change them while it is
   unlinked. They never set `zoteroKey`, `zoteroData` or `syncedAt` (`AGENT_FORBIDDEN_FIELDS`).
   They never change the title of a linked source. (test: `tests/db/agent-changes.test.ts`)
+- **Private show archive.** `Show.legacyData` holds the old site's archive of a show. Only the
+  legacy import writes it. The tools refuse it (`AGENT_FORBIDDEN_FIELDS`), and no public read
+  selects it. (test: `src/lib/validation/content.test.ts`, `tests/db/import-legacy.test.ts`)
 - **Validation is built once.** `src/lib/validation/content.ts` builds the checks for every
   content table from `src/lib/content-model.json`. The admin forms use the same checks. After a
   schema change, run `npm run db:content-model`; a unit test fails while the file is out of date.

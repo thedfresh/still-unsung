@@ -7,7 +7,8 @@ import { seedFixedPeople, seedLists, seedSources, seedUsers } from "./lists.ts";
 import { collectMergeProposals, writeProposals } from "./proposals.ts";
 import { writeReport } from "./report.ts";
 import { runStressTests } from "./stress.ts";
-import { flushEvidence, flushNotes, importContributorsAndLinks, importRecordings } from "./step-evidence.ts";
+import { importAlbums } from "./step-albums.ts";
+import { flushEvidence, flushNotes, importLinks, importRecordingCandidates } from "./step-evidence.ts";
 import { importLineups } from "./step-lineups.ts";
 import { importBands, importPeople, importPlaces } from "./step-people.ts";
 import { importSegments } from "./step-segments.ts";
@@ -58,9 +59,10 @@ export async function runImport(options: ImportOptions): Promise<{ unaccounted: 
   const solo = await importSegments(ctx);
   await importInterviews(ctx);
   await importLineups(ctx, solo);
-  // 5 and 6. Recordings, outside IDs, citations.
-  await importRecordings(ctx);
-  await importContributorsAndLinks(ctx);
+  // 5 and 6. Recording candidates (a private file: no recording is made), outside IDs, albums.
+  await importRecordingCandidates(ctx, options.outputDir);
+  await importLinks(ctx);
+  await importAlbums(ctx);
   await flushEvidence(ctx);
   // 7 and 8. Notes with their backlinks, then the addresses.
   await flushNotes(ctx);

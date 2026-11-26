@@ -1,5 +1,5 @@
 import type { Delivery, Extent } from "@/generated/prisma/enums";
-import { bulk, type Ctx } from "./context.ts";
+import { HINT_LISTS, bulk, type Ctx } from "./context.ts";
 import { bool, dateOf, footnoteKinds, matchedText, noteHints, num, sortKeys, str, type Row } from "./rules.ts";
 
 // Step 4, second half (plan section 4: Performance, ShowBanter): every performance becomes a
@@ -39,7 +39,7 @@ export async function importSegments(ctx: Ctx): Promise<SoloSegment[]> {
     if (ctx.testSets.has(setOld)) {
       ctx.testPerformances.add(id);
       ctx.tally.drop("performances", id, TEST_RULE);
-    } else if (!ctx.setBySet.has(setOld) || !ctx.workBySong.has(Number(row.song_id))) {
+    } else if (!ctx.setBySet.has(setOld) || !(ctx.workBySong.has(Number(row.song_id)) || ctx.unknownSongs.has(Number(row.song_id)))) {
       ctx.tally.notMapped("performances", id, ctx.setBySet.has(setOld) ? "its song was not migrated" : "its set was not migrated");
     } else {
       bySet.set(setOld, [...(bySet.get(setOld) ?? []), row]);
@@ -135,12 +135,20 @@ function segmentData(ctx: Ctx, item: Item, id: number, songs: Map<number, Row>) 
       delivery: "SPOKEN" as Delivery,
       // Safe default: the text is the words as heard. Whether it is a summary is a proposal.
       wordsAsHeard: str(item.row, "banter_text"),
+      // Items 111, 114: stage talk is public by default, and Hunter is the speaker by default.
+      wordsPublic: true,
+      deliveredById: ctx.fixedPerson.hunter,
       legacyId: `show_banter:${item.row.id}`,
     };
   }
   const row = item.row;
   const song = songs.get(Number(row.song_id));
-  const played = bool(row, "is_instrumental") || bool(row, "is_musical_fragment") || (song ? bool(song, "is_instrumental") : false);
+  const unknownTitle = ctx.unknownSongs.get(Number(row.song_id));
+  const played =
+    bool(row, "is_instrumental") ||
+    bool(row, "is_musical_fragment") ||
+    (song ? bool(song, "is_instrumental") : false) ||
+    (unknownTitle !== undefined && /instrumental/i.test(unknownTitle));
   // Only the performance's own flag counts (item 105). An uncertain song stays a work (list 02).
   const uncertain = bool(row, "is_uncertain");
   return {
@@ -149,7 +157,8 @@ function segmentData(ctx: Ctx, item: Item, id: number, songs: Map<number, Row>) 
     sortKey: item.sortKey,
     joinsNext: bool(row, "segues_into") ? ("RUNS_INTO" as const) : ("STOPS" as const),
     delivery: played ? ("PLAYED" as Delivery) : null,
-    workId: ctx.workBySong.get(Number(row.song_id)) as number,
+    // Item 121: an unknown song or instrumental has no work.
+    workId: ctx.workBySong.get(Number(row.song_id)) ?? null,
     workCertainty: uncertain ? ("POSSIBLE" as const) : ("CONFIRMED" as const),
     extent: extentOf(row),
     cutAtStart: bool(row, "is_truncated_start"),
@@ -198,9 +207,9 @@ function afterPerformance(ctx: Ctx, row: Row, segmentId: number): void {
       });
     }
     for (const hint of noteHints(text)) {
-      const list = hint === "a-cappella" ? "13-a-cappella" : hint === "guest" ? "14-guests-in-notes" : null;
-      if (list) {
-        ctx.propose(list, { segmentId, legacyId: `performances:${oldId}`, proposal: CHECK_NOTE, source: camel, matchedText: matchedText(text, hint), text });
+      // The bill list is for shows; a performance note never names the bill.
+      if (hint !== "bill") {
+        ctx.propose(HINT_LISTS[hint], { segmentId, legacyId: `performances:${oldId}`, proposal: CHECK_NOTE, source: camel, matchedText: matchedText(text, hint), text });
       }
     }
   }

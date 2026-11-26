@@ -1,5 +1,5 @@
 import { bulk, newEntities, uniqueKey, type Ctx } from "./context.ts";
-import { bool, dateOf, dateParts, isUnknownName, normalizeName, num, slugify, str, type Row } from "./rules.ts";
+import { bool, countryOf, dateOf, dateParts, isFestivalName, isUnknownName, isUnknownVenue, normalizeName, num, slugify, str, type Row } from "./rules.ts";
 
 // Steps 2: people, bands and places (plan section 4: Musician and Contributor, Band and
 // BandMusician, Venue).
@@ -12,7 +12,7 @@ interface NewPerson {
   slug: string | null;
   email: string | null;
   oldId: number;
-  table: "musicians" | "contributors";
+  table: "musicians";
   isPublic: boolean;
   createdAt: Date | null;
 }
@@ -85,6 +85,16 @@ export async function importPeople(ctx: Ctx): Promise<void> {
     ctx.personByMusician.set(person.oldId, musicianIds[index]);
     if (!ctx.personByName.has(normalizeName(person.name))) ctx.personByName.set(normalizeName(person.name), musicianIds[index]);
     ctx.tally.mapped("musicians", person.oldId);
+    // Item 121 (13): only the seeded person is Robert Hunter. Another musician with "Hunter" in the
+    // name may still be him: propose it, never merge it.
+    if (normalizeName(person.name).split(" ").includes("hunter")) {
+      ctx.propose("06-person-merges", {
+        personIds: `${ctx.fixedPerson.hunter},${musicianIds[index]}`,
+        legacyIds: `robert-hunter,${person.legacyId}`,
+        name: person.name,
+        reason: "near-match of Robert Hunter",
+      });
+    }
   });
   const musicianRows = new Map(musicians.map((row) => [Number(row.id), row]));
   for (const [oldId, personId] of ctx.personByMusician) {
@@ -96,32 +106,10 @@ export async function importPeople(ctx: Ctx): Promise<void> {
     if (slug) ctx.addresses.push({ path: `/musician/${slug}`, entityId: personId, slug });
   }
 
-  // Contributors: one person each, never merged with a musician of the same name.
-  const contributors = await ctx.read("contributors");
-  const contributorPeople: NewPerson[] = contributors.map((row) => ({
-    legacyId: `contributors:${row.id}`,
-    name: str(row, "name") ?? `Contributor ${row.id}`,
-    firstName: null,
-    lastName: null,
-    slug: str(row, "slug"),
-    email: str(row, "email"),
-    oldId: Number(row.id),
-    table: "contributors",
-    isPublic: true,
-    createdAt: dateOf(row, "created_at"),
-  }));
-  const contributorIds = await writePeople(ctx, contributorPeople, usedSlugs);
-  contributorPeople.forEach((person, index) => {
-    ctx.personByContributor.set(person.oldId, contributorIds[index]);
-    const normalized = normalizeName(person.name);
-    if (!ctx.contributorByName.has(normalized)) ctx.contributorByName.set(normalized, contributorIds[index]);
-    ctx.tally.mapped("contributors", person.oldId);
-  });
-  for (const row of contributors) {
-    const personId = ctx.personByContributor.get(Number(row.id));
-    if (personId === undefined) continue;
-    ctx.note(personId, str(row, "public_notes"), true, `contributors:${row.id}:publicNotes`);
-    ctx.note(personId, str(row, "private_notes"), false, `contributors:${row.id}:privateNotes`);
+  // Item 120: the import makes no contributor records. A contributor's name stays in the archive
+  // of each show it credited (`legacyData`); the old row, with its email, stays in the backup.
+  for (const row of await ctx.read("contributors")) {
+    ctx.tally.drop("contributors", row.id, "no-contributor-records: names stay in the show archive (item 120)");
   }
 
   await importDefaultInstruments(ctx, musicians);
@@ -293,25 +281,49 @@ export async function importPlaces(ctx: Ctx): Promise<void> {
   for (const row of venues) {
     const id = Number(row.id);
     let parent: number | null = null;
-    const country = str(row, "country");
     const region = str(row, "state_province");
+    // Item 121: the United States sits above the US states, also where the old row has no country.
+    const country = countryOf(str(row, "country"), region);
     const city = str(row, "city");
-    const context = str(row, "context");
+    let context = str(row, "context");
+    let venueName = str(row, "name") ?? `Venue ${id}`;
     if (country) parent = await ensure("country", country, parent, `venues:${id}:country`);
     if (region) parent = await ensure("region", region, parent, `venues:${id}:stateProvince`);
     if (city) parent = await ensure("city", city, parent, `venues:${id}:city`);
+
+    // Item 121: a show at "Unknown Venue" or "Unknown Studio Location" sits at its town. No venue
+    // place is made. A row with no town at all leaves its shows with no place.
+    if (isUnknownVenue(venueName)) {
+      if (parent !== null) ctx.placeByVenue.set(id, { placeId: parent, nameId: null });
+      const unknownSlug = str(row, "slug");
+      if (unknownSlug && parent !== null) ctx.addresses.push({ path: `/venue/${unknownSlug}`, entityId: parent, slug: unknownSlug });
+      ctx.tally.drop("venues", id, "unknown-venue: its shows sit at their town (item 121)");
+      ctx.line("Unknown venues", `venues:${id}: ${parent === null ? "no town in the old row: its shows have no place" : `shows sit at place ${parent}`}`);
+      if (str(row, "public_notes") || str(row, "private_notes")) ctx.line("Unknown venues", `venues:${id}: its notes are not migrated (no venue place to hold them)`);
+      continue;
+    }
+
     // A context that names a festival becomes a show group of kind festival (made with the
-    // shows). Any other context (a campus, a park, a hotel) becomes a parent place with no
+    // shows; items 21, 121). The old row may have the name and context reversed: then the context
+    // is the venue. Any other context (a campus, a park, a hotel) becomes a parent place with no
     // kind: the curator sets the kind (plan section 4, Venue).
-    const isFestival = context !== null && /festival/i.test(context);
-    if (context && isFestival) ctx.festivalByVenue.set(id, context);
+    let festival: string | null = null;
+    if (context !== null && isFestivalName(context)) festival = context;
+    else if (context !== null && isFestivalName(venueName)) {
+      festival = venueName;
+      venueName = context;
+      context = null;
+      ctx.line("Venues with the name and context reversed (swapped by the script)", `venues:${id}`);
+    }
+    if (festival) ctx.festivalByVenue.set(id, festival);
     else if (context) parent = await ensure(null, context, parent, `venues:${id}:context`);
+    const isFestival = festival !== null;
     const slug = str(row, "slug");
     const venueSlug = slug !== null && !usedSlugs.has(slug) ? slug : null;
     if (venueSlug) usedSlugs.add(venueSlug);
     const made = await makePlace(ctx, {
       kind: "venue",
-      name: str(row, "name") ?? `Venue ${id}`,
+      name: venueName,
       parentId: parent,
       slug: venueSlug,
       legacyId: `venues:${id}`,
@@ -324,9 +336,5 @@ export async function importPlaces(ctx: Ctx): Promise<void> {
     if (slug) ctx.addresses.push({ path: `/venue/${slug}`, entityId: made.placeId, slug });
     if (context && !isFestival) ctx.line("Venue contexts", `venues:${id} has a context: made a parent place with no kind`);
     if (isFestival) ctx.line("Festival venue contexts", `venues:${id}: its context becomes a show group of kind festival`);
-    // The Songwriters Hall of Fame row has its venue and its context reversed: list it.
-    if (/songwriters hall of fame/i.test(`${str(row, "name") ?? ""} ${context ?? ""}`)) {
-      ctx.line("Venues with the name and context possibly reversed (review)", `venues:${id}`);
-    }
   }
 }

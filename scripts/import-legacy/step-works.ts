@@ -1,21 +1,49 @@
-import { bulk, uniqueKey, type Ctx } from "./context.ts";
-import { SUITES, dateOf, isDroppedTag, normalizeName, num, slugify, splitCredit, str, suiteForTag, vocalRoleOf } from "./rules.ts";
+import { HINT_LISTS, bulk, uniqueKey, type Ctx } from "./context.ts";
+import {
+  SUITES,
+  dateOf,
+  isDroppedTag,
+  isReviewCredit,
+  isUnknownSong,
+  matchedText,
+  noteHints,
+  normalizeName,
+  num,
+  parseTraditional,
+  slugify,
+  splitCredit,
+  str,
+  suiteForTag,
+  surnameOf,
+  vocalRoleOf,
+  type TraditionalCredit,
+} from "./rules.ts";
 
 // Step 3 (plan section 4: Song, Tag): works, then credits, default singers and suites.
 
 type RoleName = "words" | "music" | "arrangement";
 
+// The old `arrangement` field holds version labels ("Lloyd Price version"), not credits (item 121).
 const CREDIT_FIELDS: Array<{ field: string; roles: RoleName[] }> = [
   { field: "lyrics_by", roles: ["words"] },
   { field: "music_by", roles: ["music"] },
   { field: "song_by", roles: ["words", "music"] },
-  { field: "arrangement", roles: ["arrangement"] },
 ];
 
 export async function importWorks(ctx: Ctx): Promise<void> {
-  const songs = await ctx.read("songs");
+  const allSongs = await ctx.read("songs");
+  // Item 121: "Unknown Song" and "Unknown Instrumental" get no work and no placeholder work. Their
+  // performances become segments with no work.
+  const songs = allSongs.filter((row) => {
+    const title = str(row, "title") ?? "";
+    if (!isUnknownSong(title)) return true;
+    ctx.unknownSongs.set(Number(row.id), title);
+    ctx.tally.drop("songs", row.id, "unknown-song-or-instrumental: no work, no placeholder (item 121)");
+    return false;
+  });
   const songKind = ctx.list.workKind.get("song") as number;
   const usedSlugs = new Set<string>();
+  const traditional = traditionalSongs(songs);
   const ids = await bulk(ctx, "WORK", songs, async (batch) => {
     await ctx.db.work.createMany({
       data: batch.map(({ item, id }) => {
@@ -28,6 +56,7 @@ export async function importWorks(ctx: Ctx): Promise<void> {
           title: str(item, "title") ?? `Song ${item.id}`,
           otherNames: alternate ? [alternate] : [],
           workKindId: songKind,
+          traditional: traditional.has(Number(item.id)),
           slug: keep,
           legacyId: `songs:${item.id}`,
         };
@@ -41,14 +70,31 @@ export async function importWorks(ctx: Ctx): Promise<void> {
     ctx.tally.mapped("songs", id);
     ctx.note(workId, str(row, "public_notes"), true, `songs:${id}:publicNotes`);
     ctx.note(workId, str(row, "private_notes"), false, `songs:${id}:privateNotes`);
+    // The review lists also read song notes ("From X's album" sits in them).
+    for (const [source, text] of [["publicNotes", str(row, "public_notes")], ["privateNotes", str(row, "private_notes")]] as const) {
+      if (!text) continue;
+      for (const hint of noteHints(text)) {
+        if (hint === "bill") continue;
+        ctx.propose(HINT_LISTS[hint], { workId, legacyId: `songs:${id}`, proposal: "check this note", source, matchedText: matchedText(text, hint), text });
+      }
+    }
     const slug = str(row, "slug");
-    if (slug) ctx.addresses.push({ path: `/song/${slug}`, entityId: workId, slug });
+    if (slug) {
+      ctx.addresses.push({ path: `/song/${slug}`, entityId: workId, slug });
+      ctx.songTitleBySlug.set(slug, str(row, "title") ?? `Song ${id}`);
+    }
 
     // Item 99: the original artist stays as a public note; the curator decides what it becomes.
     const artist = str(row, "original_artist");
     if (artist) {
       ctx.note(workId, `Best-known version: ${artist}`, true, `songs:${id}:originalArtist`);
       ctx.propose("12-best-known-versions", { workId, legacyId: `songs:${id}`, bestKnown: artist });
+    }
+    // Item 121 (12): the old arrangement text is a version label, never a credit or a person.
+    const label = str(row, "arrangement");
+    if (label) {
+      ctx.line("Version labels from songs.arrangement (no credit, no person)", `songs:${id} (work ${workId}): "${label}"`);
+      ctx.fieldDrop("songs.arrangement: listed as a version label, no credit made (item 121)");
     }
     if (bool01(row, "is_uncertain")) {
       ctx.propose("02-uncertain-songs", { workId, legacyId: `songs:${id}`, title: str(row, "title") });
@@ -61,7 +107,7 @@ export async function importWorks(ctx: Ctx): Promise<void> {
       ctx.propose("11-instrumental-works", { workId, legacyId: `songs:${id}` });
     }
     if (bool01(row, "in_box_of_rain")) {
-      ctx.line("Songs marked as in A Box of Rain", `work ${workId} (songs:${id}): for the lyric import`);
+      ctx.line("Songs marked as in A Box of Rain (wait for the book import)", `work ${workId} (songs:${id})`);
     }
   });
   // A parent song may come later in the id order: fill the missing parent ids.
@@ -73,13 +119,38 @@ export async function importWorks(ctx: Ctx): Promise<void> {
   }
 
   await importCredits(ctx, songs);
-  await importSingers(ctx, songs);
-  await importSuites(ctx);
+  await importSingers(ctx);
+  await importSuites(ctx, songs);
 }
 
 function bool01(row: Record<string, unknown>, key: string): boolean {
   return row[key] === true || row[key] === 1 || row[key] === "t";
 }
+
+/** The old songs whose credit text says "Traditional" (item 121). They get the marker. */
+function traditionalSongs(songs: Array<Record<string, unknown>>): Set<number> {
+  const out = new Set<number>();
+  for (const row of songs) {
+    for (const { field } of CREDIT_FIELDS) {
+      const text = str(row, field);
+      if (text && parseTraditional(text)) out.add(Number(row.id));
+    }
+  }
+  return out;
+}
+
+/**
+ * Arrangers the old credit text names by surname (item 121). Each is a full-name person the
+ * archive has or makes once: a surname-only person would be a duplicate.
+ */
+const KNOWN_ARRANGERS = new Map([
+  ["guard", "Dave Guard"],
+  ["white", "Josh White"],
+  ["albin", "Peter Albin"],
+  ["melton", "Barry Melton"],
+  ["sebastian", "John Sebastian"],
+  ["garcia", "Jerry Garcia"],
+]);
 
 /** The name forms (normalized) that always mean the seeded Robert Hunter in a credit. */
 const HUNTER_FORMS = new Set(["robert hunter", "hunter", "bob hunter", "robert c hunter", "robert c. hunter"]);
@@ -104,35 +175,112 @@ async function personForName(ctx: Ctx, name: string, legacyId: string): Promise<
   return entity.id;
 }
 
+/** One name in a credit, with the roles it gets. */
+interface CreditName {
+  workId: number;
+  name: string;
+  roles: RoleName[];
+  legacyId: string;
+  position: number;
+}
+
+const isSurnameOnly = (name: string): boolean => {
+  const normalized = normalizeName(name);
+  return !normalized.includes(" ") && !HUNTER_FORMS.has(normalized);
+};
+
 async function importCredits(ctx: Ctx, songs: Array<Record<string, unknown>>): Promise<void> {
-  const pending: Array<{ workId: number; personId: number; roleId: number; legacyId: string; position: number }> = [];
+  const names: CreditName[] = [];
   for (const row of songs) {
     const oldId = Number(row.id);
     const workId = ctx.workBySong.get(oldId) as number;
     for (const { field, roles } of CREDIT_FIELDS) {
       const text = str(row, field);
       if (!text) continue;
-      const names = splitCredit(text);
-      if (!names) {
+      const legacyId = `songs:${oldId}:${camel(field)}`;
+      // Item 121: odd credits go on the review list, with no credit.
+      if (isReviewCredit(text)) {
+        ctx.line("Credit text left for review (no credit made)", `songs:${oldId} ${field}: "${text}"`);
+        ctx.propose("08-credit-splits", { workId, legacyId: `songs:${oldId}`, field, text, reason: "left for review (item 121)" });
+        continue;
+      }
+      const trad: TraditionalCredit | null = parseTraditional(text);
+      const parts: Array<{ name: string; roles: RoleName[] }> | null = trad
+        ? [
+            ...trad.authors.map((name) => ({ name, roles })),
+            ...trad.arrangers.map((name) => ({ name, roles: ["arrangement"] as RoleName[] })),
+          ]
+        : (splitCredit(text) ?? []).map((name) => ({ name, roles }));
+      if (!trad && parts.length === 0) {
         // Safe default: keep the text as a public note and list it for review (item 98).
-        ctx.note(workId, `Credit (${field.replace("_", " ")}): ${text}`, true, `songs:${oldId}:${camel(field)}`);
+        ctx.note(workId, `Credit (${field.replace("_", " ")}): ${text}`, true, legacyId);
         ctx.propose("08-credit-splits", { workId, legacyId: `songs:${oldId}`, field, text });
         continue;
       }
-      let position = 0;
-      for (const name of names) {
-        const personId = await personForName(ctx, name, `songs:${oldId}:${camel(field)}`);
-        for (const role of roles) {
-          pending.push({
-            workId,
-            personId,
-            roleId: ctx.list.creditRole.get(role) as number,
-            legacyId: `songs:${oldId}:${camel(field)}`,
-            position,
-          });
-        }
-        position += 1;
+      if (trad && parts.length > 0) ctx.line("Traditional songs with a credit besides the marker", `songs:${oldId} ${field}: "${text}"`);
+      parts.forEach((part, position) => names.push({ workId, name: part.name, roles: part.roles, legacyId, position }));
+    }
+  }
+
+  // Item 20: first the full names, so a surname-only name finds its person whatever the song order.
+  const personFor = new Map<CreditName, number>();
+  for (const entry of names.filter((n) => !isSurnameOnly(n.name))) personFor.set(entry, await personForName(ctx, entry.name, entry.legacyId));
+  // A one-word name matches a person whose full name has that word (a surname, or a nickname such
+  // as "Pigpen" inside a quoted name). Only people with a full name count.
+  const byWord = new Map<string, Set<number>>();
+  for (const [name, personId] of ctx.personByName) {
+    const words = name.split(" ");
+    if (words.length < 2) continue;
+    for (const word of new Set(words.map((w) => w.replace(/[^a-z0-9]/g, "")).filter(Boolean))) {
+      byWord.set(word, (byWord.get(word) ?? new Set<number>()).add(personId));
+    }
+  }
+  const nameOfPerson = new Map([...ctx.personByName].map(([name, id]) => [id, name]));
+  for (const entry of names.filter((n) => isSurnameOnly(n.name))) {
+    const word = normalizeName(entry.name).replace(/[^a-z0-9]/g, "");
+    // A known arranger: the old text names only the surname of an existing person.
+    const alias = entry.roles.includes("arrangement") ? KNOWN_ARRANGERS.get(word) : undefined;
+    if (alias !== undefined) {
+      personFor.set(entry, await personForName(ctx, alias, entry.legacyId));
+      ctx.line("Surname-only credit names resolved to a full-name person", `${entry.legacyId}: "${entry.name}" is "${alias}"`);
+      continue;
+    }
+    const matches = [...(byWord.get(word) ?? [])].sort((a, b) => a - b);
+    const lastNames = new Set(matches.map((id) => surnameOf(nameOfPerson.get(id) ?? "")));
+    if (matches.length >= 1 && lastNames.size === 1) {
+      // One person, or one surname with spelling variants of the first name (Dave and David).
+      personFor.set(entry, matches[0]);
+      ctx.line("Surname-only credit names resolved to a full-name person", `${entry.legacyId}: "${entry.name}" is person ${matches[0]}`);
+      if (matches.length > 1) {
+        ctx.line("Surname-only credit names with several full-name variants (person-merge list)", `${entry.legacyId}: "${entry.name}" matches people ${matches.join(", ")}`);
+        ctx.propose("06-person-merges", { personIds: matches.join(","), legacyIds: matches.map((id) => `person ${id}`).join(","), name: entry.name, reason: "one surname, several first-name forms" });
       }
+    } else {
+      ctx.line(
+        "Surname-only credit names not resolved (kept as written; person-merge list)",
+        `${entry.legacyId}: "${entry.name}" ${matches.length === 0 ? "matches no full-name person" : `matches ${matches.length} people`}`,
+      );
+      const personId = await personForName(ctx, entry.name, entry.legacyId);
+      personFor.set(entry, personId);
+      ctx.propose("06-person-merges", {
+        personIds: [personId, ...matches].join(","),
+        legacyIds: entry.legacyId,
+        name: entry.name,
+        reason: matches.length === 0 ? "surname-only name: no full-name person found" : "surname-only name: several different people share the word",
+      });
+    }
+  }
+
+  const pending: Array<{ workId: number; personId: number; roleId: number; legacyId: string; position: number }> = [];
+  for (const entry of names) {
+    for (const role of entry.roles) {
+      pending.push({
+        workId: entry.workId,
+        personId: personFor.get(entry) as number,
+        roleId: ctx.list.creditRole.get(role) as number,
+        legacyId: entry.legacyId,
+        position: entry.position,
+      });
     }
   }
   await bulk(ctx, "CREDIT", pending, async (batch) => {
@@ -155,24 +303,33 @@ function camel(field: string): string {
   return field.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
-async function importSingers(ctx: Ctx, songs: Array<Record<string, unknown>>): Promise<void> {
+/**
+ * Default singers (items 33, 121): no band scope, leads only. A singer the old data does not know
+ * ("Unknown") is dropped: a default of "not known" says nothing.
+ */
+async function importSingers(ctx: Ctx): Promise<void> {
+  const songs = (await ctx.read("songs")).filter((row) => ctx.workBySong.has(Number(row.id)));
   const vocalists = await ctx.read("song_vocalists");
   const seen = new Set<string>();
-  const wanted: Array<{ workId: number; personId: number | null; legacyId: string }> = [];
-  const add = (songId: number | null, musicianId: number | null, legacyId: string): boolean => {
+  const wanted: Array<{ workId: number; personId: number; legacyId: string }> = [];
+  /** "added", "unknown" (no person) or "no-song". */
+  const add = (songId: number | null, musicianId: number | null, legacyId: string): "added" | "unknown" | "no-song" => {
     const workId = songId === null ? undefined : ctx.workBySong.get(songId);
-    if (workId === undefined) return false;
-    const personId = musicianId === null ? null : (ctx.personByMusician.get(musicianId) ?? null);
+    if (workId === undefined) return "no-song";
+    const personId = musicianId === null ? null : ctx.personByMusician.get(musicianId);
+    if (personId === null || personId === undefined) return "unknown";
     const key = `${workId}:${personId}`;
     if (!seen.has(key)) {
       seen.add(key);
       wanted.push({ workId, personId, legacyId });
     }
-    return true;
+    return "added";
   };
   for (const row of songs) {
     const lead = num(row, "lead_vocals_id");
-    if (lead !== null) add(Number(row.id), lead, `songs:${row.id}:leadVocals`);
+    if (lead !== null && add(Number(row.id), lead, `songs:${row.id}:leadVocals`) === "unknown") {
+      ctx.fieldDrop("songs.lead_vocals_id: unknown default singer dropped (item 121)");
+    }
   }
   for (const row of vocalists) {
     // Item 33: only lead singers become default singers. Other rows are listed, not guessed.
@@ -183,9 +340,10 @@ async function importSingers(ctx: Ctx, songs: Array<Record<string, unknown>>): P
       ctx.line(role === "UNKNOWN" ? "Unknown vocal role text" : "Song vocalists that are not leads", `song_vocalists:${row.id}: "${str(row, "vocal_role") ?? ""}"`);
       continue;
     }
-    const musicianId = num(row, "musician_id");
-    const unknown = musicianId === null || ctx.personByMusician.get(musicianId) === null;
-    if (add(num(row, "song_id"), unknown ? null : musicianId, `song_vocalists:${row.id}`)) ctx.tally.mapped("song_vocalists", row.id);
+    const outcome = add(num(row, "song_id"), num(row, "musician_id"), `song_vocalists:${row.id}`);
+    if (outcome === "added") ctx.tally.mapped("song_vocalists", row.id);
+    else if (outcome === "unknown") ctx.tally.drop("song_vocalists", row.id, "unknown-default-singer-dropped (item 121)");
+    else if (ctx.unknownSongs.has(num(row, "song_id") ?? -1)) ctx.tally.drop("song_vocalists", row.id, "its song is unknown and has no work (item 121)");
     else ctx.tally.notMapped("song_vocalists", row.id, "song was not migrated");
   }
   await bulk(ctx, "WORK_SINGER", wanted, async (batch) => {
@@ -195,14 +353,15 @@ async function importSingers(ctx: Ctx, songs: Array<Record<string, unknown>>): P
   });
 }
 
-/** Item 35: suite tags become "part of" references to a suite work. */
-async function importSuites(ctx: Ctx): Promise<void> {
+/** Items 35, 121: suite tags become "part of" references to a suite work. */
+async function importSuites(ctx: Ctx, songs: Array<Record<string, unknown>>): Promise<void> {
   const tags = await ctx.read("tags");
   const songTags = await ctx.read("song_tags");
   const suiteWork = new Map<string, number>();
   const workKind = ctx.list.workKind.get("suite") as number;
   const partOf = ctx.list.referenceKind.get("part of") as number;
   const tagById = new Map(tags.map((row) => [Number(row.id), str(row, "name") ?? ""]));
+  const titleBySong = new Map(songs.map((row) => [Number(row.id), str(row, "title") ?? `Song ${row.id}`]));
 
   // The first old tag that names a suite is the legacy id of the suite work.
   const needed = new Map<string, number>();
@@ -217,22 +376,53 @@ async function importSuites(ctx: Ctx): Promise<void> {
     });
     suiteWork.set(suite.match, entity.id);
     ctx.line("Suites made by the script", `work ${entity.id} (${suite.structure})`);
-    if (suite.structure === "FIXED") ctx.propose("09-suite-parts", { workId: entity.id, suite: suite.title });
   }
 
   const links: Array<{ fromWork: number; toWork: number; legacyId: string }> = [];
+  const partsOf = new Map<string, Array<{ workId: number; title: string }>>();
   for (const row of songTags) {
     const tagName = tagById.get(Number(row.tag_id)) ?? "";
     const suite = suiteForTag(tagName);
     const fromWork = ctx.workBySong.get(Number(row.song_id));
     if (suite && fromWork !== undefined) {
       links.push({ fromWork, toWork: suiteWork.get(suite.match) as number, legacyId: `song_tags:${row.id}` });
+      partsOf.set(suite.match, [...(partsOf.get(suite.match) ?? []), { workId: fromWork, title: titleBySong.get(Number(row.song_id)) ?? "" }]);
       ctx.tally.mapped("song_tags", row.id);
+    } else if (suite && ctx.unknownSongs.has(Number(row.song_id))) {
+      ctx.tally.drop("song_tags", row.id, "its song is unknown and has no work (item 121)");
     } else if (isDroppedTag(tagName)) {
       ctx.tally.drop("song_tags", row.id, "dylan-and-beatles-tags-are-derived-from-credits (item 35)");
     } else {
       ctx.tally.notMapped("song_tags", row.id, "tag is not a suite tag and has no rule");
     }
+  }
+  // A song with the suite's own title ("Amagamalin Street") is its title song, so a part of it,
+  // even when no tag says so. The link is made and listed for the user to check.
+  for (const suite of SUITES) {
+    const suiteId = suiteWork.get(suite.match);
+    if (suiteId === undefined) continue;
+    for (const row of songs) {
+      const workId = ctx.workBySong.get(Number(row.id));
+      if (workId === undefined || normalizeName(str(row, "title") ?? "") !== normalizeName(suite.title)) continue;
+      if ((partsOf.get(suite.match) ?? []).some((part) => part.workId === workId)) continue;
+      links.push({ fromWork: workId, toWork: suiteId, legacyId: `songs:${row.id}:titleSongOfSuite` });
+      partsOf.set(suite.match, [...(partsOf.get(suite.match) ?? []), { workId, title: titleBySong.get(Number(row.id)) ?? "" }]);
+      ctx.line("Title songs linked as a part of their suite (check)", `songs:${row.id} "${suite.title}" is a part of work ${suiteId}`);
+    }
+  }
+  // Part positions: no order is known yet. A fixed suite, or a concept album, needs its parts in
+  // order, so the user gets the list (item 121).
+  for (const suite of SUITES) {
+    const workId = suiteWork.get(suite.match);
+    if (workId === undefined || !(suite.structure === "FIXED" || suite.album)) continue;
+    const parts = partsOf.get(suite.match) ?? [];
+    ctx.propose("09-suite-parts", {
+      workId,
+      suite: suite.title,
+      parts: parts.map((part) => part.title).join(" | "),
+      partWorkIds: parts.map((part) => part.workId).join(","),
+    });
+    ctx.line("Suite parts with no known order", `${suite.title} (work ${workId}): ${parts.length} part(s)`);
   }
   await bulk(ctx, "REFERENCE", links, async (batch) => {
     await ctx.db.reference.createMany({

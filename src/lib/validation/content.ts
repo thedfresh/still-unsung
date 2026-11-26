@@ -186,7 +186,8 @@ export function parseEdits(input: unknown): ParsedEdit[] {
     const forbidden = (AGENT_FORBIDDEN_FIELDS[type] ?? []).filter((name) => Object.hasOwn(sent, name));
     if (forbidden.length > 0) {
       for (const name of forbidden) {
-        problems[`${prefix}.fields.${name}`] = [`The tools never set ${type}.${name}. Only the admin and the Zotero sync set it.`];
+        const owner = type === "Show" ? "Only the legacy import sets it." : "Only the admin and the Zotero sync set it.";
+        problems[`${prefix}.fields.${name}`] = [`The tools never set ${type}.${name}. ${owner}`];
       }
       return;
     }

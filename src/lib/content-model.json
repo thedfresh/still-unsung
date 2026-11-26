@@ -400,6 +400,12 @@
      ],
      "default": "CONFIRMED"
     },
+    "legacyData": {
+     "type": "Json",
+     "required": false,
+     "list": false,
+     "hasDefault": false
+    },
     "slug": {
      "type": "String",
      "required": false,
@@ -1885,6 +1891,13 @@
       "SPOKEN",
       "RECORDING_PLAYED"
      ]
+    },
+    "traditional": {
+     "type": "Boolean",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "default": false
     },
     "writtenForBandId": {
      "type": "Int",

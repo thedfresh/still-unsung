@@ -153,15 +153,26 @@ export async function seedLists(ctx: Ctx): Promise<void> {
   for (const row of await ctx.read("link_types")) ctx.tally.mapped("link_types", row.id);
 
   // Recording types: the plan's list, plus any other old name. "Unknown" becomes no type.
+  // Item 118: the list stays, but no recording is made from the old rows. Item 25: the old
+  // description of a type is kept.
   const oldRecordingTypes = await ctx.read("recording_types");
   const extraRecordingTypes: string[] = [];
+  const typeDescription = new Map<string, string>();
   for (const row of oldRecordingTypes) {
     const name = str(row, "name") ?? "";
     const known = RECORDING_TYPE_NAMES.some((seeded) => normalizeName(seeded) === normalizeName(name));
     if (!known && normalizeName(name) !== "unknown") extraRecordingTypes.push(name || `recording type ${row.id}`);
+    const description = str(row, "description");
+    if (description && normalizeName(name) !== "unknown") typeDescription.set(normalizeName(name), description);
     ctx.tally.mapped("recording_types", row.id);
   }
-  await ensureNames(ctx, [...RECORDING_TYPE_NAMES, ...extraRecordingTypes], (data) => db.recordingType.createMany({ data }));
+  await db.recordingType.createMany({
+    data: [...RECORDING_TYPE_NAMES, ...extraRecordingTypes].map((name, position) => ({
+      name,
+      description: typeDescription.get(normalizeName(name)) ?? null,
+      position,
+    })),
+  });
   for (const row of await db.recordingType.findMany()) list.recordingType.set(normalizeName(row.name), row.id);
 
   // Instruments: today's rows, read at run time.
@@ -177,6 +188,7 @@ export async function seedLists(ctx: Ctx): Promise<void> {
     const id = instrumentByName.get(instrumentRows[index].name);
     if (id !== undefined) {
       ctx.instrumentByInstrument.set(Number(row.id), id);
+      if (/^(vocals?|vocalist)\b/.test(normalizeName(instrumentRows[index].name))) ctx.vocalsInstruments.add(Number(row.id));
       ctx.tally.mapped("instruments", row.id);
     }
   });
@@ -186,6 +198,7 @@ export async function seedLists(ctx: Ctx): Promise<void> {
   await ensureNames(ctx, PLACE_KINDS, (data) => db.placeKind.createMany({ data }));
   for (const row of await db.placeKind.findMany()) list.placeKind.set(row.name, row.id);
   await ensureNames(ctx, SOURCE_KINDS, (data) => db.sourceKind.createMany({ data }));
+  for (const row of await db.sourceKind.findMany()) list.sourceKind.set(row.name, row.id);
   await db.subjectKind.createMany({
     data: SUBJECT_KINDS.map((kind, position) => ({ ...kind, position })),
     skipDuplicates: true,
