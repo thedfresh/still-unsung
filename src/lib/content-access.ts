@@ -98,9 +98,11 @@ export const SYSTEM_FIELDS = new Set(["id", "rev", "createdAt", "updatedAt", "le
 /**
  * Fields the agent never sets, per type (item 108). A Source's Zotero link and cache belong to
  * the Zotero sync and to the admin, who sets the key. The tools refuse them on create and update.
+ * A Show's `legacyData` is the private archive of the old site (item 120): only the import writes it.
  */
 export const AGENT_FORBIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   Source: ["zoteroKey", "zoteroData", "syncedAt", "extractedText"],
+  Show: ["legacyData"],
 };
 
 /** Types that count as setlist information for the public mark (data-model item 20). */

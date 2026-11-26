@@ -1,7 +1,7 @@
 import pg, { type Pool } from "pg";
 import type { EntityKind } from "@/generated/prisma/enums";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { chunk, type Row } from "./rules.ts";
+import { chunk, type NoteHint, type Row } from "./rules.ts";
 
 // Shared state of one import run: the old database (read only), the new database, the id maps
 // from old rows to new records, and the collectors that feed the report and the proposals.
@@ -134,18 +134,6 @@ export interface PendingNote {
   legacyId: string;
 }
 
-export interface PendingCitation {
-  entityId: number;
-  aspect?: "SHOW_SETLIST" | "SHOW_DATE";
-  sourceId?: number;
-  recordingId?: number;
-  contributorId?: number;
-  place?: string | null;
-  excerpt?: string | null;
-  note?: string | null;
-  legacyId: string;
-}
-
 export interface PendingExternalId {
   entityId: number;
   system: string;
@@ -178,8 +166,23 @@ export const PROPOSAL_NAMES = [
   "15-old-uncertain-flags",
   "16-musical-fragments",
   "17-interview-show-types",
+  "18-quotes-and-teases",
+  "19-reported-not-on-tape",
+  "20-hunter-does-not-play",
+  "21-from-an-album",
 ] as const;
 export type ProposalName = (typeof PROPOSAL_NAMES)[number];
+
+/** The review list that each note hint feeds (section 5 of the plan; items 64, 97, 121). */
+export const HINT_LISTS: Record<NoteHint, ProposalName> = {
+  bill: "01-bill",
+  guest: "14-guests-in-notes",
+  "a-cappella": "13-a-cappella",
+  "quote-or-tease": "18-quotes-and-teases",
+  reported: "19-reported-not-on-tape",
+  "hunter-absent": "20-hunter-does-not-play",
+  "from-album": "21-from-an-album",
+};
 
 /** Report lines that hold ids and counts only (never banter text, emails or raw entries). */
 export interface ReportLine {
@@ -194,8 +197,17 @@ export class Ctx {
   readonly proposals = new Map<ProposalName, ProposalRow[]>(PROPOSAL_NAMES.map((name) => [name, []]));
   readonly lines: ReportLine[] = [];
   readonly fieldDrops = new Map<string, number>();
-  readonly citations: PendingCitation[] = [];
   readonly externalIds: PendingExternalId[] = [];
+  /** Old link ids that are recording candidates (item 118): no external ID is made from them. */
+  readonly recordingLinkIds = new Set<number>();
+  /** Old song slug to the work title: the internal links in notes become wikilinks (item 23). */
+  readonly songTitleBySlug = new Map<string, string>();
+  /** Old songs "Unknown Song" and "Unknown Instrumental": no work (item 121). Old id to the title. */
+  readonly unknownSongs = new Map<number, string>();
+  /** The old content type name of each kept event (item 16: Poetry Reading). */
+  readonly eventContentType = new Map<number, string>();
+  /** The archive of the old site, by old event id (items 119, 120). Written with the show. */
+  readonly legacyShowData = new Map<number, Record<string, unknown>>();
   /** By old event id: whether the show is public, its band, and its row. */
   readonly eventPublic = new Map<number, boolean>();
   readonly eventBand = new Map<number, number | null>();
@@ -206,12 +218,11 @@ export class Ctx {
 
   // Old id to new id, one map per kind of old row.
   readonly personByMusician = new Map<number, number | null>();
-  readonly personByContributor = new Map<number, number>();
   readonly personByName = new Map<string, number>();
-  readonly contributorByName = new Map<string, number>();
   readonly lineupByBandMusician = new Map<number, number>();
   readonly bandByBand = new Map<number, number>();
-  readonly placeByVenue = new Map<number, { placeId: number; nameId: number }>();
+  /** The place of a venue, and the name it used. An unknown venue is its town, with no name. */
+  readonly placeByVenue = new Map<number, { placeId: number; nameId: number | null }>();
   /** Venues whose old context names a festival: old venue id to the festival name (plan, Venue). */
   /** Interview shows (item 96), handled after the segments exist. */
   readonly interviewShows: Array<{ oldId: number; displayDate: string | null; showTypeId: number | null }> = [];
@@ -221,7 +232,6 @@ export class Ctx {
   readonly setBySet = new Map<number, number>();
   readonly segmentByPerformance = new Map<number, number>();
   readonly segmentByBanter = new Map<number, number>();
-  readonly recordingByRecording = new Map<number, number>();
   readonly instrumentByInstrument = new Map<number, number>();
   /** Ids of the test show and its children: dropped by the test-show rule. */
   readonly testEvents = new Set<number>();
@@ -239,6 +249,7 @@ export class Ctx {
     recordingType: new Map<string, number>(),
     placeKind: new Map<string, number>(),
     showGroupKind: new Map<string, number>(),
+    sourceKind: new Map<string, number>(),
     source: new Map<string, number>(),
   };
   readonly fixedPerson = { hunter: 0, audience: 0, curator: 0, claude: 0 };
@@ -337,6 +348,8 @@ const TABLE_OF_KIND: Partial<Record<EntityKind, string>> = {
   WORK_SINGER: "work_singers",
   CREDIT: "credits",
   REFERENCE: "references",
+  SOURCE: "sources",
+  SOURCE_WORK: "source_works",
 };
 
 /** Set the old creation date on each stamped record and on its entity row. */

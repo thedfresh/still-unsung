@@ -390,6 +390,11 @@ model Show {
   /// Item 65: Hunter's participation.
   hunterParticipationCertainty Certainty  @default(CONFIRMED)
 
+  /// Items 119, 120. PRIVATE. The old site's archive of this show: contributor credits, raw
+  /// entries, old private notes, billing text and etree ID. Written only by the import; never
+  /// public, never written by agents.
+  legacyData Json?
+
   slug      String?  @unique
   legacyId  String?
   rev       Int      @default(1)
@@ -941,6 +946,8 @@ model Work {
   suiteStructure SuiteStructure?
   /// Item 101: the default delivery of its segments ("Boys in the Barroom": SUNG_A_CAPPELLA).
   defaultDelivery Delivery?
+  /// Item 121: "Traditional" is the absence of an author, not an author. A marker, not a credit.
+  traditional     Boolean @default(false)
 
   /// Item 55: "written for" a band or a person, a claim with certainty (item 65).
   writtenForBandId     Int?

@@ -1,131 +1,206 @@
-import { bulk, uniqueKey, type Ctx } from "./context.ts";
-import { bool, dateOf, externalValue, findUrls, normalizeName, num, routeLink, slugify, str, type Row } from "./rules.ts";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import type { Ctx } from "./context.ts";
+import {
+  LINK_SYSTEMS,
+  bool,
+  csvLine,
+  dateOf,
+  externalValue,
+  findUrls,
+  num,
+  rewriteSongLinks,
+  routeLink,
+  str,
+  whitegumValue,
+  type Row,
+} from "./rules.ts";
 
-// Steps 5 to 8: recordings, links and outside IDs, citations, notes, backlinks and addresses.
+// Steps 5 to 8: recording candidates, links and outside IDs, notes, backlinks and addresses.
 
 const TEST_RULE = "test-show-2099-12-20";
+const CANDIDATE_RULE = "recording-candidate-only: listed in candidates-recordings.csv (item 118)";
 
-export async function importRecordings(ctx: Ctx): Promise<void> {
-  const rows = await ctx.read("recordings");
-  const kept = rows.filter((row) => {
-    const eventId = Number(row.event_id);
-    if (ctx.testEvents.has(eventId)) ctx.tally.drop("recordings", row.id, TEST_RULE);
-    else if (!ctx.showByEvent.has(eventId)) ctx.tally.notMapped("recordings", row.id, "its event was not migrated");
-    else return true;
-    return false;
-  });
+export const CANDIDATES_FILE = "candidates-recordings.csv";
 
-  // A person for each distinct taper name (plan, Recording). Listed in the report.
-  const taperByName = new Map<string, number>();
-  for (const row of kept) {
-    const name = str(row, "taper");
-    if (!name || taperByName.has(normalizeName(name))) continue;
-    const [entity] = await ctx.db.entity.createManyAndReturn({ data: [{ kind: "PERSON" }], select: { id: true } });
-    await ctx.db.person.create({
-      data: { id: entity.id, key: uniqueKey(ctx, slugify(name)), name, legacyId: `recordings:${row.id}:taper` },
-    });
-    taperByName.set(normalizeName(name), entity.id);
-    ctx.line("People made from text", `person ${entity.id} from recordings:${row.id}:taper`);
-  }
+const CANDIDATE_COLUMNS = [
+  "showId",
+  "showDate",
+  "oldEventId",
+  "oldRecordingId",
+  "recordingType",
+  "description",
+  "taper",
+  "lengthMinutes",
+  "linkSystem",
+  "value",
+  "url",
+  "linkTitle",
+  "linkDescription",
+  "oldLinkId",
+  "linkIsActive",
+  "linkIsPublic",
+  "featured",
+  "featuredText",
+  "contributor",
+  "publicNotes",
+  "privateNotes",
+];
 
-  const oldRecordingTypeName = new Map<number, string>();
-  for (const type of await ctx.read("recording_types")) {
-    const name = str(type, "name");
-    if (name && normalizeName(name) !== "unknown") oldRecordingTypeName.set(Number(type.id), name);
-  }
-  const ids = await bulk(
-    ctx,
-    "RECORDING",
-    kept,
-    async (batch) => {
-      await ctx.db.recording.createMany({
-        data: batch.map(({ item, id }) => {
-          const typeName = oldRecordingTypeName.get(num(item, "recording_type_id") ?? -1);
-          const taper = str(item, "taper");
-          return {
-            id,
-            showId: ctx.showByEvent.get(Number(item.event_id)) as number,
-            recordingTypeId: typeName ? (ctx.list.recordingType.get(normalizeName(typeName)) ?? null) : null,
-            description: str(item, "description"),
-            taperId: taper ? (taperByName.get(normalizeName(taper)) ?? null) : null,
-            lengthMinutes: num(item, "length_minutes"),
-            featured: bool(item, "featured"),
-            featuredText: str(item, "featured_text"),
-            legacyId: `recordings:${item.id}`,
-          };
-        }),
-      });
-    },
-    (row) => ctx.eventPublic.get(Number(row.event_id)) ?? true,
-    (row) => dateOf(row, "created_at"),
-  );
-  kept.forEach((row, index) => {
-    const oldId = Number(row.id);
-    const recordingId = ids[index];
-    ctx.recordingByRecording.set(oldId, recordingId);
-    ctx.tally.mapped("recordings", oldId);
-    ctx.note(recordingId, str(row, "public_notes"), true, `recordings:${oldId}:publicNotes`);
-    ctx.note(recordingId, str(row, "private_notes"), false, `recordings:${oldId}:privateNotes`);
-    for (const [field, system, camel] of [
-      ["shn_id", "SHN", "shnId"],
-      ["lma_identifier", "Live Music Archive", "lmaIdentifier"],
-      ["lossless_legs_id", "Lossless Legs", "losslessLegsId"],
-      ["youtube_video_id", "YouTube", "youtubeVideoId"],
-    ] as const) {
-      const value = str(row, field);
-      if (value) ctx.externalIds.push({ entityId: recordingId, system, value, legacyId: `recordings:${oldId}:${camel}` });
-    }
-    const contributor = ctx.personByContributor.get(num(row, "contributor_id") ?? -1);
-    if (contributor !== undefined) ctx.citations.push({ entityId: recordingId, contributorId: contributor, legacyId: `recordings:${oldId}:contributor` });
-    if (str(row, "url")) ctx.line("Recording URLs not migrated", `recordings:${oldId}: the plan drops the old url field`);
-  });
+/** The recording fields that hold an old link: the field, the link system and its URL template. */
+const RECORDING_LINK_FIELDS = [
+  ["shn_id", "SHN"],
+  ["lma_identifier", "Live Music Archive"],
+  ["lossless_legs_id", "Lossless Legs"],
+  ["youtube_video_id", "YouTube"],
+  ["url", "Old recording URL"],
+] as const;
+
+function fullUrl(system: string, value: string): string {
+  const template = LINK_SYSTEMS.find((entry) => entry.system === system)?.urlTemplate;
+  return template ? template.replace("{value}", value) : "";
 }
 
-/** Event contributors and links (plan, "Other tables"). */
-export async function importContributorsAndLinks(ctx: Ctx): Promise<void> {
-  const seen = new Set(ctx.citations.filter((c) => c.contributorId !== undefined && !c.sourceId && !c.recordingId).map((c) => `${c.entityId}:${c.contributorId}:`));
-  for (const row of await ctx.read("event_contributors")) {
-    const eventId = Number(row.event_id);
-    const showId = ctx.showByEvent.get(eventId);
-    const contributor = ctx.personByContributor.get(num(row, "contributor_id") ?? -1);
-    if (ctx.testEvents.has(eventId)) ctx.tally.drop("event_contributors", row.id, TEST_RULE);
-    else if (showId === undefined || contributor === undefined) ctx.tally.notMapped("event_contributors", row.id, "its show or contributor was not migrated");
+function partialDate(row: Row): string {
+  const parts = [num(row, "year"), num(row, "month"), num(row, "day")];
+  return parts
+    .filter((part): part is number => part !== null)
+    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
+    .join("-");
+}
+
+/**
+ * Item 118: the old recordings and their links are candidates, not data. The import makes no
+ * Recording row, and no outside ID on a recording. It writes one CSV row for each old link to a
+ * private file next to the other private output. A recording holds up to five links of its own
+ * (SHN, Lossless Legs, Live Music Archive, YouTube and the old URL); the `links` table adds more.
+ * The file may hold private notes: it stays out of git.
+ */
+export async function importRecordingCandidates(ctx: Ctx, outputDir: string): Promise<number> {
+  const recordings = await ctx.read("recordings");
+  const links = await ctx.read("links");
+  const linkTypes = new Map((await ctx.read("link_types")).map((row) => [Number(row.id), str(row, "name")]));
+  const recordingTypes = new Map((await ctx.read("recording_types")).map((row) => [Number(row.id), str(row, "name")]));
+  const contributors = new Map((await ctx.read("contributors")).map((row) => [Number(row.id), str(row, "name")]));
+
+  const lines = [csvLine(CANDIDATE_COLUMNS)];
+  const byRecording = new Map<number, Row>();
+  const row = (recording: Row, link: Partial<Record<(typeof CANDIDATE_COLUMNS)[number], string | number | boolean | null>>) => {
+    const eventId = Number(recording.event_id);
+    const event = ctx.eventRow.get(eventId) as Row;
+    lines.push(
+      csvLine([
+        ctx.showByEvent.get(eventId),
+        partialDate(event),
+        eventId,
+        Number(recording.id),
+        recordingTypes.get(num(recording, "recording_type_id") ?? -1) ?? "",
+        str(recording, "description"),
+        str(recording, "taper"),
+        num(recording, "length_minutes"),
+        link.linkSystem,
+        link.value,
+        link.url,
+        link.linkTitle,
+        link.linkDescription,
+        link.oldLinkId,
+        link.linkIsActive,
+        link.linkIsPublic,
+        bool(recording, "featured"),
+        str(recording, "featured_text"),
+        contributors.get(num(recording, "contributor_id") ?? -1) ?? "",
+        str(recording, "public_notes"),
+        str(recording, "private_notes"),
+      ]),
+    );
+  };
+
+  let candidateLinks = 0;
+  let withoutLink = 0;
+  for (const recording of recordings) {
+    const id = Number(recording.id);
+    const eventId = Number(recording.event_id);
+    if (ctx.testEvents.has(eventId)) ctx.tally.drop("recordings", id, TEST_RULE);
+    else if (!ctx.showByEvent.has(eventId)) ctx.tally.notMapped("recordings", id, "its event was not migrated");
     else {
-      const note = str(row, "description");
-      const key = `${showId}:${contributor}:${note ?? ""}`;
-      // The row's own notes are kept even when its citation repeats one already made.
-      ctx.note(showId, str(row, "public_notes"), true, `event_contributors:${row.id}:publicNotes`);
-      ctx.note(showId, str(row, "private_notes"), false, `event_contributors:${row.id}:privateNotes`);
-      if (seen.has(key)) {
-        ctx.tally.drop("event_contributors", row.id, "same-citation-already-made-from-a-contributor-line");
-        continue;
+      byRecording.set(id, recording);
+      ctx.tally.drop("recordings", id, CANDIDATE_RULE);
+      let own = 0;
+      for (const [field, system] of RECORDING_LINK_FIELDS) {
+        const value = str(recording, field);
+        if (!value) continue;
+        own += 1;
+        row(recording, { linkSystem: system, value, url: field === "url" ? value : fullUrl(system, value) });
       }
-      seen.add(key);
-      ctx.citations.push({ entityId: showId, contributorId: contributor, note, legacyId: `event_contributors:${row.id}` });
-      ctx.tally.mapped("event_contributors", row.id);
+      candidateLinks += own;
+      if (own === 0) withoutLink += 1;
     }
   }
+  for (const link of links) {
+    const recordingId = num(link, "recording_id");
+    if (recordingId === null) continue;
+    const linkId = Number(link.id);
+    const recording = byRecording.get(recordingId);
+    if (recording === undefined) {
+      const known = recordings.find((candidate) => Number(candidate.id) === recordingId);
+      if (known && ctx.testEvents.has(Number(known.event_id))) ctx.tally.drop("links", linkId, TEST_RULE);
+      else ctx.tally.notMapped("links", linkId, "its recording was not migrated");
+      ctx.recordingLinkIds.add(linkId);
+      continue;
+    }
+    const url = str(link, "url") ?? "";
+    const route = url ? routeLink(url, linkTypes.get(num(link, "link_type_id") ?? -1) ?? null) : null;
+    const system = route?.kind === "external" ? route.system : route?.kind === "whitegum" ? "Whitegum" : "";
+    row(recording, {
+      linkSystem: system,
+      value: route?.kind === "external" ? externalValue(route.system, url) : route?.kind === "whitegum" ? whitegumValue(url) : url,
+      url,
+      linkTitle: str(link, "title"),
+      linkDescription: str(link, "description"),
+      oldLinkId: linkId,
+      // The old column is "isActive": the old schema gave it no @map.
+      linkIsActive: link.isActive === undefined ? true : bool(link, "isActive"),
+      linkIsPublic: link.is_public === undefined ? true : bool(link, "is_public"),
+    });
+    ctx.recordingLinkIds.add(linkId);
+    ctx.tally.drop("links", linkId, CANDIDATE_RULE);
+    candidateLinks += 1;
+  }
 
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(path.join(outputDir, CANDIDATES_FILE), `${lines.join("\n")}\n`);
+  ctx.line("Recording candidates (private file, outside git)", `${candidateLinks} old links written to ${CANDIDATES_FILE}`);
+  ctx.line("Recording candidates (private file, outside git)", `${byRecording.size} old recordings, ${withoutLink} of them with no link of their own`);
+  return candidateLinks;
+}
+
+/**
+ * Event links and others (plan, "Other tables"). Items 119, 120: event contributors are in the
+ * show archive (see step-shows.ts); the import makes no citation from them.
+ */
+export async function importLinks(ctx: Ctx): Promise<void> {
   const types = new Map((await ctx.read("link_types")).map((row) => [Number(row.id), str(row, "name")]));
   for (const row of await ctx.read("links")) importLink(ctx, row, types);
-
-  // Albums are listed, not made: each becomes a Zotero item first (item 34).
-  for (const row of await ctx.read("albums")) ctx.tally.notMapped("albums", row.id, "each album becomes a Zotero item first (item 34)");
-  for (const row of await ctx.read("song_albums")) ctx.tally.notMapped("song_albums", row.id, "waits for the album sources (item 34)");
   for (const row of await ctx.read("rss_entries")) ctx.tally.drop("rss_entries", row.id, "replaced-by-the-public-list-of-changesets (item 20)");
   for (const row of await ctx.read("data_migrations")) ctx.tally.drop("data_migrations", row.id, "system-table");
 }
 
 function importLink(ctx: Ctx, row: Row, types: Map<number, string | null>): void {
   const id = Number(row.id);
+  // A link to a recording is a candidate (item 118): the candidates step has counted it.
+  if (ctx.recordingLinkIds.has(id)) return;
   const url = str(row, "url");
+  const songId = num(row, "song_id");
   const target =
     ctx.showByEvent.get(num(row, "event_id") ?? -1) ??
-    ctx.workBySong.get(num(row, "song_id") ?? -1) ??
-    ctx.placeByVenue.get(num(row, "venue_id") ?? -1)?.placeId ??
-    ctx.recordingByRecording.get(num(row, "recording_id") ?? -1);
+    ctx.workBySong.get(songId ?? -1) ??
+    ctx.placeByVenue.get(num(row, "venue_id") ?? -1)?.placeId;
   if (num(row, "event_id") !== null && ctx.testEvents.has(num(row, "event_id") as number)) {
     ctx.tally.drop("links", id, TEST_RULE);
+    return;
+  }
+  if (songId !== null && ctx.unknownSongs.has(songId) && target === undefined) {
+    ctx.tally.drop("links", id, "its song is unknown and has no work (item 121)");
     return;
   }
   if (!url || target === undefined) {
@@ -137,8 +212,14 @@ function importLink(ctx: Ctx, row: Row, types: Map<number, string | null>): void
     return;
   }
   const route = routeLink(url, types.get(num(row, "link_type_id") ?? -1) ?? null);
+  const isActive = row.isActive === undefined ? true : bool(row, "isActive");
   if (route.kind === "whitegum") {
-    ctx.citations.push({ entityId: target, sourceId: ctx.list.source.get("whitegum") as number, place: url, legacyId: `links:${id}` });
+    // Item 121: a reading link on the song's work, not a citation. The page name is the value.
+    if (songId === null || ctx.workBySong.get(songId) !== target) {
+      ctx.tally.notMapped("links", id, "a Whitegum link that is not on a song");
+      return;
+    }
+    ctx.externalIds.push({ entityId: target, system: "Whitegum", value: whitegumValue(url), legacyId: `links:${id}`, isActive, checkedAt: dateOf(row, "date_fetched") });
     ctx.tally.mapped("links", id);
   } else if (route.kind === "report") {
     ctx.tally.notMapped("links", id, route.reason);
@@ -148,8 +229,7 @@ function importLink(ctx: Ctx, row: Row, types: Map<number, string | null>): void
       system: route.system,
       value: externalValue(route.system, url),
       legacyId: `links:${id}`,
-      // The old column is "isActive": the old schema gave it no @map.
-      isActive: row.isActive === undefined ? true : bool(row, "isActive"),
+      isActive,
       checkedAt: dateOf(row, "date_fetched"),
     });
     ctx.tally.mapped("links", id);
@@ -157,20 +237,8 @@ function importLink(ctx: Ctx, row: Row, types: Map<number, string | null>): void
   if (str(row, "title") || str(row, "description")) ctx.fieldDrop("links.title and links.description: not migrated (plan, Link)");
 }
 
-/** Write the collected citations and external IDs. */
+/** Write the collected external IDs. */
 export async function flushEvidence(ctx: Ctx): Promise<void> {
-  await ctx.db.citation.createMany({
-    data: ctx.citations.map((c) => ({
-      entityId: c.entityId,
-      sourceId: c.sourceId ?? null,
-      recordingId: c.recordingId ?? null,
-      contributorId: c.contributorId ?? null,
-      place: c.place ?? null,
-      excerpt: c.excerpt ?? null,
-      note: c.note ?? null,
-      legacyId: c.legacyId,
-    })),
-  });
   const seen = new Set<string>();
   const data: Array<{ entityId: number; linkSystemId: number; value: string; isActive: boolean; checkedAt: Date | null; legacyId: string }> = [];
   for (const e of ctx.externalIds) {
@@ -194,7 +262,16 @@ export async function flushEvidence(ctx: Ctx): Promise<void> {
 
 /** Notes, then the backlinks a save would write (item 52), then the addresses (item 45). */
 export async function flushNotes(ctx: Ctx): Promise<void> {
-  const notes = ctx.notes;
+  // Item 23: old internal song links become wikilinks (item 52) before the notes are written.
+  let rewritten = 0;
+  let unresolved = 0;
+  const notes = ctx.notes.map((note) => {
+    const out = rewriteSongLinks(note.body, ctx.songTitleBySlug);
+    rewritten += out.changed;
+    unresolved += out.unresolved;
+    return out.changed > 0 ? { ...note, body: out.text } : note;
+  });
+  ctx.line("Internal song links rewritten as wikilinks", `${rewritten} link(s) rewritten, ${unresolved} left as written (unknown slug)`);
   for (let start = 0; start < notes.length; start += 1000) {
     const part = notes.slice(start, start + 1000);
     const made = await ctx.db.note.createManyAndReturn({

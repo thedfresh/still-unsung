@@ -1,16 +1,19 @@
+import type { Prisma } from "@/generated/prisma/client";
 import type { Certainty, ShowStatus } from "@/generated/prisma/enums";
-import { bulk, newEntities, type Ctx } from "./context.ts";
+import { HINT_LISTS, bulk, newEntities, type Ctx } from "./context.ts";
 import { seededSetType, seededShowType } from "./lists.ts";
 import {
   assignShowTiming,
   bool,
-  contributorNamedIn,
   dateOf,
   displayDateMatches,
+  isBilledName,
+  isSeasonDate,
   matchedText,
   noteHints,
   normalizeName,
   num,
+  splitTimeOfDay,
   str,
   takeContributorLines,
   type Row,
@@ -30,11 +33,69 @@ function certaintyOf(flag: boolean): Certainty {
   return flag ? "POSSIBLE" : "CONFIRMED";
 }
 
+/**
+ * The date of an old event (item 22). A season ("Summer 1976") clears the month and the day and
+ * keeps the written date. A time of day in the written date ("(Afternoon)") becomes a time label.
+ */
+function eventDate(row: Row): { year: number | null; month: number | null; day: number | null; display: string | null; label: string | null } {
+  const split = splitTimeOfDay(str(row, "display_date"));
+  const season = isSeasonDate(split.display);
+  return {
+    year: num(row, "year"),
+    month: season ? null : num(row, "month"),
+    day: season ? null : num(row, "day"),
+    display: split.display,
+    label: split.label,
+  };
+}
+
+/** One old event credit: who it names and what the old row said (items 119, 120). */
+interface LegacyCredit {
+  name: string;
+  description?: string;
+  publicNotes?: string;
+  privateNotes?: string;
+}
+
+/** Drop the keys that hold nothing. A show with nothing to archive gets no `legacyData`. */
+function compact(data: Record<string, unknown>): Record<string, unknown> | null {
+  const entries = Object.entries(data).filter(([, value]) => value !== null && value !== undefined && !(Array.isArray(value) && value.length === 0));
+  return entries.length === 0 ? null : Object.fromEntries(entries);
+}
+
 interface ShowPlan {
   row: Row;
   status: ShowStatus;
   showTypeId: number | null;
   isInterview: boolean;
+  /** The public note without its "Contributor:" lines, and the names those lines held. */
+  publicNote: string | null;
+  lineNames: string[];
+  legacyData: Record<string, unknown> | null;
+}
+
+/** The old event credits, by old event id. Each one is tallied here: mapped to the show archive. */
+async function readLegacyCredits(ctx: Ctx, shown: Set<number>): Promise<Map<number, LegacyCredit[]>> {
+  const names = new Map((await ctx.read("contributors")).map((row) => [Number(row.id), str(row, "name")]));
+  const out = new Map<number, LegacyCredit[]>();
+  for (const row of await ctx.read("event_contributors")) {
+    const eventId = Number(row.event_id);
+    const name = names.get(num(row, "contributor_id") ?? -1);
+    if (ctx.testEvents.has(eventId)) ctx.tally.drop("event_contributors", row.id, TEST_RULE);
+    else if (!shown.has(eventId) || name === undefined || name === null) ctx.tally.notMapped("event_contributors", row.id, "its show or contributor was not migrated");
+    else {
+      const credit: LegacyCredit = { name };
+      const description = str(row, "description");
+      const publicNotes = str(row, "public_notes");
+      const privateNotes = str(row, "private_notes");
+      if (description) credit.description = description;
+      if (publicNotes) credit.publicNotes = publicNotes;
+      if (privateNotes) credit.privateNotes = privateNotes;
+      out.set(eventId, [...(out.get(eventId) ?? []), credit]);
+      ctx.tally.mapped("event_contributors", row.id);
+    }
+  }
+  return out;
 }
 
 export async function importShows(ctx: Ctx): Promise<void> {
@@ -46,30 +107,54 @@ export async function importShows(ctx: Ctx): Promise<void> {
   for (const row of events) if (isTestEvent(row)) ctx.testEvents.add(Number(row.id));
   const kept = events.filter((row) => !ctx.testEvents.has(Number(row.id)));
   for (const id of ctx.testEvents) ctx.tally.drop("events", id, TEST_RULE);
+  const credits = await readLegacyCredits(ctx, new Set(kept.map((row) => Number(row.id))));
 
   // A show with an uncertain set, in 1975, gets an uncertain date as well (user, 2026-11-24).
   const eventsWithUncertainSet = new Set(sets.filter((row) => bool(row, "is_uncertain")).map((row) => Number(row.event_id)));
   const timing = assignShowTiming(
-    kept.map((row) => ({
-      id: Number(row.id),
-      year: num(row, "year"),
-      month: num(row, "month"),
-      day: num(row, "day"),
-      timing: str(row, "show_timing"),
-    })),
+    kept.map((row) => {
+      const date = eventDate(row);
+      return { id: Number(row.id), year: date.year, month: date.month, day: date.day, timing: str(row, "show_timing") };
+    }),
   );
 
   const plans: ShowPlan[] = kept.map((row) => {
+    const oldId = Number(row.id);
     const eventType = eventTypes.get(num(row, "event_type_id") ?? -1) ?? "";
     const contentType = contentTypes.get(num(row, "content_type_id") ?? -1) ?? "";
+    ctx.eventContentType.set(oldId, contentType);
     const errata = [eventType, contentType].some((name) => normalizeName(name) === "errata");
     const isInterview = [eventType, contentType].some((name) => normalizeName(name) === "interview");
     const typeName = eventType && normalizeName(eventType) !== "errata" ? (seededShowType(eventType) ?? eventType) : null;
+
+    // Items 119, 120: a "Contributor:" line in the public note is an old-site credit. It leaves
+    // the note and goes to the archive of the show, as text. No citation, no contributor record.
+    const lineNames: string[] = [];
+    const publicNote = str(row, "public_notes");
+    const taken = publicNote
+      ? takeContributorLines(publicNote, (name) => {
+          lineNames.push(name);
+          return 1;
+        })
+      : null;
     return {
       row,
       status: errata ? "SPURIOUS" : "TOOK_PLACE",
       showTypeId: typeName ? (ctx.list.showType.get(typeName) ?? null) : null,
       isInterview,
+      publicNote: taken ? taken.remaining : null,
+      lineNames,
+      // Item 120: the credits, the raw entries, the old private notes, the billing text and the
+      // etree show ID. Not the old "verified" flag.
+      legacyData: compact({
+        contributors: credits.get(oldId),
+        contributorLinesInPublicNotes: lineNames,
+        rawData: str(row, "raw_data"),
+        rawDataGdsets: str(row, "raw_data_gdsets"),
+        privateNotes: str(row, "private_notes"),
+        billing: str(row, "billing"),
+        etreeShowId: str(row, "etree_show_id"),
+      }),
     };
   });
 
@@ -85,7 +170,6 @@ export async function importShows(ctx: Ctx): Promise<void> {
   );
   plans.forEach((plan, index) => afterShow(ctx, plan, ids[index], timing.get(Number(plan.row.id))));
   await writeScheduledTimes(ctx, kept, ids, timing);
-  writeCitationsAndIds(ctx, plans, ids);
   await importSets(ctx, sets);
   for (const plan of plans.filter((p) => p.isInterview)) {
     ctx.interviewShows.push({ oldId: Number(plan.row.id), displayDate: str(plan.row, "display_date"), showTypeId: plan.showTypeId });
@@ -102,11 +186,9 @@ function showData(
 ) {
   const row = plan.row;
   const oldId = Number(row.id);
-  const year = num(row, "year");
-  const month = num(row, "month");
-  const day = num(row, "day");
-  const display = str(row, "display_date");
+  const { year, month, day, display, label } = eventDate(row);
   const venue = ctx.placeByVenue.get(num(row, "venue_id") ?? -1);
+  const billing = str(row, "billing");
   const slot = timing.get(oldId);
   const uncertain = bool(row, "is_uncertain");
   const dateUncertain = bool(row, "date_uncertain") || (uncertain && year === 1975 && uncertainSetEvents.has(oldId));
@@ -117,12 +199,14 @@ function showData(
     dateDay: day,
     dateAsWritten: display && !displayDateMatches(display, year, month, day) ? display : null,
     dateCertainty: certaintyOf(dateUncertain),
-    timeLabel: slot?.timeLabel ?? null,
+    timeLabel: slot?.timeLabel ?? label,
     orderOnDate: slot?.orderOnDate ?? null,
     placeId: venue?.placeId ?? null,
     placeNameId: venue?.nameId ?? null,
     placeCertainty: certaintyOf(bool(row, "venue_uncertain")),
-    billedAs: str(row, "billing"),
+    // Item 15: only a true billed name. "Opened for…" and "Performed between…" go to the bill list.
+    billedAs: billing !== null && isBilledName(billing) ? billing : null,
+    legacyData: (plan.legacyData ?? undefined) as Prisma.InputJsonObject | undefined,
     bandId: ctx.bandByBand.get(num(row, "primary_band_id") ?? -1) ?? null,
     showTypeId: plan.showTypeId,
     status: plan.status,
@@ -145,7 +229,9 @@ function afterShow(ctx: Ctx, plan: ShowPlan, showId: number, slot: TimingResult 
   if (slot?.unordered) ctx.line("Dates with several shows and no order (orderOnDate left empty)", `events:${oldId}`);
   if (slot?.ambiguousTime) ctx.line("Show times that cannot be read (time left empty; label kept as written)", `events:${oldId}`);
   if (slot?.scheduledTime) ctx.line("Shows with a clock time", `events:${oldId} at ${slot.scheduledTime}: cite its source`);
-  if (bool(row, "verified")) ctx.fieldDrop("events.verified: not migrated (item 29)");
+  if (bool(row, "verified")) ctx.fieldDrop("events.verified: not migrated (items 29, 120)");
+  if (plan.legacyData) ctx.fieldDrop("shows.legacyData: filled (credits, raw entries, old private notes, billing, etree show ID)");
+  if (plan.lineNames.length > 0) ctx.line("Contributor lines moved from public notes to the show archive", `events:${oldId}: ${plan.lineNames.length} line(s)`);
   if (bool(row, "is_uncertain")) {
     ctx.propose("15-old-uncertain-flags", { showId, legacyId: `events:${oldId}`, flag: "isUncertain", migratedTo: "statusCertainty POSSIBLE" });
   }
@@ -153,7 +239,18 @@ function afterShow(ctx: Ctx, plan: ShowPlan, showId: number, slot: TimingResult 
   if (bool(row, "venue_uncertain")) ctx.propose("15-old-uncertain-flags", { showId, legacyId: `events:${oldId}`, flag: "venueUncertain", migratedTo: "placeCertainty POSSIBLE" });
   if (bool(row, "hunter_participation_uncertain")) ctx.propose("15-old-uncertain-flags", { showId, legacyId: `events:${oldId}`, flag: "hunterParticipationUncertain", migratedTo: "hunterParticipationCertainty POSSIBLE" });
   if (plan.status === "SPURIOUS") ctx.line("Errata shows", `events:${oldId} became status SPURIOUS: check it`);
-  if (str(row, "billing")) ctx.propose("01-bill", { showId, legacyId: `events:${oldId}`, proposal: "check the billing field", source: "billing field", text: str(row, "billing") });
+  const billing = str(row, "billing");
+  if (billing) {
+    const billed = isBilledName(billing);
+    ctx.propose("01-bill", {
+      showId,
+      legacyId: `events:${oldId}`,
+      proposal: billed ? "check the billing field" : "this billing text is not a billed name: it may name acts on the bill",
+      source: "billing field",
+      text: billing,
+    });
+    if (!billed) ctx.line("Billing text kept off billedAs (bill list only)", `events:${oldId}`);
+  }
 
   const slug = str(row, "slug");
   if (slug) {
@@ -161,26 +258,14 @@ function afterShow(ctx: Ctx, plan: ShowPlan, showId: number, slot: TimingResult 
     ctx.addresses.push({ path: `/shows/${slug}`, entityId: showId, slug });
   }
 
-  // Notes: contributor lines become citations (item 102); the rest stays a note.
-  const publicNote = str(row, "public_notes");
-  let remaining = publicNote;
-  if (publicNote) {
-    const out = takeContributorLines(publicNote, (name) => ctx.contributorByName.get(normalizeName(name)) ?? null);
-    remaining = out.remaining;
-    out.matched.forEach((contributorId, index) =>
-      ctx.citations.push({ entityId: showId, contributorId, legacyId: `events:${oldId}:publicNotes:${index}` }),
-    );
-    if (out.unmatched > 0) ctx.line("Contributor lines left in notes", `events:${oldId}: ${out.unmatched} line(s)`);
-  }
+  // Notes. Items 119, 120: the contributor lines and the old private notes are in the show
+  // archive, not in notes or citations. The rest of the public note stays a note.
+  const remaining = plan.publicNote;
   ctx.note(showId, remaining, true, `events:${oldId}:publicNotes`);
-  ctx.note(showId, str(row, "private_notes"), false, `events:${oldId}:privateNotes`);
-  for (const [field, text] of [["publicNotes", remaining], ["privateNotes", str(row, "private_notes")]] as const) {
+  for (const [field, text] of [["publicNotes", remaining], ["privateNotes (in the show archive)", str(row, "private_notes")]] as const) {
     if (!text) continue;
-    const hints = noteHints(text);
     const base = { showId, legacyId: `events:${oldId}`, proposal: "check this note", source: field, text };
-    if (hints.includes("bill")) ctx.propose("01-bill", { ...base, matchedText: matchedText(text, "bill") });
-    if (hints.includes("guest")) ctx.propose("14-guests-in-notes", { ...base, matchedText: matchedText(text, "guest") });
-    if (hints.includes("a-cappella")) ctx.propose("13-a-cappella", { ...base, matchedText: matchedText(text, "a-cappella") });
+    for (const hint of noteHints(text)) ctx.propose(HINT_LISTS[hint], { ...base, matchedText: matchedText(text, hint) });
   }
 }
 
@@ -195,35 +280,6 @@ async function writeScheduledTimes(
     const time = timing.get(Number(row.id))?.scheduledTime;
     if (time) await ctx.db.$executeRaw`UPDATE shows SET "scheduledTime" = ${time}::time WHERE id = ${ids[index]}`;
   }
-}
-
-function writeCitationsAndIds(ctx: Ctx, plans: ShowPlan[], ids: number[]): void {
-  const unmatched: number[] = [];
-  plans.forEach((plan, index) => {
-    const row = plan.row;
-    const oldId = Number(row.id);
-    const showId = ids[index];
-    for (const [field, sourceKey] of [
-      ["raw_data", "legacy-setlist-list"],
-      ["raw_data_gdsets", "gdsets"],
-    ] as const) {
-      const raw = str(row, field);
-      if (!raw) continue;
-      const named = contributorNamedIn(raw);
-      const contributorId = named ? ctx.contributorByName.get(normalizeName(named)) : undefined;
-      if (!contributorId) unmatched.push(oldId);
-      ctx.citations.push({
-        entityId: showId,
-        sourceId: ctx.list.source.get(sourceKey) as number,
-        contributorId,
-        excerpt: raw,
-        legacyId: `events:${oldId}:${field === "raw_data" ? "rawData" : "rawDataGdsets"}`,
-      });
-    }
-    const etree = str(row, "etree_show_id");
-    if (etree) ctx.externalIds.push({ entityId: showId, system: "EtreeDB", value: etree, legacyId: `events:${oldId}:etreeShowId` });
-  });
-  if (unmatched.length > 0) ctx.line("Raw entries with no matched contributor", `${unmatched.length} entries: events ${[...new Set(unmatched)].join(", ")}`);
 }
 
 async function importSets(ctx: Ctx, sets: Row[]): Promise<void> {
@@ -250,7 +306,9 @@ async function importSets(ctx: Ctx, sets: Row[]): Promise<void> {
       await ctx.db.set.createMany({
         data: batch.map(({ item, id }) => {
           const oldName = oldTypes.get(num(item, "set_type_id") ?? -1);
-          const typeName = oldName ? (seededSetType(oldName) ?? oldName) : "Set";
+          // Item 16: the sets of a Poetry Reading show are readings.
+          const reading = normalizeName(ctx.eventContentType.get(Number(item.event_id)) ?? "") === "poetry reading";
+          const typeName = reading ? "Reading" : oldName ? (seededSetType(oldName) ?? oldName) : "Set";
           return {
             id,
             showId: ctx.showByEvent.get(Number(item.event_id)) as number,

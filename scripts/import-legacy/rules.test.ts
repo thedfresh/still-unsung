@@ -1,18 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
   assignShowTiming,
+  countryOf,
+  csvLine,
   displayDateMatches,
   externalValue,
   findUrls,
+  fixDoubledTitle,
   footnoteKinds,
+  isBilledName,
+  isBookTitle,
+  isFestivalName,
+  isReviewCredit,
+  isSeasonDate,
+  isUnknownSong,
+  isUnknownVenue,
   noteHints,
+  parseTraditional,
+  rewriteSongLinks,
   routeLink,
   slugify,
   sortKeys,
   splitCredit,
+  splitTimeOfDay,
   suiteForTag,
+  surnameOf,
   takeContributorLines,
   vocalRoleOf,
+  whitegumValue,
 } from "./rules.ts";
 
 describe("slugify", () => {
@@ -169,5 +184,104 @@ describe("small rules", () => {
     expect(footnoteKinds("Instrumental version")).toContain("instrumental");
     expect(footnoteKinds("Lead-in from another song")).toContain("lead-in");
     expect(footnoteKinds("Plain remark")).toEqual([]);
+  });
+});
+
+describe("audit decisions (items 118 to 121)", () => {
+  it("hints at the new review lists", () => {
+    expect(noteHints("Teases Dark Star.")).toContain("quote-or-tease");
+    expect(noteHints("Reportedly played; not on the tape.")).toContain("reported");
+    expect(noteHints("Hunter does not play on this song.")).toContain("hunter-absent");
+    expect(noteHints("From Jerry's album, Test Record.")).toContain("from-album");
+    expect(noteHints("Hunter plays guitar.")).toEqual([]);
+  });
+
+  it("matches suite tags with hyphens", () => {
+    expect(suiteForTag("alligator-moon-suite")?.title).toBe("Alligator Moon");
+    expect(suiteForTag("eagle-mall-suite")?.title).toBe("Eagle Mall");
+    const amagamalin = suiteForTag("amagamalin-suite");
+    expect(amagamalin).toMatchObject({ title: "Amagamalin Street", structure: "VARIABLE", album: true });
+  });
+
+  it("takes the Whitegum page name with any anchor", () => {
+    expect(whitegumValue("https://www.whitegum.com/songfile/Ripple.htm")).toBe("Ripple.htm");
+    expect(whitegumValue("https://www.whitegum.com/songfile/Ripple.htm#verse2")).toBe("Ripple.htm#verse2");
+    expect(whitegumValue("https://whitegum.example/alpha")).toBe("alpha");
+  });
+
+  it("reads \"Traditional\" as a marker, with arrangers and a second author", () => {
+    expect(parseTraditional("Traditional")).toEqual({ arrangers: [], authors: [] });
+    expect(parseTraditional("Traditional, arr. Hunter")).toEqual({ arrangers: ["Hunter"], authors: [] });
+    expect(parseTraditional("Traditional, arr. Dave Guard")).toEqual({ arrangers: ["Dave Guard"], authors: [] });
+    expect(parseTraditional("Traditional/Arthur Smith, arr. Garcia")).toEqual({ arrangers: ["Garcia"], authors: ["Arthur Smith"] });
+    expect(parseTraditional("Traditional arr. Josh White")).toEqual({ arrangers: ["Josh White"], authors: [] });
+    expect(parseTraditional("Test Author")).toBeNull();
+    expect(parseTraditional("Grateful Dead")).toBeNull();
+  });
+
+  it("lists the odd credit texts for review", () => {
+    for (const text of ["Grateful Dead", "Elias McDaniel (Bo Diddley)", "Jeffrey Dambrau(?)"]) expect(isReviewCredit(text)).toBe(true);
+    expect(isReviewCredit("Test Author")).toBe(false);
+    expect(surnameOf("Jerry Garcia")).toBe("garcia");
+    expect(surnameOf("Garcia")).toBeNull();
+  });
+
+  it("keeps only a true billed name in billedAs", () => {
+    expect(isBilledName("Test Band with Test Opener")).toBe(true);
+    expect(isBilledName("Opened for Test Act")).toBe(false);
+    expect(isBilledName("Performed between two bands")).toBe(false);
+  });
+
+  it("fixes a doubled album title and finds the books", () => {
+    expect(fixDoubledTitle("Tales of the Great Rum Runners Tales of the Great Rum Runners 50th Bonus Disc")).toBe("Tales of the Great Rum Runners 50th Bonus Disc");
+    expect(fixDoubledTitle("Rum Runners (Rum Runners 50th Bonus Disc)")).toBe("(Rum Runners 50th Bonus Disc)");
+    expect(fixDoubledTitle("Bye Bye Love")).toBe("Bye Bye Love");
+    expect(fixDoubledTitle("Rock Columbia")).toBe("Rock Columbia");
+    for (const title of ["A Box of Rain", "Sentinel", "Rilke: Duino Elegies"]) expect(isBookTitle(title)).toBe(true);
+    expect(isBookTitle("Tales of the Great Rum Runners")).toBe(false);
+  });
+
+  it("puts the United States above US states and festivals in their own list", () => {
+    expect(countryOf(null, "CA")).toBe("United States");
+    expect(countryOf(null, "New York")).toBe("United States");
+    expect(countryOf("USA", "CA")).toBe("United States");
+    expect(countryOf("Canada", "ON")).toBe("Canada");
+    expect(countryOf(null, "ON")).toBeNull();
+    expect(isFestivalName("Fête des Leus")).toBe(true);
+    expect(isFestivalName("Songwriters Hall of Fame")).toBe(true);
+    expect(isFestivalName("Summer Test Festival")).toBe(true);
+    expect(isFestivalName("Test Hall")).toBe(false);
+  });
+
+  it("finds unknown venues and unknown songs", () => {
+    expect(isUnknownVenue("Unknown Venue")).toBe(true);
+    expect(isUnknownVenue("Unknown Studio Location")).toBe(true);
+    expect(isUnknownVenue("Unknown Hall of Fame")).toBe(false);
+    expect(isUnknownSong("Unknown Song")).toBe(true);
+    expect(isUnknownSong("Unknown Instrumental")).toBe(true);
+    expect(isUnknownSong("Unknown Pleasures")).toBe(false);
+  });
+
+  it("reads season dates and a time of day in the written date", () => {
+    expect(isSeasonDate("Summer 1976")).toBe(true);
+    expect(isSeasonDate("June 1976")).toBe(false);
+    expect(splitTimeOfDay("June 5, 1977 (Afternoon)")).toEqual({ display: "June 5, 1977", label: "Afternoon" });
+    expect(splitTimeOfDay("June 5, 1977")).toEqual({ display: "June 5, 1977", label: null });
+    expect(splitTimeOfDay(null)).toEqual({ display: null, label: null });
+  });
+
+  it("rewrites old internal song links as wikilinks", () => {
+    const titles = new Map([["alpha-song", "Alpha Song"]]);
+    expect(rewriteSongLinks("See [Alpha Song](/song/alpha-song).", titles)).toEqual({ text: "See [[song:Alpha Song]].", changed: 1, unresolved: 0 });
+    expect(rewriteSongLinks("See [the first](/song/alpha-song#x) and [no](/song/none).", titles)).toEqual({
+      text: "See [[song:Alpha Song|the first]] and [no](/song/none).",
+      changed: 1,
+      unresolved: 1,
+    });
+    expect(rewriteSongLinks("A [site](https://example.test/song/x).", titles).changed).toBe(0);
+  });
+
+  it("writes a CSV line with quotes where it needs them", () => {
+    expect(csvLine(["a", 1, null, true, "b,c", 'say "hi"', "two\nlines"])).toBe('a,1,,true,"b,c","say ""hi""","two\nlines"');
   });
 });

@@ -244,16 +244,50 @@ async function importSegmentLineups(ctx: Ctx, input: SegmentLineupInput): Promis
     input.addAll(baseline, input.setMusicians, (r) => Number(r.set_id) === setOld, input.setInstr);
     return baseline;
   };
-  const kept = rows.filter((row) =>
-    keepEntry(ctx, row, "performance_musicians", ctx.segmentByPerformance.has(Number(row.performance_id)), () => {
-      const personId = ctx.personByMusician.get(num(row, "musician_id") ?? -1) as number;
-      const own = new Set(instruments.get(Number(row.id)) ?? []);
-      const single = ctx.instrumentByInstrument.get(num(row, "instrument_id") ?? -1);
-      if (single !== undefined) own.add(single);
-      return input.repeats(baselineOf(Number(row.performance_id)), personId, own, bool(row, "includes_vocals"));
-    }),
-  );
   const eventOfPerformance = (row: Row) => Number((input.sets.get(Number((performances.get(Number(row.performance_id)) as Row).set_id)) as Row).event_id);
+
+  // Item 121 (14): a row for the "Unknown" musician that sang is a vocal entry with no person. A
+  // row that did not sing has no one to place, and stays listed as not mapped.
+  const unknownSingers = rows.filter(
+    (row) =>
+      ctx.personByMusician.get(num(row, "musician_id") ?? -1) === null &&
+      bool(row, "includes_vocals") &&
+      ctx.segmentByPerformance.has(Number(row.performance_id)),
+  );
+  const unknownSingerIds = new Set(unknownSingers.map((row) => Number(row.id)));
+  await bulk(
+    ctx,
+    "VOCAL_ENTRY",
+    unknownSingers,
+    async (batch) => {
+      await ctx.db.vocalEntry.createMany({
+        data: batch.map(({ item, id }) => ({
+          id,
+          segmentId: ctx.segmentByPerformance.get(Number(item.performance_id)) as number,
+          personId: null,
+          legacyId: `performance_musicians:${item.id}`,
+        })),
+      });
+    },
+    (row) => ctx.eventPublic.get(eventOfPerformance(row)) ?? true,
+    (row) => dateOf(row, "created_at"),
+  );
+  for (const row of unknownSingers) {
+    ctx.tally.mapped("performance_musicians", row.id);
+    ctx.line("Unknown musicians that sang (vocal entry with no person, role lead by default)", `performance_musicians:${row.id}`);
+  }
+
+  const kept = rows.filter(
+    (row) =>
+      !unknownSingerIds.has(Number(row.id)) &&
+      keepEntry(ctx, row, "performance_musicians", ctx.segmentByPerformance.has(Number(row.performance_id)), () => {
+        const personId = ctx.personByMusician.get(num(row, "musician_id") ?? -1) as number;
+        const own = new Set(instruments.get(Number(row.id)) ?? []);
+        const single = ctx.instrumentByInstrument.get(num(row, "instrument_id") ?? -1);
+        if (single !== undefined) own.add(single);
+        return input.repeats(baselineOf(Number(row.performance_id)), personId, own, bool(row, "includes_vocals"));
+      }),
+  );
   const entryIds = await writeEntries(
     ctx,
     kept,

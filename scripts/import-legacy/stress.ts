@@ -188,6 +188,8 @@ async function counts(ctx: Ctx): Promise<StressResult> {
     if (ctx.segmentByPerformance.has(Number(row.id))) oldCounts.set(Number(row.song_id), (oldCounts.get(Number(row.song_id)) ?? 0) + 1);
   }
   for (const [songId, old] of oldCounts) {
+    // An unknown song has no work (item 121): there is nothing to compare.
+    if (!ctx.workBySong.has(songId)) continue;
     const workId = ctx.workBySong.get(songId) as number;
     const row = perWork.get(workId);
     const counted = row?.counted ?? 0;

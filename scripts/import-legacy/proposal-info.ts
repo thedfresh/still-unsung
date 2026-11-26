@@ -72,4 +72,20 @@ export const PROPOSAL_INFO: Record<ProposalName, { what: string; decision: strin
     what: "Interview shows.",
     decision: "Set the show type to Interview or to Broadcast.",
   },
+  "18-quotes-and-teases": {
+    what: "Notes that mention a quote or a tease of another song (item 64).",
+    decision: "Read the note. Make a segment for a song performed, or a quote reference for words quoted inside a lyric.",
+  },
+  "19-reported-not-on-tape": {
+    what: "Notes that say a song was reportedly played or is not on the tape (item 97).",
+    decision: "Make a segment with possible certainty, set the reason the setlist is incomplete, or leave the note.",
+  },
+  "20-hunter-does-not-play": {
+    what: "Notes that say Hunter does not play on a song.",
+    decision: "Add a lineup entry for Hunter, marked absent, on the segment, or leave the note.",
+  },
+  "21-from-an-album": {
+    what: "Notes that say a song is from an album.",
+    decision: "Link the work to the album source, or leave the note.",
+  },
 };

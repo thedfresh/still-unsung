@@ -336,14 +336,19 @@ export function isUnknownName(name: string): boolean {
 }
 
 export const SUITES = [
-  { match: "alligator moon", title: "Alligator Moon", structure: "FIXED" },
-  { match: "terrapin", title: "Terrapin", structure: "VARIABLE" },
-  { match: "eagle mall", title: "Eagle Mall", structure: "FIXED" },
+  { match: "alligator moon", title: "Alligator Moon", structure: "FIXED", album: true },
+  { match: "terrapin", title: "Terrapin", structure: "VARIABLE", album: false },
+  { match: "eagle mall", title: "Eagle Mall", structure: "FIXED", album: false },
+  // Item 121: a concept album is both an album source and a suite work (variable).
+  { match: "amagamalin", title: "Amagamalin Street", structure: "VARIABLE", album: true },
 ] as const;
 
-/** The suite a tag names (item 35), or null. Dylan and Beatles tags are dropped elsewhere. */
+/**
+ * The suite a tag names (items 35, 121), or null. The old tags use hyphens ("eagle-mall-suite"),
+ * so hyphens and spaces count the same. Dylan and Beatles tags are dropped elsewhere.
+ */
 export function suiteForTag(tagName: string): (typeof SUITES)[number] | null {
-  const lower = normalizeName(tagName);
+  const lower = normalizeName(tagName).replace(/[^a-z0-9]+/g, " ");
   return SUITES.find((suite) => lower.includes(suite.match)) ?? null;
 }
 
@@ -385,6 +390,8 @@ export const LINK_SYSTEMS: Array<LinkTarget & { urlTemplate: string | null }> = 
   { system: "Discogs", purpose: "IDENTIFY", urlTemplate: null },
   { system: "Wikidata", purpose: "IDENTIFY", urlTemplate: null },
   { system: "MusicBrainz", purpose: "IDENTIFY", urlTemplate: null },
+  // Item 121: reading links on songs, shown as "lyrics and notes on Whitegum". Not citations.
+  { system: "Whitegum", purpose: "READ", urlTemplate: "https://www.whitegum.com/songfile/{value}" },
 ];
 
 export type LinkRoute =
@@ -433,12 +440,20 @@ export function externalValue(system: string, url: string): string {
   return url;
 }
 
-export type NoteHint = "a-cappella" | "guest" | "bill";
+export type NoteHint = "a-cappella" | "guest" | "bill" | "quote-or-tease" | "reported" | "hunter-absent" | "from-album";
 
 const HINT_PATTERNS: Record<NoteHint, RegExp> = {
   "a-cappella": /a\s*cappella|acapella/i,
   guest: /\b(guests?|joined by|sits? in|sat in|sitting in)\b/i,
   bill: /\b(opening act|opened by|opener|openers|supporting act|on the bill|also appearing|bill:)/i,
+  // Item 64: another song quoted or teased inside a segment.
+  "quote-or-tease": /\b(quotes?|quoting|quoted|teases?|teasing|teased)\b/i,
+  // Item 97: a song that witnesses report but that is not on the tape.
+  reported: /\b(reportedly|reported(ly)? played|not on (the )?(tape|recording))\b/i,
+  // Hunter is in the lineup but does not play on this song.
+  "hunter-absent": /\b(hunter (does not|doesn'?t|did not|didn'?t) (play|perform|appear)|without hunter|hunter (is )?not (playing|on (this|the) (song|track)))/i,
+  // "From X's album": the song's source is an album.
+  "from-album": /\bfrom [\w'’. -]{1,60}['’]s (album|record|lp)\b|\bfrom the album\b/i,
 };
 
 const FOOTNOTE_PATTERNS: Record<FootnoteKind, RegExp> = {
@@ -457,6 +472,178 @@ export type FootnoteKind = "portion" | "instrumental" | "lead-in";
 /** Footnotes a rule can type (section 5, item 4). The rest stay notes. */
 export function footnoteKinds(text: string): FootnoteKind[] {
   return (Object.keys(FOOTNOTE_PATTERNS) as FootnoteKind[]).filter((kind) => FOOTNOTE_PATTERNS[kind].test(text));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Items 118 to 121 (audit of 2026-11-25)
+
+/** The page name of a Whitegum link, with any `#anchor` (item 121). */
+export function whitegumValue(url: string): string {
+  const hashAt = url.indexOf("#");
+  const hash = hashAt >= 0 ? url.slice(hashAt) : "";
+  const base = (hashAt >= 0 ? url.slice(0, hashAt) : url).replace(/\?.*$/, "").replace(/\/+$/, "");
+  const afterSongfile = /\/songfile\/(.+)$/i.exec(base);
+  const page = afterSongfile ? afterSongfile[1] : (base.split("/").pop() ?? "");
+  return `${page}${hash}`;
+}
+
+function splitNames(text: string): string[] {
+  return text
+    .split(/\s*(?:\/|;|&|\+|,|\band\b)\s*/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+export interface TraditionalCredit {
+  /** Names after "arr.": they get an arrangement credit. */
+  arrangers: string[];
+  /** Names that stand next to "Traditional" ("Traditional/Arthur Smith"): they get the song's credit. */
+  authors: string[];
+}
+
+/**
+ * Item 121: "Traditional" is a marker on the work, not a credit. Returns null for any other text.
+ * "Traditional, arr. X" adds an arrangement credit for X; "Traditional/Y, arr. X" also credits Y.
+ */
+export function parseTraditional(text: string): TraditionalCredit | null {
+  const t = text.trim();
+  if (/^traditional\.?$/i.test(t)) return { arrangers: [], authors: [] };
+  const arr = String.raw`arr(?:\.|anged)?(?:\s+by)?`;
+  const both = new RegExp(String.raw`^traditional\s*\/\s*(.+?)\s*[,(]\s*${arr}\s+(.+?)\)?$`, "i").exec(t);
+  if (both) return { authors: splitNames(both[1]), arrangers: splitNames(both[2]) };
+  const only = new RegExp(String.raw`^traditional\s*[,(\/;]?\s*${arr}\s+(.+?)\)?$`, "i").exec(t);
+  if (only) return { authors: [], arrangers: splitNames(only[1]) };
+  return null;
+}
+
+/** Credit texts that go on the review list and get no credit (item 121). Compared in normal form. */
+const REVIEW_CREDITS = new Set(["grateful dead", "elias mcdaniel (bo diddley)", "jeffrey dambrau(?)"]);
+
+export function isReviewCredit(text: string): boolean {
+  return REVIEW_CREDITS.has(normalizeName(text));
+}
+
+/** The last word of a name when it has two words or more, normalized; otherwise null. */
+export function surnameOf(name: string): string | null {
+  const words = normalizeName(name).split(" ");
+  return words.length > 1 ? words[words.length - 1] : null;
+}
+
+/** Item 15: only a true billed name goes to `billedAs`. "Opened for…" and "Performed between…" do not. */
+export function isBilledName(text: string): boolean {
+  return !/^\s*((opened|opening)\s+for|(performed|played)\s+(between|before|after))\b/i.test(text);
+}
+
+/**
+ * Item 8: an old album title that repeats its own first words ("X X 50th Anniversary Bonus Disc").
+ * Returns the title without the first copy, or the title as it is.
+ */
+export function fixDoubledTitle(title: string): string {
+  const tokens = title.split(/\s+/).filter(Boolean);
+  const norm = tokens.map((token) => normalizeName(token).replace(/[^a-z0-9]/g, ""));
+  const real = norm.map((value, index) => (value === "" ? -1 : index)).filter((index) => index >= 0);
+  for (let k = Math.floor(real.length / 2); k >= 2; k -= 1) {
+    const same = real.slice(0, k).every((at, offset) => norm[at] === norm[real[k + offset]]);
+    if (same) return tokens.slice(real[k]).join(" ");
+  }
+  return title;
+}
+
+/** Old albums that are books: they wait for the book import (item 121). */
+export function isBookTitle(title: string): boolean {
+  const name = normalizeName(title);
+  return /^a box of rain\b/.test(name) || /^sentinel\b/.test(name) || /duino elegies/.test(name);
+}
+
+const US_STATES: Array<[string, string]> = [
+  ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"],
+  ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"], ["DC", "District of Columbia"],
+  ["FL", "Florida"], ["GA", "Georgia"], ["HI", "Hawaii"], ["ID", "Idaho"], ["IL", "Illinois"],
+  ["IN", "Indiana"], ["IA", "Iowa"], ["KS", "Kansas"], ["KY", "Kentucky"], ["LA", "Louisiana"],
+  ["ME", "Maine"], ["MD", "Maryland"], ["MA", "Massachusetts"], ["MI", "Michigan"], ["MN", "Minnesota"],
+  ["MS", "Mississippi"], ["MO", "Missouri"], ["MT", "Montana"], ["NE", "Nebraska"], ["NV", "Nevada"],
+  ["NH", "New Hampshire"], ["NJ", "New Jersey"], ["NM", "New Mexico"], ["NY", "New York"],
+  ["NC", "North Carolina"], ["ND", "North Dakota"], ["OH", "Ohio"], ["OK", "Oklahoma"], ["OR", "Oregon"],
+  ["PA", "Pennsylvania"], ["RI", "Rhode Island"], ["SC", "South Carolina"], ["SD", "South Dakota"],
+  ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"], ["VT", "Vermont"], ["VA", "Virginia"],
+  ["WA", "Washington"], ["WV", "West Virginia"], ["WI", "Wisconsin"], ["WY", "Wyoming"],
+];
+const US_STATE_FORMS = new Set(US_STATES.flatMap(([abbreviation, name]) => [normalizeName(abbreviation), normalizeName(name)]));
+
+export function isUsState(region: string): boolean {
+  return US_STATE_FORMS.has(normalizeName(region).replace(/\./g, ""));
+}
+
+/**
+ * Item 121: the country of a venue. "USA" and its forms are "United States", and a venue with a US
+ * state and no country sits under the United States.
+ */
+export function countryOf(country: string | null, region: string | null): string | null {
+  if (country !== null) return /^(usa|u\.?s\.?a?\.?|united states( of america)?)$/i.test(country.trim()) ? "United States" : country;
+  return region !== null && isUsState(region) ? "United States" : null;
+}
+
+/** Festivals the old data names in a venue's name or context (items 21, 121). */
+export function isFestivalName(text: string): boolean {
+  return /festival|fete des leus|songwriters hall of fame/.test(normalizeName(text));
+}
+
+/** A venue the old data does not know: the show sits at its town (item 121). */
+export function isUnknownVenue(name: string): boolean {
+  return /^unknown (venue|studio location)\b/.test(normalizeName(name));
+}
+
+/** "Unknown Song" and "Unknown Instrumental" get no work (item 121). */
+export function isUnknownSong(title: string): boolean {
+  return /^unknown (song|instrumental)\b/.test(normalizeName(title));
+}
+
+/** "Summer 1976": the date is a season, so the month and day stay empty and the text stays (item 22). */
+export function isSeasonDate(display: string | null): boolean {
+  return display !== null && /^\s*(spring|summer|fall|autumn|winter)\b/i.test(display);
+}
+
+/** "(Afternoon)" in a display date is a time label (item 22). Returns the date without it. */
+export function splitTimeOfDay(display: string | null): { display: string | null; label: string | null } {
+  if (display === null) return { display, label: null };
+  const found = /\(\s*(afternoon|morning|evening|matinee)\s*\)/i.exec(display);
+  if (!found) return { display, label: null };
+  const word = found[1].toLowerCase();
+  const rest = display.replace(found[0], "").replace(/\s+/g, " ").trim();
+  return { display: rest === "" ? null : rest, label: `${word[0].toUpperCase()}${word.slice(1)}` };
+}
+
+/** Item 23: old internal song links become wikilinks (item 52). Unknown slugs stay as written. */
+export function rewriteSongLinks(body: string, titleBySlug: Map<string, string>): { text: string; changed: number; unresolved: number } {
+  let changed = 0;
+  let unresolved = 0;
+  const text = body.replace(/\[([^\]]*)\]\(\/song\/([^)\s#?]+)(?:[#?][^)\s]*)?\)/g, (whole, label: string, slug: string) => {
+    let decoded = slug;
+    try {
+      decoded = decodeURIComponent(slug);
+    } catch {
+      // Keep the slug as written.
+    }
+    const title = titleBySlug.get(decoded);
+    if (title === undefined || /[[\]|]/.test(title)) {
+      unresolved += 1;
+      return whole;
+    }
+    changed += 1;
+    const shown = label.trim();
+    return shown === "" || shown === title ? `[[song:${title}]]` : `[[song:${title}|${shown}]]`;
+  });
+  return { text, changed, unresolved };
+}
+
+/** One CSV line. A value with a comma, a quote or a line break is quoted. */
+export function csvLine(values: Array<string | number | boolean | null | undefined>): string {
+  return values
+    .map((value) => {
+      const text = value === null || value === undefined ? "" : String(value);
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    })
+    .join(",");
 }
 
 /** The words of a note that triggered a hint or a footnote kind, with a little text around them. */

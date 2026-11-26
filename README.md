@@ -144,8 +144,14 @@ The run writes these files to the output folder:
 
 - `report.md` and `report.json`: row counts by old and new table, the stress tests, every row that
   did not map with its reason, and the proposal sizes. The report holds ids and counts only.
-- `proposals/*.json`: the 17 review lists. Each file starts with a short summary. Each row has a `label` and a `context` (show date, place, song title, note text) next to its IDs. The script does not apply them.
+- `proposals/*.json`: the 21 review lists. Each file starts with a short summary. Each row has a `label` and a `context` (show date, place, song title, note text) next to its IDs. The script does not apply them.
 - `place-chains.tsv`: the place chain of every show.
+- `candidates-recordings.csv`: one row for each old recording link. The import makes no recording.
+  The file holds old URLs, tapers and private notes, so it stays out of git.
+
+The old site's archive of a show (contributor credits, raw entries, old private notes, billing
+text, etree show ID) goes into the private `legacyData` field of the show. The import makes no
+contributor records and no citations from them.
 
 The exit code is 1 when the report finds an old row it cannot account for. The tests run the
 whole import against a small invented copy of the old tables (`tests/db/import-legacy.test.ts`).
