@@ -40,8 +40,10 @@ rule set.
 
 - Short sentences: procedures ≤20 words, descriptions ≤25 words. One idea per sentence.
 - Active voice and simple tenses. Use the imperative for instructions.
-- One word, one meaning. Keep a term consistent once used (always "event" for a show record,
-  always "performance" for one song in a set).
+- One word, one meaning. Keep a term consistent once used. Use the schema's words: "show" for a
+  whole performance event, "set" for a part of a show, "segment" for one piece of a show in order
+  (a song, a fragment, stage talk), "work" for what was written. "Event" and "performance" are
+  the old app's names; use them only when you mean the old data.
 - Do not omit articles ("the", "a"). Avoid stacked noun clusters of more than three words.
 - Use lists for steps and for more than two parallel items.
 - **A pull request description starts with an executive summary** of five labeled lines, one or
