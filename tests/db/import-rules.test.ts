@@ -1,5 +1,9 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { seedImportRulesPage, seedLists } from "../../prisma/seed/index.ts";
+import { isPrivateText } from "@/lib/changes/labels";
+import { createContentMcpServer } from "@/lib/mcp/server";
 import { applyChanges } from "@/lib/data/changes/apply";
 import { previewChanges } from "@/lib/data/changes/preview";
 import { getImportRules, getPublicGuidePage, listPublicGuidePages } from "@/lib/data/guide-pages";
@@ -109,5 +113,60 @@ describe("the import rules page", () => {
     await expect(getImportRules()).rejects.toThrow(/import rules page does not exist/);
     // The connect-time text is fixed: it does not read the page.
     expect(MCP_INSTRUCTIONS).toContain("get_import_rules");
+  });
+});
+
+describe("the import rules page guard (HSA-170)", () => {
+  const own = { ownKnowledge: true };
+
+  it("refuses a create with the rules slug when the page is missing, and a rename to it", async () => {
+    await db.guidePage.deleteMany({ where: { slug: IMPORT_RULES_SLUG } });
+    const entity = await db.entity.create({ data: { kind: "GUIDE_PAGE" } });
+    const other = await db.guidePage.create({ data: { id: entity.id, slug: "about", title: "About", body: "Hello." } });
+    const edits = [
+      { op: "create", type: "GuidePage", fields: { slug: IMPORT_RULES_SLUG, title: "Rules", body: "x", isPublic: true } },
+      { op: "update", type: "GuidePage", id: other.id, rev: other.rev, fields: { slug: IMPORT_RULES_SLUG } },
+    ];
+    for (const edit of edits) {
+      const preview = await previewChanges(agentId, { evidence: own, isPublic: true, edits: [edit] });
+      expect(preview.token).toBeNull();
+      expect(preview.warnings.join(" ")).toContain("belongs to the private import rules page");
+    }
+    expect(await db.guidePage.count({ where: { slug: IMPORT_RULES_SLUG } })).toBe(0);
+    expect(await db.changeset.count()).toBe(0);
+  });
+
+  it("refuses on apply, not only on preview", async () => {
+    await seedImportRulesPage(db);
+    const page = await db.guidePage.findUniqueOrThrow({ where: { slug: IMPORT_RULES_SLUG } });
+    // A harmless plan passes the preview. Then the stored plan is swapped for a refused one.
+    const preview = await previewChanges(agentId, {
+      evidence: own,
+      edits: [{ op: "update", type: "GuidePage", id: page.id, rev: page.rev, fields: { body: "Fine." } }],
+    });
+    const refused = [{ op: "update", type: "GuidePage", id: page.id, rev: page.rev, fields: { isPublic: true } }];
+    await db.changeset.update({ where: { id: preview.changesetId as number }, data: { plan: refused } });
+    const result = await applyChanges(agentId, preview.token as string);
+    expect(result).toMatchObject({ ok: false, reason: "blocked" });
+    expect(JSON.stringify(result)).toContain("The import rules page stays private");
+    expect((await db.entity.findUniqueOrThrow({ where: { id: page.id } })).isPublic).toBe(false);
+    expect((await getImportRules()).body).not.toBe("Fine.");
+  });
+
+  it("reads the title of a private guide page as private text", () => {
+    expect(isPrivateText("GuidePage", "title", { isPublic: false })).toBe(true);
+    expect(isPrivateText("GuidePage", "title", { isPublic: true })).toBe(false);
+  });
+
+  it("gives get_import_rules a plain error through the MCP tool when the page is missing", async () => {
+    await db.guidePage.deleteMany({ where: { slug: IMPORT_RULES_SLUG } });
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    const server = createContentMcpServer({ id: agentId, email: "agent@example.test", name: null, role: "AGENT", via: "token" });
+    const client = new Client({ name: "test", version: "1" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    const result = (await client.callTool({ name: "get_import_rules", arguments: {} })) as { isError?: boolean; content: Array<{ text: string }> };
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("The import rules page does not exist yet");
+    await client.close();
   });
 });

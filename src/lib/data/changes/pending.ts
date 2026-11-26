@@ -7,8 +7,9 @@ import { parseEdits } from "@/lib/validation/content";
 import { describeItems } from "@/lib/data/changes/describe";
 import { countsOfSummary, trialRun } from "@/lib/data/changes/preview";
 import { findShowLinks, type ShowLink } from "@/lib/data/changes/show-links";
-import { describeChangeEvidence, EVIDENCE_INCLUDE } from "@/lib/data/changes/list";
-import { writeEdits } from "@/lib/data/changes/write-edits";
+import { CHANGES_PAGE_SIZE, describeChangeEvidence, EVIDENCE_INCLUDE } from "@/lib/data/changes/list";
+import { ConflictAbort, writeEdits, type VersionConflict } from "@/lib/data/changes/write-edits";
+import { AppError } from "@/lib/errors";
 
 /** The most previews that the list shows. A user may hold at most 20 open previews at once. */
 const LIST_LIMIT = 50;
@@ -22,6 +23,8 @@ export type PendingState = "open" | "expired" | "used" | "applied";
 export interface PendingPreview {
   id: number;
   state: PendingState;
+  /** For an applied change: the page of the Changes log that lists it. Null otherwise. */
+  appliedPage: number | null;
   userEmail: string | null;
   userRole: string;
   evidence: string;
@@ -57,8 +60,18 @@ async function rebuildItems(plan: unknown): Promise<{ items: PreviewItem[] | nul
     }, { timeout: 30_000 });
   } catch (err) {
     if (err instanceof Rollback) return { items: err.items, warnings: [] };
+    // The records changed since the preview: the plan no longer fits. Say so on the page.
+    if (err instanceof AppError) return { items: null, warnings: [err.message] };
+    if (err instanceof ConflictAbort) return { items: null, warnings: err.conflicts.map(conflictMessage) };
     throw err;
   }
+}
+
+/** One plain line for a record that changed since the preview. */
+function conflictMessage(c: VersionConflict): string {
+  return c.current
+    ? `Edit ${c.index}: ${c.type} ${c.id} changed since the preview (it was version ${c.expectedRev}, it is now version ${String(c.current.rev)}).`
+    : `Edit ${c.index}: ${c.type} ${c.id} does not exist now.`;
 }
 
 /** Each item gets the show it sits in, when that show has a page, so its card can link to it. */
@@ -73,6 +86,18 @@ async function withShowIds(items: PreviewItem[]): Promise<PreviewItem[]> {
     })),
   );
   return items.map((item, index) => ({ ...item, showId: (links.get(index) as ShowLink[] | undefined)?.[0]?.id ?? null }));
+}
+
+/** The page of the Changes log that holds an applied change: the log is newest first. */
+async function pageOfApplied(row: { id: number; appliedAt: Date | null }): Promise<number> {
+  if (!row.appliedAt) return 1;
+  const newer = await getPrisma().changeset.count({
+    where: {
+      status: "APPLIED",
+      OR: [{ appliedAt: { gt: row.appliedAt } }, { appliedAt: row.appliedAt, id: { gt: row.id } }],
+    },
+  });
+  return Math.floor(newer / CHANGES_PAGE_SIZE) + 1;
 }
 
 /**
@@ -104,6 +129,7 @@ export async function getPendingPreview(id: number): Promise<PendingPreview | nu
   return {
     id: row.id,
     state,
+    appliedPage: state === "applied" ? await pageOfApplied(row) : null,
     userEmail: row.user.email,
     userRole: row.user.role,
     evidence: describeChangeEvidence(row),

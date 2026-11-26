@@ -1,4 +1,4 @@
-import { modelInfo } from "@/lib/content-access";
+import { AGENT_FORBIDDEN_FIELDS, modelInfo } from "@/lib/content-access";
 
 export type Row = Record<string, unknown>;
 
@@ -103,12 +103,22 @@ export function isPrivateText(type: string, field: string, row: Row | null): boo
       return true;
     case "VersionPassage.wording":
       return row?.wordingPublic !== true;
+    case "GuidePage.title":
     case "GuidePage.body":
     case "Note.body":
       return row?.isPublic !== true;
     default:
       return false;
   }
+}
+
+/**
+ * Fields that never make a line on a delete card: JSON columns, and fields the agent can never
+ * set (they are system data, such as the Zotero cache).
+ */
+export function notKeyFields(type: string): string[] {
+  const json = Object.entries(modelInfo(type)?.fields ?? {}).filter(([, info]) => info.type === "Json");
+  return [...json.map(([name]) => name), ...(AGENT_FORBIDDEN_FIELDS[type] ?? [])];
 }
 
 /** A record label without its type, for example `Work "Ripple"` becomes `Ripple`. */
