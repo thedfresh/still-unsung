@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PublicShow, PublicShowLink } from "@/lib/data/public/show-types";
+import { publicHref } from "@/lib/record-links";
 import { placeText, publicDate } from "@/lib/shows/public-words";
 
 const NAV_LINK = "inline-flex min-h-6 items-center rounded-control border border-band-border px-3 py-1 text-small font-medium text-band-ink hover:bg-paper";
@@ -9,14 +10,14 @@ function Neighbours({ prev, next }: { prev: PublicShowLink | null; next: PublicS
   return (
     <nav aria-label="Neighbouring shows" className="flex gap-2">
       {prev ? (
-        <Link href={`/shows/${prev.slug}`} rel="prev" className={NAV_LINK}>
+        <Link href={publicHref("Show", prev.slug) ?? "/"} rel="prev" className={NAV_LINK}>
           Previous show
         </Link>
       ) : (
         <span className="px-3 py-1 text-small text-body">No earlier show</span>
       )}
       {next ? (
-        <Link href={`/shows/${next.slug}`} rel="next" className={NAV_LINK}>
+        <Link href={publicHref("Show", next.slug) ?? "/"} rel="next" className={NAV_LINK}>
           Next show
         </Link>
       ) : (

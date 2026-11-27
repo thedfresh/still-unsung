@@ -506,3 +506,37 @@ its `Entity.isPublic` is true (`visibility.ts`).
   The rules for both views live in `src/lib/shows/setlist.ts`.
 - **Not cached yet.** The page reads fresh on each request, because nothing refreshes a cache after
   an agent edit (section 5). The first cached public page adds the tags and the stale-data test.
+
+## 14. Internal links
+
+The site links to everything it names, on the public pages and in the admin (HSA-186). If a page
+names a record or shows a count of records, it links to it.
+
+- **A record's name is a link to its page.** In the admin it opens the admin page. On the public
+  site it opens the public page. (review)
+- **A count of records is a link to the list of those records.** The list is a page with the
+  filter set. For example, the number of shows at a place opens the shows list filtered by that
+  place, with the roll-up of section 4. (review; test: `tests/e2e/internal-links.spec.ts`)
+- **Plain text only where no page exists yet.** When the page arrives, the link follows. (review)
+- **Link text says what it opens** (WCAG 2.2, link purpose). A count link whose words are only
+  "3 shows" adds a visually hidden phrase, for example ", open the list of shows here and inside".
+  Links keep the styles of the design system (`LINK_CLASS`). (test: axe in the e2e tests; review)
+- **One helper gives every address.** `src/lib/record-links.ts` has `adminHref(type, id)`,
+  `publicHref(type, slug)`, `recordAddress` and `showsListHref(filter)`. A page never writes a
+  record address by hand. A type with no page gives `null`, and `RecordLink`
+  (`src/components/admin/ui/components.tsx`) then shows plain text. A new page for a record type
+  adds one line to the helper, and every page that names the record links to it.
+  (test: `src/lib/record-links.test.ts`)
+- **The shows list filters.** `/admin/shows` takes `place` (with roll-up; `direct=1` keeps only
+  the shows attached to the place itself), `band` and `work` (shows with a segment of the work).
+  The page names each filter and links to its record.
+- **Counts of plays count shows.** "Played in", "every time played" and similar counts count
+  shows, not segments. A show with two segments of a work (a reprise, a medley that comes back to
+  it, two fragments) counts once (user, 2026-11-27). `showsWithWork` in
+  `src/lib/data/shows/list.ts` gives the one `where` that the count and the list share. (test: `tests/db/places-rollup.test.ts`)
+- **The Changes page.** `src/lib/changes/readout-links.ts` finds the links of the readout: the
+  record of a card, a field that names a record, and the heading of a group. A record that only a
+  preview makes has no page, so it has no link until the changeset is applied. The plain-text
+  preview of an agent never has links. (test: `src/lib/changes/readout-links.test.ts`)
+- **Public pages today.** Only shows have a public page, so the public show page links to its
+  neighbouring shows. Bands, places, people and works stay plain text there until they get a page.

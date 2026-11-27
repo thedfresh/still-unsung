@@ -3,7 +3,9 @@
 import { useId, useState } from "react";
 import { searchPickerAction } from "@/app/admin/picker-action";
 import { BUTTON_CLASS, ERROR_CLASS, FIELD_CLASS, HINT_CLASS, INPUT_CLASS, LABEL_CLASS } from "@/components/admin/ui/styles";
+import { RecordLink } from "@/components/admin/ui/components";
 import type { PickerChoice, PickerKind } from "@/lib/data/picker";
+import { adminHref } from "@/lib/record-links";
 
 const INPUT = INPUT_CLASS;
 const BUTTON = BUTTON_CLASS.secondary;
@@ -52,7 +54,13 @@ export function RecordPicker({ kind, label, value, onChange, emptyText, clearabl
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p>
-        <span className="font-semibold">{label}:</span> {value ? value.label : emptyText}
+        <span className="font-semibold">{label}:</span>{" "}
+        {value ? (
+          // The chosen record links to its admin page (HSA-186).
+          <RecordLink href={adminHref(kind.replace(/^./, (c) => c.toUpperCase()), value.id)}>{value.label}</RecordLink>
+        ) : (
+          emptyText
+        )}
       </p>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={BUTTON}>

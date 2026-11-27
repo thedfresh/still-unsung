@@ -41,6 +41,8 @@ export interface EditBillEntry {
   certainty: string;
   /** The act's name. */
   actName: string;
+  /** The admin page of the act (a band or a person), or null. */
+  actHref: string | null;
 }
 
 export interface EditNote {

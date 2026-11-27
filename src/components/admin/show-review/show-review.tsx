@@ -1,6 +1,6 @@
 import type { RecentEvidence } from "@/lib/data/changes/admin-save";
 import type { ReviewSet, ReviewShow } from "@/lib/data/shows/review-types";
-import { Attachments, CARD, Facts, Lines, Origin } from "./parts";
+import { Attachments, CARD, Facts, linked, Lines, Origin } from "./parts";
 import { SegmentCard } from "./segment-card";
 
 function SetSection({ set, recent }: { set: ReviewSet; recent: RecentEvidence[] }) {
@@ -10,7 +10,7 @@ function SetSection({ set, recent }: { set: ReviewSet; recent: RecentEvidence[] 
         Set {set.position}: {set.setType}
       </h2>
       <Origin text={set.origin} />
-      <Facts items={[["Why it is incomplete", set.incompleteReason], ["Band for this set", set.band]]} />
+      <Facts items={[["Why it is incomplete", set.incompleteReason], ["Band for this set", linked(set.band, set.bandHref)]]} />
       <Lines title="Lineup for this set" lines={set.lineup} level={3} />
       <Attachments data={set.attachments} level={3} />
       {set.segments.length === 0 ? (
@@ -42,10 +42,10 @@ export function ShowReviewView({ show, recent }: { show: ReviewShow; recent: Rec
           items={[
             ["Date", show.date],
             ["Time", show.timeLabel],
-            ["Place", show.place],
+            ["Place", linked(show.place, show.placeHref)],
             ["Place name used", show.placeName],
             ["Billed as", show.billedAs],
-            ["Band", show.band],
+            ["Band", linked(show.band, show.bandHref)],
             ["Show type", show.showType],
             ["Status", show.status],
           ]}

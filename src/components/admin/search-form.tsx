@@ -25,6 +25,8 @@ interface SearchProps {
     defaultValue: string;
     options: ReadonlyArray<{ value: string; label: string }>;
   };
+  /** Filters of the page that the form sends again, so a search keeps them (HSA-186), for example `place`. */
+  hidden?: Record<string, string>;
 }
 
 /**
@@ -32,7 +34,7 @@ interface SearchProps {
  * at once. Every choice stays in the address. Without scripts it is a plain GET form: Enter submits it,
  * and a Search button appears.
  */
-export function SearchForm({ action, label, q, sort, defaultSort, sortOptions, filter }: SearchProps) {
+export function SearchForm({ action, label, q, sort, defaultSort, sortOptions, filter, hidden }: SearchProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const form = useRef<HTMLFormElement>(null);
@@ -51,6 +53,7 @@ export function SearchForm({ action, label, q, sort, defaultSort, sortOptions, f
       { q: text("q").trim(), sort: text("sort") || defaultSort, type: filter ? text(filter.name) : undefined, page: 1 },
       defaultSort,
       filter?.defaultValue ?? "",
+      hidden,
     );
     // Replace the history entry, so typing adds no step for the back button.
     startTransition(() => router.replace(href, { scroll: false }));
@@ -63,6 +66,9 @@ export function SearchForm({ action, label, q, sort, defaultSort, sortOptions, f
 
   return (
     <form ref={form} method="get" action={action} role="search" className="flex flex-col gap-3" onSubmit={onSubmit} aria-busy={pending || undefined}>
+      {Object.entries(hidden ?? {}).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
       <label className={FIELD_CLASS}>
         <span className={LABEL_CLASS}>{label}</span>
         <input

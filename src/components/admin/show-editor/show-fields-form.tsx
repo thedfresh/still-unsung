@@ -4,7 +4,7 @@ import { useState } from "react";
 import { RecordPicker } from "@/components/admin/record-picker";
 import { draftOfShow, showFieldsEdit, type ShowDraft } from "@/lib/shows/edit-edits";
 import type { ShowEditData } from "@/lib/shows/edit-types";
-import { FIELD, INPUT, PRIMARY, SECTION_CARD, useEditor } from "./editor-context";
+import { FIELD, INPUT, SAVE, SECTION_CARD, useEditor } from "./editor-context";
 
 const STATUS = [
   ["TOOK_PLACE", "Took place"],
@@ -113,7 +113,7 @@ export function ShowFieldsForm({ show }: { show: ShowEditData }) {
           ))}
         </select>
       </label>
-      <button type="submit" disabled={pending} className={`${PRIMARY} self-start`}>
+      <button type="submit" disabled={pending} className={`${SAVE} self-start`}>
         {pending ? "Saving…" : "Save the show"}
       </button>
     </form>

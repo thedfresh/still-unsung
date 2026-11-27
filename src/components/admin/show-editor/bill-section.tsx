@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { RecordPicker } from "@/components/admin/record-picker";
+import { RecordLink } from "@/components/admin/ui/components";
 import { addBillEdit, moveBillEdits, removeBillEdit, updateBillEdit, type BillDraft } from "@/lib/shows/edit-edits";
 import type { EditBillEntry, ShowEditData } from "@/lib/shows/edit-types";
 import { BUTTON, FIELD, INPUT, PRIMARY, SECTION_CARD, useEditor } from "./editor-context";
@@ -39,7 +40,9 @@ function BillRow({ entry, bill, first, last }: { entry: EditBillEntry; bill: Edi
   const [certainty, setCertainty] = useState(entry.certainty);
   return (
     <li className={`${SECTION_CARD} flex flex-col gap-2`}>
-      <p className="font-semibold">{entry.actName}</p>
+      <p className="font-semibold">
+        <RecordLink href={entry.actHref}>{entry.actName}</RecordLink>
+      </p>
       <div className="flex flex-wrap gap-3">
         <Choices label={`Role of ${entry.actName}`} options={ROLES} value={role} onChange={setRole} />
         <Choices label={`Certainty of ${entry.actName}`} options={CERTAINTY} value={certainty} onChange={setCertainty} />

@@ -52,6 +52,20 @@ export function TextLink({ className, ...rest }: ComponentProps<typeof Link>) {
   return <Link {...rest} className={join(LINK_CLASS, className)} />;
 }
 
+/**
+ * The name of a record as a link to its page, or as plain text while it has no page
+ * (docs/CONVENTIONS.md, section 14). Give it the address from `src/lib/record-links.ts`.
+ */
+export function RecordLink({ href, children, ...rest }: { href: string | null | undefined; children: ReactNode } & Omit<ComponentProps<typeof Link>, "href" | "children">) {
+  return href ? (
+    <TextLink href={href} {...rest}>
+      {children}
+    </TextLink>
+  ) : (
+    <>{children}</>
+  );
+}
+
 /** A card or panel. */
 export function Card({ className, ...rest }: ComponentProps<"div">) {
   return <div {...rest} className={join(CARD_CLASS, className)} />;

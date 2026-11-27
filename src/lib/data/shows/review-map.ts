@@ -1,5 +1,6 @@
 import { describeRecord, segmentLabel, setLabel } from "@/lib/changes/labels";
 import { typeOfKind } from "@/lib/data/changes/describe";
+import { adminHref } from "@/lib/record-links";
 import {
   certaintyNote,
   certaintyWords,
@@ -48,6 +49,8 @@ export function describeTarget(to: ReferenceRow["to"], pageShowId?: number): { n
     const name = segmentLabel(work?.title ?? null, dateIn(set.showId, set.show), { summary });
     return { name, href: `/admin/shows/${set.showId}#segment-${to.id}` };
   }
+  // A work, person, band or place links to its admin page (HSA-186); the ID of the shared record is its own.
+  const linked = to.work ? "Work" : to.person ? "Person" : to.band ? "Band" : to.place ? "Place" : null;
   const named =
     to.work?.title ??
     to.person?.name ??
@@ -66,7 +69,7 @@ export function describeTarget(to: ReferenceRow["to"], pageShowId?: number): { n
     to.period?.name ??
     to.variant?.name ??
     to.passage?.label;
-  if (named) return { name: `${enumWords(to.kind)} "${named}"`, href: null };
+  if (named) return { name: `${enumWords(to.kind)} "${named}"`, href: linked ? adminHref(linked, to.id) : null };
   // A kind with no name field reads by the shared label helper: its type and ID.
   return { name: describeRecord(typeOfKind(to.kind) ?? enumWords(to.kind), { id: to.id }), href: null };
 }
@@ -154,6 +157,7 @@ export function lineupLines(rows: LineupRow[], origin: OriginLookup): ReviewLine
       key: `lineup-${row.id}`,
       text: `${row.person.name}${notes.length ? `: ${notes.join("; ")}` : ""}`,
       origin: origin("LineupEntry", row.id),
+      link: { text: row.person.name, href: adminHref("Person", row.personId) ?? "" },
     };
   });
 }
@@ -166,7 +170,13 @@ function vocalLines(row: SegmentRow, origin: OriginLookup): ReviewLine[] {
       vocal.passage?.label,
       vocal.scopeNote,
     ].filter(Boolean);
-    return { key: `vocal-${vocal.id}`, text: parts.join("; "), origin: origin("VocalEntry", vocal.id) };
+    const href = vocal.person && vocal.personId !== null ? adminHref("Person", vocal.personId) : null;
+    return {
+      key: `vocal-${vocal.id}`,
+      text: parts.join("; "),
+      origin: origin("VocalEntry", vocal.id),
+      ...(href && vocal.person ? { link: { text: vocal.person.name, href } } : {}),
+    };
   });
 }
 
@@ -185,13 +195,17 @@ function mapSegment(row: SegmentRow, number: string, depth: number, maps: Maps):
     depth,
     origin: maps.origin("Segment", row.id),
     work: workTitle(row),
+    workHref: row.work && row.workId !== null ? adminHref("Work", row.workId) : null,
     delivery: deliveryWords(row.delivery),
     wordsFrom: row.wordsFromWork ? `${row.wordsFromWork.title}${certaintyNote(row.wordsFromCertainty)}` : null,
+    wordsFromHref: row.wordsFromWorkId !== null ? adminHref("Work", row.wordsFromWorkId) : null,
     tuneFrom: row.tuneFromWork ? `${row.tuneFromWork.title}${certaintyNote(row.tuneFromCertainty)}` : null,
+    tuneFromHref: row.tuneFromWorkId !== null ? adminHref("Work", row.tuneFromWorkId) : null,
     extent: extentWords(row.extent),
     portionNote: row.portionNote,
     cuts: cutWords(row),
     deliveredBy: row.deliveredBy ? `${row.deliveredBy.name}${certaintyNote(row.deliveredByCertainty)}` : null,
+    deliveredByHref: row.deliveredById !== null ? adminHref("Person", row.deliveredById) : null,
     joinMark: joinMark(row.joinsNext),
     summary: row.summary,
     wordsAsHeard: row.wordsAsHeard,

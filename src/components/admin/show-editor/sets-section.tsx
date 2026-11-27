@@ -12,7 +12,7 @@ import {
   type SegmentDraft,
 } from "@/lib/shows/edit-edits";
 import type { EditChoice, EditSet, ShowEditData } from "@/lib/shows/edit-types";
-import { BUTTON, FIELD, INPUT, PRIMARY, SECTION_CARD, useEditor } from "./editor-context";
+import { BUTTON, FIELD, INPUT, PRIMARY, SAVE, SECTION_CARD, useEditor } from "./editor-context";
 import { SegmentFields } from "./segment-fields";
 import { SegmentRow, segmentName } from "./segment-row";
 
@@ -77,7 +77,7 @@ function SetHeader({ set, sets, setTypes, index }: { set: EditSet; sets: EditSet
             ))}
           </select>
         </label>
-        <button type="button" disabled={pending} className={BUTTON} onClick={() => send(setTypeEdit(set, typeId))}>
+        <button type="button" disabled={pending} className={SAVE} onClick={() => send(setTypeEdit(set, typeId))}>
           Save set type of set {set.position}
         </button>
         <button type="button" disabled={pending || index === 0} className={BUTTON} onClick={() => send(moveSetEdits(sets, set.id, -1))}>

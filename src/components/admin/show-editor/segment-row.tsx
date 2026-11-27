@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { RecordLink } from "@/components/admin/ui/components";
+import { adminHref } from "@/lib/record-links";
 import {
   draftOfSegment,
   moveSegmentEdit,
@@ -10,7 +12,7 @@ import {
   type SegmentDraft,
 } from "@/lib/shows/edit-edits";
 import type { EditSegment } from "@/lib/shows/edit-types";
-import { BUTTON, PRIMARY, SECTION_CARD, useEditor } from "./editor-context";
+import { BUTTON, SAVE, SECTION_CARD, useEditor } from "./editor-context";
 import { SegmentFields } from "./segment-fields";
 
 const DELIVERY_WORDS: Record<string, string> = {
@@ -39,7 +41,7 @@ function EditForm({ segment, onClose }: { segment: EditSegment; onClose: () => v
     >
       <SegmentFields draft={draft} onChange={setDraft} workLabel={workLabel} onWorkLabel={setWorkLabel} />
       <div className="flex flex-wrap gap-3">
-        <button type="submit" disabled={pending} className={PRIMARY}>
+        <button type="submit" disabled={pending} className={SAVE}>
           {pending ? "Saving…" : `Save ${segmentName(segment)}`}
         </button>
         <button type="button" onClick={onClose} disabled={pending} className={BUTTON}>
@@ -66,7 +68,8 @@ export function SegmentRow({ segment, all, firstSibling, lastSibling }: { segmen
     <li id={`segment-${segment.id}`} style={{ marginInlineStart: `${segment.depth * 1.25}rem` }} className="list-none">
       <article className={`${SECTION_CARD} flex flex-col gap-2`} aria-label={name}>
         <h4 className="text-lg font-semibold">
-          {segment.number}. {segment.workTitle ?? "No work"}
+          {segment.number}.{" "}
+          {segment.workTitle ? <RecordLink href={segment.workId === null ? null : adminHref("Work", segment.workId)}>{segment.workTitle}</RecordLink> : "No work"}
         </h4>
         {facts.length > 0 ? <p>{facts.join("; ")}</p> : null}
         {segment.summary ? <p className="whitespace-pre-wrap">{segment.summary}</p> : null}

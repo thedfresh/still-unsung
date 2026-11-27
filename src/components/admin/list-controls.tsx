@@ -16,8 +16,9 @@ export function listHref(
   params: { q: string; sort: string; page: number; type?: string },
   defaultSort: string,
   defaultType = "",
+  extra: Record<string, string> = {},
 ): string {
-  const query = new URLSearchParams();
+  const query = new URLSearchParams(extra);
   if (params.q) query.set("q", params.q);
   if (params.type && params.type !== defaultType) query.set("type", params.type);
   if (params.sort !== defaultSort) query.set("sort", params.sort);

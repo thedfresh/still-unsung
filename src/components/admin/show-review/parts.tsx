@@ -27,6 +27,34 @@ export function Facts({ items }: { items: Array<[string, ReactNode | null | unde
   );
 }
 
+/** A name as a link to its record page (HSA-186), or plain text with no page. Null with no name. */
+export function linked(text: string | null, href: string | null): ReactNode | null {
+  if (!text) return null;
+  return href ? (
+    <Link href={href} className={LINK_CLASS}>
+      {text}
+    </Link>
+  ) : (
+    text
+  );
+}
+
+/** A line of text with the name of a record as a link (HSA-186). With no link the text shows plain. */
+function LinkedLine({ line }: { line: ReviewLine }) {
+  const { link, text } = line;
+  const at = link ? text.indexOf(link.text) : -1;
+  if (!link || at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <Link href={link.href} className={LINK_CLASS}>
+        {link.text}
+      </Link>
+      {text.slice(at + link.text.length)}
+    </>
+  );
+}
+
 /** A titled list of lines, each with its origin. Nothing shows when the list is empty. */
 export function Lines({ title, lines, level = 3 }: { title: string; lines: ReviewLine[]; level?: 2 | 3 | 4 }) {
   if (lines.length === 0) return null;
@@ -37,7 +65,7 @@ export function Lines({ title, lines, level = 3 }: { title: string; lines: Revie
       <ul className="ml-4 flex list-disc flex-col gap-1">
         {lines.map((line) => (
           <li key={line.key} className="min-w-0 break-words">
-            {line.text}
+            <LinkedLine line={line} />
             <Origin text={line.origin} />
           </li>
         ))}

@@ -1,7 +1,8 @@
 import { getPrisma } from "@/lib/db";
 import { describeRecord, withType, type Row } from "@/lib/changes/labels";
 import { MODEL } from "@/lib/content-access";
-import { buildReadout, renderReadout, storedReadoutItem, type ItemDetail, type Readout } from "@/lib/changes/readout";
+import { buildReadout, renderReadout, type ItemDetail, type Readout } from "@/lib/changes/readout";
+import { storedReadoutItem } from "@/lib/changes/readout-stored";
 import { lookUpNames } from "@/lib/data/changes/earlier";
 import { findShowLinks, type ShowLink } from "./show-links";
 
