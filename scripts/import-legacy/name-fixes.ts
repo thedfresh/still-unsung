@@ -227,6 +227,22 @@ export const WHITEGUM_PAGES: ReadonlyMap<number, string> = new Map([
   [1114, "HIGHWAY1.HTM"], // Highway 101 Blues
   [1117, "HE1SGONE.HTM"], // He's Gone
   [1120, "FORWHATI.HTM"], // For What It's Worth
+  // Same song under another spelling of the title (user, 2026-11-27); our titles stay as they are.
+  [381, "I1GOTLOV.HTM"], // Love
+  [822, "YOU1CANT.HTM"], // You Can't Judge A Book By The Cover
+  [823, "NEWMINGL.HTM"], // Minglewood Blues
+  [860, "DONTTHIN.HTM"], // Don't Think Twice It's Alright
+  [978, "LOSMUERT.HTM"], // Los Muertes
+  [980, "BLACKJAC.HTM"], // Black Jack Davey
+  [1033, "MULESKIN.HTM"], // Mule Skinner Blues
+  [1080, "BELIEVE2.HTM"], // Believe It Or Not (Fortune Or Fame)
+  [1084, "HANGONSL.HTM"], // Hang On Sloopy/Louie Louie
+  [1088, "SANTYANN.HTM"], // Santy Anno
+  [1089, "PADDYWOR.HTM"], // Poor Paddy Works On The Railway
+  [1105, "DARLINGC.HTM"], // Darlin' Corey
+  [1106, "BALLADHP.HTM"], // The Ballad Of Harry Pollitt
+  [1109, "ROVINGGA.HTM"], // Roving Gambler
+  [1112, "YOURESIX.HTM"], // You're Sixteen
 ]);
 
 /**
