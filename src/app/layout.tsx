@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site-config";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "StillUnsung",
-  description: "The Robert Hunter Performance Archive",
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

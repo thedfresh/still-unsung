@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
-/* Placeholder theme. The design pass (HSA-34) replaces this with the archive's
-   real design tokens, checked against WCAG 2.2 AA. */
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Design tokens, carried over from the design system (docs/design-system in the planning
+   repository) on purpose, not copied rule for rule. Contrast is checked by
+   src/lib/band-theme.test.ts. There is no dark mode: the design system does not define one. */
+@theme {
+  /* Brand colors. Gold is for fills and large marks. Gold text on white needs gold-darker. */
+  --color-gold: #b8913d;
+  --color-gold-dark: #a07c2f;
+  --color-gold-darker: #8b6914;
+  --color-green: #6b8e23;
+
+  /* Neutrals. */
+  --color-ink: #222222;
+  --color-body: #374151;
+  --color-muted: #6b7280;
+  --color-line: #e0e0e0;
+  --color-surface: #fafafa;
+  --color-paper: #ffffff;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Courier New", ui-monospace, monospace;
+
+  /* Type scale (the design system's sizes). */
+  --text-label: 0.75rem;
+  --text-label--line-height: 1rem;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.25rem;
+  --text-lead: 1.25rem;
+  --text-lead--line-height: 1.75rem;
+  --text-section: 1.75rem;
+  --text-section--line-height: 2.25rem;
+  --text-title: 2rem;
+  --text-title--line-height: 2.5rem;
+
+  /* Radius and shadow. */
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-pill: 12px;
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.1);
+  --shadow-raised: 0 4px 12px rgb(0 0 0 / 0.15);
+
+  /* Widest page content. */
+  --container-site: 87.5rem;
+}
+
+/* Band themes: one class per band, keyed by the band's slug (see src/lib/band-theme.ts).
+   bg is the card background, border its edge, ink the band color for text and the side bar.
+   Border has at least 3:1 contrast with bg and with white; ink at least 4.5:1 with bg.
+   Values that changed from the design system, for contrast (HSA-176):
+   Robert Hunter border #b8913d -> #a98538; Roadhog border #d4a017 -> #b28613 and ink
+   #cc6600 -> #af5800; Comfort ink #8b7355 -> #816b4f; Dinosaurs border #00d9ff -> #0098b3. */
+:root,
+.band-robert-hunter {
+  --band-bg: #f5f1e8;
+  --band-border: #a98538;
+  --band-ink: #8b6914;
+}
+.band-roadhog {
+  --band-bg: #fef5e7;
+  --band-border: #b28613;
+  --band-ink: #af5800;
+}
+.band-comfort {
+  --band-bg: #eff5e8;
+  --band-border: #6b8e23;
+  --band-ink: #816b4f;
+}
+.band-dinosaurs {
+  --band-bg: #e8f4ff;
+  --band-border: #0098b3;
+  --band-ink: #7b2cbf;
+}
+.band-guest-appearances {
+  --band-bg: #f0e8f0;
+  --band-border: #7d5a80;
+  --band-ink: #4a3850;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-band-bg: var(--band-bg);
+  --color-band-border: var(--band-border);
+  --color-band-ink: var(--band-ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* A visible focus ring on everything that takes focus. Gold-darker has 5:1 with white. */
+:focus-visible {
+  outline: 2px solid var(--color-gold-darker);
+  outline-offset: 2px;
 }

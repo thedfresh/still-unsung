@@ -32,6 +32,7 @@ export async function AdminShell({ title, children }: { title: string; children:
           <Link href="/admin/users">Users</Link>
           <Link href="/admin/tokens">Agent tokens</Link>
           <Link href="/admin/changes">Changes</Link>
+          <Link href="/admin/design">Design</Link>
         </nav>
         <h1 className="text-2xl font-semibold">{title}</h1>
         <form
