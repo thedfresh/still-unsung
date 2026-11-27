@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClosedAdapter } from "@/lib/data/auth-adapter";
 import { changesetExists } from "@/lib/data/changes/pending";
+import { publicShowExists } from "@/lib/data/public/show";
 import { showExists } from "@/lib/data/shows/review";
 import { findCurrentUser } from "@/lib/data/users";
 import { parseId } from "@/lib/ids";
@@ -29,6 +30,17 @@ async function sessionUserId(request: NextRequest): Promise<string | null> {
  * only decides the status: the page still checks the sign-in itself.
  */
 export async function proxy(request: NextRequest) {
+  // The public show page: an unknown or private slug is a real 404 for everyone.
+  if (request.nextUrl.pathname.startsWith("/shows/")) {
+    let slug = "";
+    try {
+      slug = decodeURIComponent(request.nextUrl.pathname.split("/")[2] ?? "");
+    } catch {
+      // A malformed escape is not a slug: it falls through to the 404.
+    }
+    if (slug && (await publicShowExists(slug))) return NextResponse.next();
+    return NextResponse.rewrite(new URL("/_not-found", request.url), { status: 404 });
+  }
   const userId = await sessionUserId(request);
   const user = userId ? await findCurrentUser(userId) : null;
   if (user?.role !== "ADMIN") return NextResponse.next();
@@ -40,4 +52,4 @@ export async function proxy(request: NextRequest) {
   return NextResponse.rewrite(new URL("/_not-found", request.url), { status: 404 });
 }
 
-export const config = { matcher: ["/admin/shows/:id", "/admin/changes/pending/:id"] };
+export const config = { matcher: ["/admin/shows/:id", "/admin/changes/pending/:id", "/shows/:slug"] };
