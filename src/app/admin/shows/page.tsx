@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
-import { listHref, Pager, SearchForm } from "@/components/admin/list-controls";
+import { listHref, Pager } from "@/components/admin/list-controls";
+import { SearchForm } from "@/components/admin/search-form";
 import { ButtonLink, TextLink } from "@/components/admin/ui/components";
 import { ROW_CLASS } from "@/components/admin/ui/styles";
 import { listShows } from "@/lib/data/shows/list";
@@ -25,9 +26,10 @@ async function Shows({ searchParams }: { searchParams: PageProps<"/admin/shows">
         label="Search by date (1980, 1980-11 or 1980-11-14) or by place name"
         q={query.q}
         sort={query.sort}
+        defaultSort="newest"
         sortOptions={SORT_OPTIONS}
       />
-      <p>
+      <p role="status">
         {list.total} {list.total === 1 ? "show" : "shows"}. Page {list.page} of {list.pageCount}.
       </p>
       {list.rows.length === 0 ? (

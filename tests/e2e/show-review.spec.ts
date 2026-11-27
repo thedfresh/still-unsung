@@ -34,7 +34,6 @@ test.describe("admin", () => {
     await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Shows" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Shows" })).toBeVisible();
     await page.getByLabel(/Search by date/).fill("1980-11-14");
-    await page.getByRole("button", { name: "Search" }).click();
     await expect(page).toHaveURL(/q=1980-11-14/);
     await expect(page.getByRole("link", { name: new RegExp(`1980-11-14, ${seeded.placeName}`) })).toBeVisible();
     expect((await new AxeBuilder({ page }).withTags(WCAG).analyze()).violations).toEqual([]);
