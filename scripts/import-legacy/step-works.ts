@@ -15,7 +15,6 @@ import {
   splitCredit,
   str,
   suiteForTag,
-  surnameOf,
   vocalRoleOf,
   type TraditionalCredit,
 } from "./rules.ts";
@@ -236,7 +235,6 @@ async function importCredits(ctx: Ctx, songs: Array<Record<string, unknown>>): P
       byWord.set(word, (byWord.get(word) ?? new Set<number>()).add(personId));
     }
   }
-  const nameOfPerson = new Map([...ctx.personByName].map(([name, id]) => [id, name]));
   for (const entry of names.filter((n) => isSurnameOnly(n.name))) {
     const word = normalizeName(entry.name).replace(/[^a-z0-9]/g, "");
     // A full name the user gave for this song (name-fixes.ts), or a known arranger: the old text
@@ -248,15 +246,12 @@ async function importCredits(ctx: Ctx, songs: Array<Record<string, unknown>>): P
       continue;
     }
     const matches = [...(byWord.get(word) ?? [])].sort((a, b) => a - b);
-    const lastNames = new Set(matches.map((id) => surnameOf(nameOfPerson.get(id) ?? "")));
-    if (matches.length >= 1 && lastNames.size === 1) {
-      // One person, or one surname with spelling variants of the first name (Dave and David).
+    if (matches.length === 1) {
+      // Exactly one person has the word. With several (McDonald: Country Joe, Kathi, Joe; or Dave
+      // and David Freiberg) the import never guesses (HSA-173): the user names the person in
+      // name-fixes.ts, and until then the name stays as written, on the person-merge list.
       personFor.set(entry, matches[0]);
       ctx.line("Surname-only credit names resolved to a full-name person", `${entry.legacyId}: "${entry.name}" is person ${matches[0]}`);
-      if (matches.length > 1) {
-        ctx.line("Surname-only credit names with several full-name variants (person-merge list)", `${entry.legacyId}: "${entry.name}" matches people ${matches.join(", ")}`);
-        ctx.propose("06-person-merges", { personIds: matches.join(","), legacyIds: matches.map((id) => `person ${id}`).join(","), name: entry.name, reason: "one surname, several first-name forms" });
-      }
     } else {
       ctx.line(
         "Surname-only credit names not resolved (kept as written; person-merge list)",
