@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/db";
 import { countShowsInPlace } from "@/lib/data/places";
+import { showsWithWork } from "@/lib/data/shows/list";
 import { DEFAULT_PLACE_TYPE, ENTITIES_PER_PAGE, type EntityKind, type EntitySort } from "@/lib/entity-lists";
 import { adminHref, showsListHref } from "@/lib/record-links";
 import { compareNames } from "@/lib/sort-name";
@@ -152,9 +153,10 @@ export async function getEntityDetail(kind: EntityKind, id: number, db: PrismaCl
   if (kind === "works") {
     const row = await db.work.findUnique({
       where: { id },
-      include: { workKind: { select: { name: true } }, _count: { select: { segments: true } } },
+      include: { workKind: { select: { name: true } } },
     });
     if (!row) return null;
+    const shows = await db.show.count({ where: showsWithWork(id) });
     return {
       title: row.title,
       facts: [
@@ -163,8 +165,9 @@ export async function getEntityDetail(kind: EntityKind, id: number, db: PrismaCl
         ["Kind", row.workKind.name],
         ["Title status", row.titleStatus === "WORKING_TITLE" ? "Working title" : "Known"],
         ["Default delivery", row.defaultDelivery?.toLowerCase().replaceAll("_", " ") ?? null],
-        // The count links to the shows that have a segment of this work (HSA-186).
-        ["Played in", { text: countOf(row._count.segments, "segment"), href: showsListHref({ work: id }), opens: "the list of shows with this work" }],
+        // Counted in shows, not segments: a show with the work twice counts once. The count links
+        // to the shows list with the same filter, so the numbers agree (HSA-186).
+        ["Played in", { text: countOf(shows, "show"), href: showsListHref({ work: id }), opens: "the list of shows with this work" }],
       ],
     };
   }

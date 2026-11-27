@@ -96,6 +96,14 @@ describe("place roll-up (HSA-185)", () => {
     expect((await listShows("", 1, db, "oldest", { place: olympia })).total).toBe(counts.inside);
     const named = await listShows("", 1, db, "oldest", { place: olympia, band: bandEntity.id, work: workEntity.id });
     expect(named.filters).toEqual({ place: { id: olympia, name: "Olympia" }, band: { id: bandEntity.id, name: "Test Band" }, work: { id: workEntity.id, name: "Test Song" } });
+
+    // A show that plays the work twice (a reprise) counts once, on the work page and in the list.
+    const set = await db.set.findFirstOrThrow({ where: { showId: atOlympia } });
+    const again = await db.entity.create({ data: { kind: "SEGMENT" } });
+    await db.segment.create({ data: { id: again.id, setId: set.id, sortKey: "b", workId: workEntity.id } });
+    const workFacts = Object.fromEntries((await getEntityDetail("works", workEntity.id))?.facts ?? []);
+    expect(workFacts["Played in"]).toMatchObject({ text: "1 show", href: `/admin/shows?work=${workEntity.id}` });
+    expect((await listShows("", 1, db, "oldest", { work: workEntity.id })).total).toBe(1);
   });
 
   it("lists venues by default with their full path, and filters by kind or by a place they are in", async () => {

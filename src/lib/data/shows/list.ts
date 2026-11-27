@@ -54,6 +54,15 @@ function searchWhere(query: string): Prisma.ShowWhereInput {
 }
 
 /**
+ * The shows that have a segment of a work. A show counts once, however many segments of the work
+ * it has (a reprise, a medley that comes back to it): "every time played" counts shows (user,
+ * 2026-11-27). The work page's count and the shows list both use this, so the numbers agree.
+ */
+export function showsWithWork(workId: number): Prisma.ShowWhereInput {
+  return { sets: { some: { segments: { some: { workId } } } } };
+}
+
+/**
  * The `where` for the filters. A place filter includes the places inside it (HSA-185) unless
  * `direct` is set. A work filter finds the shows with a segment of that work.
  */
@@ -63,7 +72,7 @@ async function filterWhere(filter: ShowsFilter, db: PrismaClient): Promise<Prism
     and.push({ placeId: filter.direct ? filter.place : { in: await placeIdsInside(filter.place, db) } });
   }
   if (filter.band !== undefined) and.push({ bandId: filter.band });
-  if (filter.work !== undefined) and.push({ sets: { some: { segments: { some: { workId: filter.work } } } } });
+  if (filter.work !== undefined) and.push(showsWithWork(filter.work));
   return and.length > 0 ? { AND: and } : {};
 }
 

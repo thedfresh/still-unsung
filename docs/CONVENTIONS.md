@@ -529,7 +529,11 @@ names a record or shows a count of records, it links to it.
   (test: `src/lib/record-links.test.ts`)
 - **The shows list filters.** `/admin/shows` takes `place` (with roll-up; `direct=1` keeps only
   the shows attached to the place itself), `band` and `work` (shows with a segment of the work).
-  The page names each filter and links to its record. (test: `tests/db/places-rollup.test.ts`)
+  The page names each filter and links to its record.
+- **Counts of plays count shows.** "Played in", "every time played" and similar counts count
+  shows, not segments. A show with two segments of a work (a reprise, a medley that comes back to
+  it, two fragments) counts once (user, 2026-11-27). `showsWithWork` in
+  `src/lib/data/shows/list.ts` gives the one `where` that the count and the list share. (test: `tests/db/places-rollup.test.ts`)
 - **The Changes page.** `src/lib/changes/readout-links.ts` finds the links of the readout: the
   record of a card, a field that names a record, and the heading of a group. A record that only a
   preview makes has no page, so it has no link until the changeset is applied. The plain-text
