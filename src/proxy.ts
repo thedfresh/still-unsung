@@ -2,9 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClosedAdapter } from "@/lib/data/auth-adapter";
 import { changesetExists } from "@/lib/data/changes/pending";
 import { publicShowExists } from "@/lib/data/public/show";
+import { entityExists } from "@/lib/data/entity-lists";
 import { showExists } from "@/lib/data/shows/review";
 import { findCurrentUser } from "@/lib/data/users";
 import { parseId } from "@/lib/ids";
+import { entityKindOf } from "@/lib/entity-lists";
 import { listConfigBySlug } from "@/lib/lists/config";
 
 /** The Auth.js session cookie: the secure name is used over HTTPS. */
@@ -50,6 +52,12 @@ export async function proxy(request: NextRequest) {
     if (listConfigBySlug(parts[3] ?? "")) return NextResponse.next();
     return NextResponse.rewrite(new URL("/_not-found", request.url), { status: 404 });
   }
+  const catalogue = entityKindOf(parts[2] ?? "");
+  if (catalogue) {
+    const recordId = parseId(parts[3]);
+    if (recordId !== null && (await entityExists(catalogue, recordId))) return NextResponse.next();
+    return NextResponse.rewrite(new URL("/_not-found", request.url), { status: 404 });
+  }
   const pending = parts[2] === "changes";
   const id = parseId(parts[pending ? 4 : 3]);
   if (id !== null && (await (pending ? changesetExists(id) : showExists(id)))) return NextResponse.next();
@@ -57,4 +65,11 @@ export async function proxy(request: NextRequest) {
   return NextResponse.rewrite(new URL("/_not-found", request.url), { status: 404 });
 }
 
-export const config = { matcher: ["/admin/shows/:id", "/admin/changes/pending/:id", "/admin/lists/:list","/shows/:slug"] };
+export const config = { matcher: [
+    "/admin/shows/:id",
+    "/admin/shows/:id/edit",
+    "/admin/:kind(works|people|bands|places)/:id",
+    "/admin/changes/pending/:id",
+    "/admin/lists/:list",
+    "/shows/:slug",
+  ] };

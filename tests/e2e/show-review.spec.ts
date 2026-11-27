@@ -31,7 +31,7 @@ test.describe("admin", () => {
     const seeded = await seedShowForReview();
 
     await page.goto("/admin");
-    await page.getByRole("link", { name: "Open the show list" }).click();
+    await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Shows" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Shows" })).toBeVisible();
     await page.getByLabel(/Search by date/).fill("1980-11-14");
     await page.getByRole("button", { name: "Search" }).click();

@@ -300,7 +300,7 @@ test.describe("the import rules admin page", () => {
     await query(`UPDATE guide_pages SET body = $1, rev = 7 WHERE id = $2`, [body, pageId]);
 
     await page.goto("/admin");
-    await page.getByRole("link", { name: "Read the import rules" }).click();
+    await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Import rules" }).click();
     await expect(page).toHaveURL(/\/admin\/import-rules$/);
     await expect(page.getByRole("heading", { level: 1, name: "Import rules" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Import rules heading" })).toBeVisible();
@@ -314,7 +314,7 @@ test.describe("the import rules admin page", () => {
     expect(await page.evaluate(() => (window as unknown as { __ran?: boolean }).__ran)).toBeUndefined();
 
     await page.goto("/admin/changes");
-    await page.getByRole("link", { name: /Import rules/ }).click();
+    await page.getByRole("link", { name: /Import rules: the text/ }).click();
     await expect(page).toHaveURL(/\/admin\/import-rules$/);
   });
 

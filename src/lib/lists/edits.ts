@@ -60,7 +60,7 @@ export function deleteEdit(config: ListConfig, row: { id: number; rev: number })
 
 type Positioned = { id: number; rev: number; position: number };
 
-const positionEdit = (config: ListConfig, row: Positioned, position: number) => ({
+const positionEdit = (config: Pick<ListConfig, "type">, row: Positioned, position: number) => ({
   op: "update",
   type: config.type,
   id: row.id,
@@ -74,7 +74,7 @@ const positionEdit = (config: ListConfig, row: Positioned, position: number) => 
  * are renumbered in the new order and only those that need a new position are written. Returns
  * no edits when the move goes past an end.
  */
-export function moveEdits(config: ListConfig, rows: Positioned[], id: number, direction: -1 | 1) {
+export function moveEdits(config: Pick<ListConfig, "type">, rows: Positioned[], id: number, direction: -1 | 1) {
   const from = rows.findIndex((row) => row.id === id);
   const to = from + direction;
   if (from < 0 || to < 0 || to >= rows.length) return [];

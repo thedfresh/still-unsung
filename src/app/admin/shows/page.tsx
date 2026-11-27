@@ -1,37 +1,33 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
+import { listHref, Pager, SearchForm } from "@/components/admin/list-controls";
 import { listShows } from "@/lib/data/shows/list";
 import { showListParamsSchema } from "@/lib/validation/shows";
 
 export const metadata = { title: "Shows" };
 
-function pageHref(q: string, page: number): string {
-  const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  if (page > 1) params.set("page", String(page));
-  const text = params.toString();
-  return text ? `/admin/shows?${text}` : "/admin/shows";
-}
+const SORT_OPTIONS = [
+  { value: "newest", label: "Date, newest first" },
+  { value: "oldest", label: "Date, oldest first" },
+];
 
 async function Shows({ searchParams }: { searchParams: PageProps<"/admin/shows">["searchParams"] }) {
   // Sign-in first: nothing is read before this call.
   await requireAdminPage();
-  const { q, page } = showListParamsSchema.parse(await searchParams);
-  const list = await listShows(q, page);
+  const query = showListParamsSchema.parse(await searchParams);
+  const list = await listShows(query.q, query.page, undefined, query.sort);
   return (
     <AdminShell title="Shows">
-      <form method="get" action="/admin/shows" role="search" className="flex flex-col gap-2">
-        <label className="flex flex-col gap-1">
-          Search by date (1980, 1980-11 or 1980-11-14) or by place name
-          <input name="q" type="search" defaultValue={q} maxLength={100} className="rounded border border-current px-2 py-1" />
-        </label>
-        <button type="submit" className="self-start rounded border border-current px-4 py-2">
-          Search
-        </button>
-      </form>
+      <SearchForm
+        action="/admin/shows"
+        label="Search by date (1980, 1980-11 or 1980-11-14) or by place name"
+        q={query.q}
+        sort={query.sort}
+        sortOptions={SORT_OPTIONS}
+      />
       <p>
-        {list.total} {list.total === 1 ? "show" : "shows"}, newest first. Page {list.page} of {list.pageCount}.
+        {list.total} {list.total === 1 ? "show" : "shows"}. Page {list.page} of {list.pageCount}.
       </p>
       {list.rows.length === 0 ? (
         <p>No shows match.</p>
@@ -47,14 +43,21 @@ async function Shows({ searchParams }: { searchParams: PageProps<"/admin/shows">
                 {[show.band, show.showType].filter(Boolean).join(", ") || "No band or show type"}. {show.setCount}{" "}
                 {show.setCount === 1 ? "set" : "sets"}, {show.segmentCount} {show.segmentCount === 1 ? "segment" : "segments"}.
               </p>
+              <p className="flex flex-wrap gap-4 underline">
+                <Link href={`/admin/shows/${show.id}/edit`} aria-label={`Edit show ${show.date}`}>
+                  Edit
+                </Link>
+                {show.publicHref ? (
+                  <Link href={show.publicHref} aria-label={`Public page of show ${show.date}`}>
+                    Public page
+                  </Link>
+                ) : null}
+              </p>
             </li>
           ))}
         </ul>
       )}
-      <nav aria-label="Pages" className="flex flex-wrap gap-4 underline">
-        {list.page > 1 ? <Link href={pageHref(q, list.page - 1)}>Previous page</Link> : null}
-        {list.page < list.pageCount ? <Link href={pageHref(q, list.page + 1)}>Next page</Link> : null}
-      </nav>
+      <Pager page={list.page} pageCount={list.pageCount} href={(page) => listHref("/admin/shows", { ...query, page }, "newest")} />
     </AdminShell>
   );
 }
