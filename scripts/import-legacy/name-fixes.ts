@@ -49,6 +49,15 @@ export const CREDIT_FULL_NAMES: ReadonlyMap<number, ReadonlyMap<string, string>>
   [1084, new Map([["farrell", "Wes Farrell"], ["berns", "Bert Berns"], ["berry", "Richard Berry"]])],
 ]);
 
+/**
+ * Full names in credit text that are another spelling of a person the archive already has
+ * (user, 2026-11-27). Key: the name as normalized by `normalizeName`. Value: the person's name.
+ */
+export const SAME_PERSON: ReadonlyMap<string, string> = new Map([
+  ["dave freiberg", "David Freiberg"],
+  ["joe mcdonald", "Country Joe McDonald"],
+]);
+
 /** Old musician ID → full name, for musician records with one name. */
 export const MUSICIAN_FULL_NAMES: ReadonlyMap<number, { name: string; firstName: string; lastName: string }> = new Map([
   // Sat in with the Dinosaurs at the Keystone, 1983-06-17.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CREDIT_FULL_NAMES, MUSICIAN_FULL_NAMES, creditFullName } from "./name-fixes.ts";
+import { CREDIT_FULL_NAMES, MUSICIAN_FULL_NAMES, SAME_PERSON, creditFullName } from "./name-fixes.ts";
+import { normalizeName } from "./rules.ts";
 
 describe("name fixes", () => {
   it("keys each credit fix by one lower-case word, as the import compares it", () => {
@@ -23,5 +24,9 @@ describe("name fixes", () => {
 
   it("names each one-name musician in full", () => {
     for (const fix of MUSICIAN_FULL_NAMES.values()) expect(fix.name).toBe(`${fix.firstName} ${fix.lastName}`);
+  });
+
+  it("keys each other spelling as the import normalizes it", () => {
+    for (const key of SAME_PERSON.keys()) expect(normalizeName(key)).toBe(key);
   });
 });

@@ -1,5 +1,5 @@
 import { HINT_LISTS, bulk, uniqueKey, type Ctx } from "./context.ts";
-import { creditFullName } from "./name-fixes.ts";
+import { SAME_PERSON, creditFullName } from "./name-fixes.ts";
 import {
   SUITES,
   dateOf,
@@ -156,7 +156,11 @@ const KNOWN_ARRANGERS = new Map([
 const HUNTER_FORMS = new Set(["robert hunter", "hunter", "bob hunter", "robert c hunter", "robert c. hunter"]);
 
 /** A person for a name in credit text: an existing one with that name, or a new one. */
-async function personForName(ctx: Ctx, name: string, legacyId: string): Promise<number> {
+async function personForName(ctx: Ctx, written: string, legacyId: string): Promise<number> {
+  // Another spelling of a person the archive has (name-fixes.ts): use that person's name.
+  const same = SAME_PERSON.get(normalizeName(written));
+  if (same !== undefined) ctx.line("Credit names that are another spelling of a person (name-fixes.ts)", `${legacyId}: "${written}" is "${same}"`);
+  const name = same ?? written;
   const normalized = normalizeName(name);
   // Robert Hunter's usual name forms are the seeded person, never a new one.
   if (HUNTER_FORMS.has(normalized)) return ctx.fixedPerson.hunter;
