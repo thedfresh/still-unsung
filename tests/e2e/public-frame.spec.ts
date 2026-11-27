@@ -76,7 +76,7 @@ test.describe("design gallery", () => {
     await expect(page).toHaveURL(/\/admin\/sign-in$/);
   });
 
-  test("shows the tokens and the five band themes, with no violations", async ({ page, context, baseURL }) => {
+  test("shows the tokens and the six band themes, with no violations", async ({ page, context, baseURL }) => {
     const admin = await seedSignedInUser("ADMIN");
     await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
     await page.goto("/admin/design");
@@ -84,7 +84,7 @@ test.describe("design gallery", () => {
     for (const name of ["Colors", "Type", "Spacing, radius and shadow", "Band themes"]) {
       await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
     }
-    for (const band of ["Robert Hunter", "Roadhog", "Comfort", "Dinosaurs", "Guest Appearances"]) {
+    for (const band of ["Robert Hunter", "Roadhog", "Comfort", "Dinosaurs", "Guest Appearances", "Ad Hoc Bands"]) {
       await expect(page.getByRole("heading", { level: 3, name: band })).toBeVisible();
     }
     expect((await new AxeBuilder({ page }).withTags(WCAG).analyze()).violations).toEqual([]);
