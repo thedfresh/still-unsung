@@ -75,10 +75,17 @@
   --band-border: #0098b3;
   --band-ink: #7b2cbf;
 }
-.band-guest-appearances {
+/* Any other Hunter band, or a show with no band: the old site's "Ad Hoc Bands" (HSA-182). */
+.band-ad-hoc {
   --band-bg: #f0e8f0;
   --band-border: #7d5a80;
   --band-ink: #4a3850;
+}
+/* A band that is not Hunter's: the old site's slate "Guest Appearances" (HSA-182). */
+.band-guest-appearances {
+  --band-bg: #f8fafc;
+  --band-border: #475569;
+  --band-ink: #1e293b;
 }
 
 @theme inline {

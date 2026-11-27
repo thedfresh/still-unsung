@@ -29,10 +29,15 @@ describe("bandThemeClass", () => {
     expect(bandThemeClass({ slug: "jerry-garcia-band", isHunterBand: false })).toBe("band-guest-appearances");
     expect(bandThemeClass({ slug: "zero", isHunterBand: false })).toBe("band-guest-appearances");
   });
-  it("falls back to the default theme for other Hunter bands and a missing band", () => {
-    expect(bandThemeClass(null)).toBe("band-robert-hunter");
-    expect(bandThemeClass({ slug: "the-mystery-band", isHunterBand: true })).toBe("band-robert-hunter");
-    expect(bandThemeClass({ slug: null })).toBe("band-robert-hunter");
+  it("gives other Hunter bands and a missing band the Ad Hoc theme, as the old site", () => {
+    expect(bandThemeClass(null)).toBe("band-ad-hoc");
+    expect(bandThemeClass({ slug: "the-mystery-band", isHunterBand: true })).toBe("band-ad-hoc");
+    expect(bandThemeClass({ slug: "the-nazgul", isHunterBand: true })).toBe("band-ad-hoc");
+    expect(bandThemeClass({ slug: null })).toBe("band-ad-hoc");
+  });
+  it("keeps the old site's colours for Guest Appearances (slate) and Ad Hoc (purple)", () => {
+    expect(themeColors("guest-appearances")).toEqual({ bg: "#f8fafc", border: "#475569", ink: "#1e293b" });
+    expect(themeColors("ad-hoc")).toEqual({ bg: "#f0e8f0", border: "#7d5a80", ink: "#4a3850" });
   });
 });
 
