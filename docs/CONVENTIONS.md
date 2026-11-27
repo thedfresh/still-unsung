@@ -122,6 +122,13 @@ forms and list pages, and each copy drifted.
   It validates, checks the role, runs the call, refreshes the tags and returns
   `{ ok: true, data }` or `{ ok: false, error }` in the shape from section 3. It also builds in
   the `updatedAt` edit-conflict check. Every admin mutation goes through it. (review)
+- **Place roll-up (HSA-185).** A show is attached to the most specific place known (data-model
+  item 36), nearly always a venue. Every count or list of a place's shows, on admin and public
+  pages and in filters, includes the places inside it at any depth (venue → city → region →
+  country), so a city lists the shows at its venues. Use `countShowsInPlace` in
+  `src/lib/data/places.ts` (one recursive query) or the same `WITH RECURSIVE` tree; never
+  `_count.shows` on a place alone. Where it helps, also show the shows attached directly.
+  (test: `tests/db/places-rollup.test.ts`)
 - **`defineRoute` (API routes)** — built in `src/lib/api.ts` (HSA-33), except Zod parsing of input, which the first route with input adds. The same
   steps for route handlers: parse params, query and body with Zod, check the role, set
   `Cache-Control`, map errors with `toErrorBody`. (review)

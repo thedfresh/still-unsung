@@ -4,8 +4,8 @@ import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { listHref, Pager, SearchForm } from "@/components/admin/list-controls";
 import { TextLink } from "@/components/admin/ui/components";
 import { ROW_CLASS } from "@/components/admin/ui/styles";
-import { listEntities } from "@/lib/data/entity-lists";
-import { ENTITY_CONFIGS, entityKindOf, entityListParamsSchema, SORT_LABEL, SORTS } from "@/lib/entity-lists";
+import { listEntities, placeTypeOptions } from "@/lib/data/entity-lists";
+import { DEFAULT_PLACE_TYPE, ENTITY_CONFIGS, entityKindOf, entityListParamsSchema, SORT_LABEL, SORTS } from "@/lib/entity-lists";
 
 export const metadata = { title: "Records" };
 
@@ -19,12 +19,26 @@ async function EntityListPage({ params, searchParams }: PageProps<"/admin/[kind]
   const config = ENTITY_CONFIGS[kind];
   const path = `/admin/${kind}`;
   const query = entityListParamsSchema.parse(await searchParams);
-  const list = await listEntities(kind, query.q, query.sort, query.page);
+  // Places: venues by default, with a choice of kind (HSA-185). Other lists have no filter.
+  const typeOptions = kind === "places" ? await placeTypeOptions() : null;
+  const known = (value: string) => typeOptions?.some((o) => o.value === value) ?? false;
+  // Venues by default; if the kind list has no "venue" (an unseeded database), all places.
+  const fallback = known(DEFAULT_PLACE_TYPE) ? DEFAULT_PLACE_TYPE : "all";
+  const type = typeOptions ? (known(query.type) ? query.type : fallback) : "";
+  const list = await listEntities(kind, query.q, query.sort, query.page, type);
+  const typeLabel = typeOptions?.find((o) => o.value === type)?.label.toLowerCase();
   return (
     <AdminShell title={config.plural}>
-      <SearchForm action={path} label={config.searchLabel} q={query.q} sort={query.sort} sortOptions={SORT_OPTIONS} />
+      <SearchForm
+        action={path}
+        label={config.searchLabel}
+        q={query.q}
+        sort={query.sort}
+        sortOptions={SORT_OPTIONS}
+        filter={typeOptions ? { name: "type", label: "Show", value: type, options: typeOptions } : undefined}
+      />
       <p>
-        {list.total} {list.total === 1 ? config.singular : config.plural.toLowerCase()}. Page {list.page} of {list.pageCount}.
+        {list.total} {typeLabel && type !== "all" ? `${typeLabel}` : list.total === 1 ? config.singular : config.plural.toLowerCase()}. Page {list.page} of {list.pageCount}.
       </p>
       {list.rows.length === 0 ? (
         <p>No {config.singular} matches.</p>
@@ -38,7 +52,7 @@ async function EntityListPage({ params, searchParams }: PageProps<"/admin/[kind]
           ))}
         </ul>
       )}
-      <Pager page={list.page} pageCount={list.pageCount} href={(page) => listHref(path, { ...query, page }, "name")} />
+      <Pager page={list.page} pageCount={list.pageCount} href={(page) => listHref(path, { ...query, type, page }, "name", typeOptions ? fallback : "")} />
     </AdminShell>
   );
 }
