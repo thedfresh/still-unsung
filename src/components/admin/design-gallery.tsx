@@ -89,7 +89,7 @@ export function DesignGallery() {
       <Section id="bands" title="Band themes">
         <ul className="grid gap-4 md:grid-cols-2">
           {BAND_THEMES.map((band) => (
-            <li key={band.slug} className={`${bandThemeClass(band.slug)} flex flex-col gap-3`}>
+            <li key={band.slug} className={`${bandThemeClass({ slug: band.slug })} flex flex-col gap-3`}>
               <h3 className="text-lead font-semibold text-band-ink">{band.name}</h3>
               <p className="text-band-ink">Sample text in the band color, on the page background.</p>
               <div className="rounded-card border-2 border-band-border border-l-8 bg-band-bg p-4">

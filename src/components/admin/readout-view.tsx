@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Readout, ReadoutCard, ReadoutField } from "@/lib/changes/readout";
 
 /** A hairline border, a large radius and a small shadow: the card style of the design system. */
-export const CARD = "rounded-lg border border-black/15 p-3 shadow-sm dark:border-white/20";
+export const CARD = "rounded-lg border border-black/15 p-3 shadow-sm";
 
 function Field({ field }: { field: ReadoutField }) {
   if (field.was === undefined) {

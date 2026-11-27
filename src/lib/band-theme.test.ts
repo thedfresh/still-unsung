@@ -21,12 +21,18 @@ describe("contrastRatio", () => {
 });
 
 describe("bandThemeClass", () => {
-  it("names the class after the slug", () => {
-    expect(bandThemeClass("roadhog")).toBe("band-roadhog");
+  it("names the class after the slug of a Hunter band", () => {
+    expect(bandThemeClass({ slug: "roadhog", isHunterBand: true })).toBe("band-roadhog");
+    expect(bandThemeClass({ slug: "dinosaurs" })).toBe("band-dinosaurs");
   });
-  it("falls back to the default theme", () => {
+  it("gives a band that is not Hunter's the Guest Appearances theme", () => {
+    expect(bandThemeClass({ slug: "jerry-garcia-band", isHunterBand: false })).toBe("band-guest-appearances");
+    expect(bandThemeClass({ slug: "zero", isHunterBand: false })).toBe("band-guest-appearances");
+  });
+  it("falls back to the default theme for other Hunter bands and a missing band", () => {
     expect(bandThemeClass(null)).toBe("band-robert-hunter");
-    expect(bandThemeClass("unknown-band")).toBe("band-robert-hunter");
+    expect(bandThemeClass({ slug: "the-mystery-band", isHunterBand: true })).toBe("band-robert-hunter");
+    expect(bandThemeClass({ slug: null })).toBe("band-robert-hunter");
   });
 });
 
