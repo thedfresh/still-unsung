@@ -21,7 +21,7 @@ export const ENTITY_CONFIGS: Record<EntityKind, EntityKindConfig> = {
   works: { kind: "works", plural: "Works", singular: "work", searchLabel: "Search by title or other name" },
   people: { kind: "people", plural: "People", singular: "person", searchLabel: "Search by name, key or other name" },
   bands: { kind: "bands", plural: "Bands", singular: "band", searchLabel: "Search by name" },
-  places: { kind: "places", plural: "Places", singular: "place", searchLabel: "Search by any name of the place" },
+  places: { kind: "places", plural: "Places", singular: "place", searchLabel: "Search by name, or by a city or region it is in" },
 };
 
 export function entityKindOf(text: string): EntityKind | null {
@@ -42,6 +42,11 @@ export const entityListParamsSchema = z.object({
   q: z.string().trim().max(100).catch(""),
   sort: z.enum(SORTS).catch("name"),
   page: z.coerce.number().int().min(1).max(100_000).catch(1),
+  /** Places only: a place kind ("venue", "city"…), "all" or "none" (no kind). Empty: the default. */
+  type: z.string().trim().toLowerCase().max(40).catch(""),
 });
+
+/** Places list: venues by default (user, 2026-11-27: cities and states are rarely edited). */
+export const DEFAULT_PLACE_TYPE = "venue";
 
 export const ENTITIES_PER_PAGE = 50;

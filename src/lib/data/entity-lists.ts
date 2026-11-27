@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/db";
-import { ENTITIES_PER_PAGE, type EntityKind, type EntitySort } from "@/lib/entity-lists";
+import { countShowsInPlace } from "@/lib/data/places";
+import { DEFAULT_PLACE_TYPE, ENTITIES_PER_PAGE, type EntityKind, type EntitySort } from "@/lib/entity-lists";
 import { compareNames } from "@/lib/sort-name";
 
 export interface EntityRow {
@@ -18,7 +19,7 @@ export interface EntityList {
   pageCount: number;
 }
 
-type Loader = (db: PrismaClient, q: string) => Promise<EntityRow[]>;
+type Loader = (db: PrismaClient, q: string, type: string) => Promise<EntityRow[]>;
 
 const match = (q: string) => ({ contains: q, mode: "insensitive" }) as const;
 
@@ -49,25 +50,50 @@ const LOADERS: Record<EntityKind, Loader> = {
     });
     return rows.map((row) => ({ id: row.id, name: row.name, detail: row.displayName, updatedAt: row.updatedAt }));
   },
-  places: async (db, q) => {
+  places: async (db, q, type) => {
+    // All places in one query (a few hundred rows): each row shows its full path (venue, city,
+    // region, country), and the search also matches the places it is in ("Olympia" finds the
+    // venues in Olympia). Venues by default; `type` picks another kind, "all" or "none".
     const rows = await db.place.findMany({
-      where: q ? { names: { some: { name: match(q) } } } : {},
       select: {
         id: true,
+        parentId: true,
         updatedAt: true,
         placeKind: { select: { name: true } },
         names: { orderBy: { position: "asc" }, select: { name: true } },
       },
     });
-    return rows.map((row) => ({
-      id: row.id,
-      // The first name (lowest position) is the one the list shows. A place with no name is still listed.
-      name: row.names[0]?.name ?? `Place ${row.id}`,
-      detail: [row.placeKind?.name, row.names.length > 1 ? `Also: ${row.names.slice(1).map((n) => n.name).join(", ")}` : null]
-        .filter(Boolean)
-        .join(". ") || null,
-      updatedAt: row.updatedAt,
-    }));
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const nameOf = (row: (typeof rows)[number]) => row.names[0]?.name ?? `Place ${row.id}`;
+    const ancestors = (row: (typeof rows)[number]): string[] => {
+      const out: string[] = [];
+      const seen = new Set([row.id]);
+      for (let up = row.parentId === null ? undefined : byId.get(row.parentId); up && !seen.has(up.id); up = up.parentId === null ? undefined : byId.get(up.parentId)) {
+        seen.add(up.id);
+        out.push(nameOf(up));
+      }
+      return out;
+    };
+    const wanted = type || DEFAULT_PLACE_TYPE;
+    const needle = q.toLowerCase();
+    return rows
+      .filter((row) => (wanted === "all" ? true : wanted === "none" ? !row.placeKind : row.placeKind?.name.toLowerCase() === wanted))
+      .map((row) => ({ row, path: ancestors(row) }))
+      .filter(({ row, path }) => !needle || [...row.names.map((n) => n.name), ...path].some((text) => text.toLowerCase().includes(needle)))
+      .map(({ row, path }) => ({
+        id: row.id,
+        name: nameOf(row),
+        detail:
+          [
+            path.length > 0 ? path.join(", ") : null,
+            // The kind only in the "all places" list: elsewhere the filter already says it.
+            wanted === "all" ? (row.placeKind?.name ?? "no kind") : null,
+            row.names.length > 1 ? `Also: ${row.names.slice(1).map((n) => n.name).join(", ")}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || null,
+        updatedAt: row.updatedAt,
+      }));
   },
 };
 
@@ -83,14 +109,24 @@ export function sortRows(rows: EntityRow[], sort: EntitySort): EntityRow[] {
  * One page of a catalogue list. One query finds the matches (names only), then the sort and the
  * page cut run in code, because the sort ignores a leading article and no column holds that form.
  */
-export async function listEntities(kind: EntityKind, q: string, sort: EntitySort, page: number, db: PrismaClient = getPrisma()): Promise<EntityList> {
-  const all = sortRows(await LOADERS[kind](db, q), sort);
+export async function listEntities(kind: EntityKind, q: string, sort: EntitySort, page: number, type = "", db: PrismaClient = getPrisma()): Promise<EntityList> {
+  const all = sortRows(await LOADERS[kind](db, q, type), sort);
   const pageCount = Math.max(1, Math.ceil(all.length / ENTITIES_PER_PAGE));
   const current = Math.min(Math.max(1, page), pageCount);
   return { rows: all.slice((current - 1) * ENTITIES_PER_PAGE, current * ENTITIES_PER_PAGE), total: all.length, page: current, pageCount };
 }
 
 const DELEGATE = { works: "work", people: "person", bands: "band", places: "place" } as const;
+
+/** The choices of the places list's kind filter: venues first, then the other kinds, all, none. */
+export async function placeTypeOptions(db: PrismaClient = getPrisma()): Promise<Array<{ value: string; label: string }>> {
+  const kinds = await db.placeKind.findMany({ orderBy: { position: "asc" }, select: { name: true } });
+  const plural = (name: string) => (name.endsWith("y") ? `${name.slice(0, -1)}ies` : `${name}s`);
+  const label = (name: string) => plural(name).replace(/^./, (c) => c.toUpperCase());
+  const names = kinds.map((k) => k.name.toLowerCase());
+  const ordered = names.includes(DEFAULT_PLACE_TYPE) ? [DEFAULT_PLACE_TYPE, ...names.filter((n) => n !== DEFAULT_PLACE_TYPE)] : names;
+  return [...ordered.map((n) => ({ value: n, label: label(n) })), { value: "all", label: "All places" }, { value: "none", label: "No kind set" }];
+}
 
 /** True when a record of this kind and ID exists: one small query, for the proxy's 404. */
 export async function entityExists(kind: EntityKind, id: number, db: PrismaClient = getPrisma()): Promise<boolean> {
@@ -160,17 +196,20 @@ export async function getEntityDetail(kind: EntityKind, id: number, db: PrismaCl
       names: { orderBy: { position: "asc" }, select: { name: true } },
       placeKind: { select: { name: true } },
       parent: { select: { names: { orderBy: { position: "asc" }, take: 1, select: { name: true } } } },
-      _count: { select: { shows: true } },
     },
   });
   if (!row) return null;
+  const shows = await countShowsInPlace(id, db);
+  const plural = (n: number) => `${n} ${n === 1 ? "show" : "shows"}`;
   return {
     title: row.names[0]?.name ?? `Place ${row.id}`,
     facts: [
       ["Names", row.names.map((n) => n.name).join("; ") || null],
       ["Kind", row.placeKind?.name ?? null],
       ["Inside", row.parent?.names[0]?.name ?? null],
-      ["Shows here", `${row._count.shows} ${row._count.shows === 1 ? "show" : "shows"}`],
+      // Roll-up (HSA-185): a city or region counts the shows at the places inside it.
+      ["Shows here and inside", plural(shows.inside)],
+      ["Shows attached here", plural(shows.direct)],
     ],
   };
 }
