@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import { BUTTON_CLASS, CHOICE_CLASS, CHOICE_INPUT_CLASS, FIELD_CLASS, INPUT_CLASS, ROW_CLASS } from "@/components/admin/ui/styles";
 import type { Built } from "@/lib/shows/edit-edits";
 
 /** What every part of the show editor uses to save. The root component provides it. */
@@ -23,6 +24,10 @@ export function useEditor(): EditorApi {
   return api;
 }
 
-export const BUTTON = "rounded border border-current px-3 py-1 disabled:opacity-60";
-export const INPUT = "rounded border border-current px-2 py-1";
-export const SECTION_CARD = "min-w-0 break-words rounded border border-current p-3";
+export const BUTTON = BUTTON_CLASS.secondary;
+export const INPUT = INPUT_CLASS;
+export const SECTION_CARD = ROW_CLASS;
+export const PRIMARY = BUTTON_CLASS.primary;
+export const FIELD = FIELD_CLASS;
+export const CHOICE = CHOICE_CLASS;
+export const CHOICE_INPUT = CHOICE_INPUT_CLASS;

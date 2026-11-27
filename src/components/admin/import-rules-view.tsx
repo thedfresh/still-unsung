@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Message } from "@/components/admin/ui/components";
+import { LINK_CLASS } from "@/components/admin/ui/styles";
 import { MarkdownBody } from "@/components/ui/markdown-body";
 import type { ImportRulesView } from "@/lib/data/guide-pages";
 
@@ -9,7 +11,7 @@ const utc = (date: Date) => `${date.toISOString().slice(0, 16).replace("T", " ")
 
 /** The import rules as formatted text, with the version, the time of the last change and a link to it. */
 export function ImportRulesPage({ rules }: { rules: ImportRulesView | null }) {
-  if (!rules) return <p role="status">{MISSING_RULES_MESSAGE}</p>;
+  if (!rules) return <Message tone="info">{MISSING_RULES_MESSAGE}</Message>;
   const { lastChange } = rules;
   return (
     <>
@@ -27,7 +29,7 @@ export function ImportRulesPage({ rules }: { rules: ImportRulesView | null }) {
           <dt className="font-semibold">Last change</dt>
           <dd>
             {lastChange ? (
-              <Link href={`/admin/changes?page=${lastChange.page}#change-${lastChange.id}`} className="underline">
+              <Link href={`/admin/changes?page=${lastChange.page}#change-${lastChange.id}`} className={LINK_CLASS}>
                 Read the change
               </Link>
             ) : (
@@ -36,7 +38,7 @@ export function ImportRulesPage({ rules }: { rules: ImportRulesView | null }) {
           </dd>
         </div>
       </dl>
-      <article aria-label={rules.title} className="flex flex-col gap-3 border-t border-current pt-4">
+      <article aria-label={rules.title} className="flex flex-col gap-3 border-t-2 border-line pt-4">
         <MarkdownBody source={rules.body} />
       </article>
     </>

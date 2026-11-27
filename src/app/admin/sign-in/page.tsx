@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { signIn } from "@/auth";
 import { PasskeyButton } from "@/components/admin/passkey-button";
+import { Button, Message } from "@/components/admin/ui/components";
 import { getCurrentUser } from "@/lib/current-user";
 import { AppError } from "@/lib/errors";
 import { clientKey, signInLimiter } from "@/lib/rate-limit";
@@ -32,14 +33,12 @@ async function SignInForm({ error }: { error: Promise<string | undefined> }) {
   return (
     <>
       {code ? (
-        <p role="alert" className="rounded border border-current p-3">
-          {MESSAGES[code] ?? FALLBACK_MESSAGE}
-        </p>
+        <Message tone="error">{MESSAGES[code] ?? FALLBACK_MESSAGE}</Message>
       ) : null}
       <form action={signInWithGoogle}>
-        <button type="submit" className="w-full rounded border border-current px-4 py-2 text-left">
+        <Button type="submit" variant="primary" className="w-full justify-start text-left">
           Sign in with Google
-        </button>
+        </Button>
       </form>
       <PasskeyButton action="authenticate">Sign in with a passkey</PasskeyButton>
     </>
@@ -50,7 +49,7 @@ export default function SignInPage({ searchParams }: PageProps<"/admin/sign-in">
   const error = searchParams.then((p) => (typeof p.error === "string" ? p.error : undefined));
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-4 px-4 py-16">
-      <h1 className="text-2xl font-semibold">Sign in</h1>
+      <h1 className="text-title font-semibold text-ink">Sign in</h1>
       <p>Only users that an admin added can sign in.</p>
       <Suspense fallback={<p>Loading…</p>}>
         <SignInForm error={error} />

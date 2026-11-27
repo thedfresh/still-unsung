@@ -4,7 +4,7 @@ import { useState } from "react";
 import { RecordPicker } from "@/components/admin/record-picker";
 import { draftOfShow, showFieldsEdit, type ShowDraft } from "@/lib/shows/edit-edits";
 import type { ShowEditData } from "@/lib/shows/edit-types";
-import { BUTTON, INPUT, SECTION_CARD, useEditor } from "./editor-context";
+import { FIELD, INPUT, PRIMARY, SECTION_CARD, useEditor } from "./editor-context";
 
 const STATUS = [
   ["TOOK_PLACE", "Took place"],
@@ -38,20 +38,20 @@ export function ShowFieldsForm({ show }: { show: ShowEditData }) {
       <fieldset className="flex flex-col gap-2">
         <legend className="font-semibold">Date (leave out what is not known)</legend>
         <div className="flex flex-wrap gap-3">
-          <label className="flex flex-col gap-1">
+          <label className={FIELD}>
             Year
-            <input inputMode="numeric" value={draft.year} onChange={(e) => set({ year: e.target.value })} className={`${INPUT} w-24`} />
+            <input inputMode="numeric" value={draft.year} onChange={(e) => set({ year: e.target.value })} className={`${INPUT} max-w-24`} />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className={FIELD}>
             Month
-            <input inputMode="numeric" value={draft.month} onChange={(e) => set({ month: e.target.value })} className={`${INPUT} w-20`} />
+            <input inputMode="numeric" value={draft.month} onChange={(e) => set({ month: e.target.value })} className={`${INPUT} max-w-20`} />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className={FIELD}>
             Day
-            <input inputMode="numeric" value={draft.day} onChange={(e) => set({ day: e.target.value })} className={`${INPUT} w-20`} />
+            <input inputMode="numeric" value={draft.day} onChange={(e) => set({ day: e.target.value })} className={`${INPUT} max-w-20`} />
           </label>
         </div>
-        <label className="flex flex-col gap-1">
+        <label className={FIELD}>
           Date as written (optional)
           <input value={draft.dateAsWritten} onChange={(e) => set({ dateAsWritten: e.target.value })} className={INPUT} />
         </label>
@@ -74,7 +74,7 @@ export function ShowFieldsForm({ show }: { show: ShowEditData }) {
         }}
       />
       {draft.placeId !== null ? (
-        <label className="flex flex-col gap-1">
+        <label className={FIELD}>
           Place name used by this show
           <select
             value={draft.placeNameId ?? ""}
@@ -89,7 +89,7 @@ export function ShowFieldsForm({ show }: { show: ShowEditData }) {
           </select>
         </label>
       ) : null}
-      <label className="flex flex-col gap-1">
+      <label className={FIELD}>
         Billed as (what a flyer printed, if it differs)
         <input value={draft.billedAs} onChange={(e) => set({ billedAs: e.target.value })} className={INPUT} />
       </label>
@@ -103,7 +103,7 @@ export function ShowFieldsForm({ show }: { show: ShowEditData }) {
           set({ bandId: choice?.id ?? null });
         }}
       />
-      <label className="flex flex-col gap-1">
+      <label className={FIELD}>
         Status
         <select value={draft.status} onChange={(e) => set({ status: e.target.value })} className={INPUT}>
           {STATUS.map(([value, label]) => (
@@ -113,7 +113,7 @@ export function ShowFieldsForm({ show }: { show: ShowEditData }) {
           ))}
         </select>
       </label>
-      <button type="submit" disabled={pending} className={`${BUTTON} self-start`}>
+      <button type="submit" disabled={pending} className={`${PRIMARY} self-start`}>
         {pending ? "Saving…" : "Save the show"}
       </button>
     </form>

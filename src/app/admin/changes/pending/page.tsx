@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { CARD } from "@/components/admin/readout-view";
+import { TextLink } from "@/components/admin/ui/components";
 import { listPendingPreviews } from "@/lib/data/changes/pending";
 
 export const metadata = { title: "Open previews" };
@@ -21,18 +21,14 @@ async function Pending() {
         <ul className="flex list-none flex-col gap-3 p-0">
           {previews.map((preview) => (
             <li key={preview.id} className={CARD}>
-              <Link href={`/admin/changes/pending/${preview.id}`} className="underline">
-                {preview.counts}
-              </Link>{" "}
+              <TextLink href={`/admin/changes/pending/${preview.id}`}>{preview.counts}</TextLink>{" "}
               By {preview.userEmail ?? "unknown"}. Evidence: {preview.evidence}. Made {utc(preview.createdAt)}. Expires {utc(preview.expiresAt)}.
             </li>
           ))}
         </ul>
       )}
       <p>
-        <Link href="/admin/changes" className="underline">
-          Back to the applied changes
-        </Link>
+        <TextLink href="/admin/changes">Back to the applied changes</TextLink>
       </p>
     </AdminShell>
   );

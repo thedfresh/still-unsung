@@ -4,7 +4,7 @@ import { useState } from "react";
 import { RecordPicker } from "@/components/admin/record-picker";
 import { addBillEdit, moveBillEdits, removeBillEdit, updateBillEdit, type BillDraft } from "@/lib/shows/edit-edits";
 import type { EditBillEntry, ShowEditData } from "@/lib/shows/edit-types";
-import { BUTTON, INPUT, SECTION_CARD, useEditor } from "./editor-context";
+import { BUTTON, FIELD, INPUT, PRIMARY, SECTION_CARD, useEditor } from "./editor-context";
 
 const ROLES = [
   ["HEADLINER", "Headliner"],
@@ -20,7 +20,7 @@ const CERTAINTY = [
 
 function Choices({ options, value, onChange, label }: { options: ReadonlyArray<readonly [string, string]>; value: string; onChange: (v: string) => void; label: string }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className={FIELD}>
       {label}
       <select value={value} onChange={(e) => onChange(e.target.value)} className={INPUT}>
         {options.map(([v, text]) => (
@@ -122,7 +122,7 @@ export function BillSection({ show }: { show: ShowEditData }) {
         />
         <Choices label="Role" options={ROLES} value={draft.role} onChange={(role) => setDraft({ ...draft, role })} />
         <Choices label="Certainty" options={CERTAINTY} value={draft.certainty} onChange={(certainty) => setDraft({ ...draft, certainty })} />
-        <button type="submit" disabled={pending} className={`${BUTTON} self-start`}>
+        <button type="submit" disabled={pending} className={`${PRIMARY} self-start`}>
           {pending ? "Saving…" : "Add to the bill"}
         </button>
       </form>

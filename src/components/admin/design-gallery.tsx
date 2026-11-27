@@ -1,3 +1,4 @@
+import { AdminPartsGallery } from "@/components/admin/ui/parts-gallery";
 import { BAND_THEMES, bandThemeClass } from "@/lib/band-theme";
 
 // Full class names, so Tailwind finds them.
@@ -86,6 +87,7 @@ export function DesignGallery() {
           ))}
         </ul>
       </Section>
+      <AdminPartsGallery />
       <Section id="bands" title="Band themes">
         <ul className="grid gap-4 md:grid-cols-2">
           {BAND_THEMES.map((band) => (

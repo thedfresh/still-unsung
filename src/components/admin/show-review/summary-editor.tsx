@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { saveAdminChangesAction } from "@/app/admin/save-action";
 import { EvidencePicker } from "@/components/admin/evidence-picker";
+import { Button, Message } from "@/components/admin/ui/components";
+import { FIELD_CLASS, HINT_CLASS, INPUT_CLASS, LABEL_CLASS } from "@/components/admin/ui/styles";
 import { useAdminSave } from "@/components/admin/use-admin-save";
 import type { RecentEvidence } from "@/lib/data/changes/admin-save";
 import { evidenceOf, OWN_KNOWLEDGE, type EvidenceChoice } from "@/lib/evidence-choice";
@@ -59,9 +61,9 @@ export function SummaryEditor({ segmentId, label, rev, summary, recent }: Props)
           Summary
         </h4>
         {summary ? <p className="whitespace-pre-wrap">{summary}</p> : <p>No summary.</p>}
-        <button type="button" onClick={open} aria-label={`Edit summary of ${label}`} className="self-start rounded border border-current px-3 py-1">
+        <Button onClick={open} aria-label={`Edit summary of ${label}`} className="self-start">
           Edit
-        </button>
+        </Button>
       </section>
     );
   }
@@ -71,23 +73,23 @@ export function SummaryEditor({ segmentId, label, rev, summary, recent }: Props)
       <h4 id={headingId} className="font-semibold">
         Edit summary
       </h4>
-      <label className="flex flex-col gap-1">
-        Summary
+      <label className={FIELD_CLASS}>
+        <span className={LABEL_CLASS}>Summary</span>
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           maxLength={SUMMARY_MAX}
           rows={4}
           aria-describedby={countId}
-          className="rounded border border-current px-2 py-1"
+          className={INPUT_CLASS}
         />
       </label>
-      <p id={countId}>
+      <p id={countId} className={HINT_CLASS}>
         {draft.trim().length} of {SUMMARY_MAX} characters
       </p>
       <EvidencePicker value={choice} onChange={setChoice} recent={recent} />
       {formError || form.messages.length > 0 ? (
-        <div role="alert" className="flex flex-col gap-2 rounded border border-current p-3">
+        <Message tone="error">
           {[...(formError ? [formError] : []), ...form.messages].map((message) => (
             <p key={message}>{message}</p>
           ))}
@@ -111,15 +113,15 @@ export function SummaryEditor({ segmentId, label, rev, summary, recent }: Props)
               </ul>
             </div>
           ))}
-        </div>
+        </Message>
       ) : null}
-      <div className="flex gap-3">
-        <button type="submit" disabled={form.pending} className="rounded border border-current px-4 py-2">
+      <div className="flex flex-wrap gap-3">
+        <Button type="submit" variant="primary" busy={form.pending}>
           {form.pending ? "Saving…" : "Save"}
-        </button>
-        <button type="button" onClick={() => setOpenedRev(null)} disabled={form.pending} className="rounded border border-current px-4 py-2">
+        </Button>
+        <Button onClick={() => setOpenedRev(null)} disabled={form.pending}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

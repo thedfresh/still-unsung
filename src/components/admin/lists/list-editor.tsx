@@ -6,6 +6,7 @@ import { EvidencePicker } from "@/components/admin/evidence-picker";
 import { ListFields } from "@/components/admin/lists/list-fields";
 import { ListRowView } from "@/components/admin/lists/list-row";
 import { SaveProblems } from "@/components/admin/save-problems";
+import { Button } from "@/components/admin/ui/components";
 import { useAdminSave } from "@/components/admin/use-admin-save";
 import type { RecentEvidence } from "@/lib/data/changes/admin-save";
 import type { ListRow } from "@/lib/data/lists";
@@ -86,9 +87,9 @@ export function ListEditor({ config, rows, recent }: Props) {
         </h2>
         <form onSubmit={add} aria-labelledby="add" className="flex flex-col gap-3">
           <ListFields config={config} values={draft} onChange={setDraft} idPrefix="add" />
-          <button type="submit" disabled={form.pending} className="self-start rounded border border-current px-4 py-2 disabled:opacity-60">
+          <Button type="submit" variant="primary" busy={form.pending} className="self-start">
             {form.pending ? "Saving…" : `Add ${config.label}`}
-          </button>
+          </Button>
         </form>
       </section>
     </div>

@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
+import { Button, DataTable, Field, Message, Td, Th } from "@/components/admin/ui/components";
+import { INPUT_CLASS } from "@/components/admin/ui/styles";
 import { listUsers } from "@/lib/data/users";
 import { ROLES } from "@/lib/roles";
 import { addUserAction, removeUserAction } from "./actions";
@@ -21,56 +23,52 @@ async function Users({ error }: { error: Promise<string | undefined> }) {
   return (
     <AdminShell title="Users">
       {code ? (
-        <p role="alert" className="rounded border border-current p-3">
-          {ERRORS[code] ?? "Something went wrong."}
-        </p>
+        <Message tone="error">{ERRORS[code] ?? "Something went wrong."}</Message>
       ) : null}
       <p>Only these users can sign in. Sign-up is closed.</p>
-      <table className="w-full text-left">
+      <DataTable label="Users">
         <caption className="sr-only">Users</caption>
         <thead>
           <tr>
-            <th scope="col">Email</th>
-            <th scope="col">Role</th>
-            <th scope="col">Remove</th>
+            <Th scope="col">Email</Th>
+            <Th scope="col">Role</Th>
+            <Th scope="col">Remove</Th>
           </tr>
         </thead>
         <tbody>
           {users.map((user) => (
             <tr key={user.id}>
-              <td className="break-all">{user.email}</td>
-              <td>{user.role}</td>
-              <td>
+              <Td className="break-all">{user.email}</Td>
+              <Td>{user.role}</Td>
+              <Td>
                 <form action={removeUserAction}>
                   <input type="hidden" name="userId" value={user.id} />
-                  <button type="submit" className="rounded border border-current px-2 py-1">
+                  <Button type="submit" variant="danger">
                     Remove<span className="sr-only"> {user.email}</span>
-                  </button>
+                  </Button>
                 </form>
-              </td>
+              </Td>
             </tr>
           ))}
         </tbody>
-      </table>
+      </DataTable>
       <form action={addUserAction} className="flex flex-col gap-3">
-        <h2 className="text-xl font-semibold">Add a user</h2>
-        <label className="flex flex-col gap-1">
-          Email
-          <input name="email" type="email" required autoComplete="off" className="rounded border border-current px-2 py-1" />
-        </label>
-        <label className="flex flex-col gap-1">
-          Role
-          <select name="role" required className="rounded border border-current px-2 py-1">
+        <h2 className="text-lead font-semibold">Add a user</h2>
+        <Field label="Email">
+          <input name="email" type="email" required autoComplete="off" className={INPUT_CLASS} />
+        </Field>
+        <Field label="Role">
+          <select name="role" required className={INPUT_CLASS}>
             {ROLES.map((role) => (
               <option key={role} value={role}>
                 {role}
               </option>
             ))}
           </select>
-        </label>
-        <button type="submit" className="self-start rounded border border-current px-4 py-2">
+        </Field>
+        <Button type="submit" variant="primary" className="self-start">
           Add user
-        </button>
+        </Button>
       </form>
     </AdminShell>
   );

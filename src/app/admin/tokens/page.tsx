@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { TokenForm } from "@/components/admin/token-form";
+import { Badge, Button, DataTable, Message, Td, Th } from "@/components/admin/ui/components";
 import { listAgentTokens } from "@/lib/data/agent-tokens";
 import { listUsers } from "@/lib/data/users";
 import { createTokenAction, revokeTokenAction } from "./actions";
@@ -26,44 +27,42 @@ async function Tokens({ error }: { error: Promise<string | undefined> }) {
   return (
     <AdminShell title="Agent tokens">
       {code ? (
-        <p role="alert" className="rounded border border-current p-3">
-          {ERRORS[code] ?? "Something went wrong."}
-        </p>
+        <Message tone="error">{ERRORS[code] ?? "Something went wrong."}</Message>
       ) : null}
       <p>An agent signs in with a token. A token acts as its agent user and never as an admin.</p>
       <TokenForm action={createTokenAction} agents={agents} />
-      <table className="w-full text-left">
+      <DataTable label="Tokens">
         <caption className="sr-only">Tokens</caption>
         <thead>
           <tr>
-            <th scope="col">Label</th>
-            <th scope="col">User</th>
-            <th scope="col">Last used</th>
-            <th scope="col">Status</th>
+            <Th scope="col">Label</Th>
+            <Th scope="col">User</Th>
+            <Th scope="col">Last used</Th>
+            <Th scope="col">Status</Th>
           </tr>
         </thead>
         <tbody>
           {tokens.map((token) => (
             <tr key={token.id}>
-              <td>{token.label}</td>
-              <td className="break-all">{token.userEmail}</td>
-              <td>{formatDate(token.lastUsedAt)}</td>
-              <td>
+              <Td>{token.label}</Td>
+              <Td className="break-all">{token.userEmail}</Td>
+              <Td>{formatDate(token.lastUsedAt)}</Td>
+              <Td>
                 {token.revokedAt ? (
-                  "Revoked"
+                  <Badge tone="warning">Revoked</Badge>
                 ) : (
                   <form action={revokeTokenAction}>
                     <input type="hidden" name="tokenId" value={token.id} />
-                    <button type="submit" className="rounded border border-current px-2 py-1">
+                    <Button type="submit" variant="danger">
                       Revoke<span className="sr-only"> {token.label}</span>
-                    </button>
+                    </Button>
                   </form>
                 )}
-              </td>
+              </Td>
             </tr>
           ))}
         </tbody>
-      </table>
+      </DataTable>
     </AdminShell>
   );
 }

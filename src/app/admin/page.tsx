@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { PasskeyButton } from "@/components/admin/passkey-button";
+import { TextLink } from "@/components/admin/ui/components";
+import { ROW_CLASS } from "@/components/admin/ui/styles";
 import { ADMIN_GROUPS, ADMIN_NAV } from "@/lib/admin-nav";
 import { listChangesets } from "@/lib/data/changes/list";
 
@@ -24,19 +25,15 @@ async function AdminHome() {
         ) : (
           <ul className="flex flex-col gap-2">
             {changes.map((change) => (
-              <li key={change.id} className="min-w-0 break-words rounded border border-current p-3">
-                <Link href={`/admin/changes#change-${change.id}`} className="underline">
-                  {change.counts}
-                </Link>{" "}
+              <li key={change.id} className={ROW_CLASS}>
+                <TextLink href={`/admin/changes#change-${change.id}`}>{change.counts}</TextLink>{" "}
                 By {change.userEmail ?? "unknown"} ({change.userRole}).{" "}
                 {change.appliedAt ? `${change.appliedAt.toISOString().slice(0, 16).replace("T", " ")} UTC.` : ""}
               </li>
             ))}
           </ul>
         )}
-        <Link href="/admin/changes" className="underline">
-          Open the full log of changes
-        </Link>
+        <TextLink href="/admin/changes">Open the full log of changes</TextLink>
       </section>
       {ADMIN_GROUPS.map((group) => (
         <section key={group} aria-labelledby={`group-${group}`} className="flex flex-col gap-3">
@@ -45,10 +42,8 @@ async function AdminHome() {
           </h2>
           <ul className="flex flex-col gap-3">
             {ADMIN_NAV.filter((item) => item.group === group).map((item) => (
-              <li key={item.href} className="min-w-0 break-words rounded border border-current p-3">
-                <Link href={item.href} className="font-semibold underline">
-                  {item.label}
-                </Link>
+              <li key={item.href} className={ROW_CLASS}>
+                <TextLink href={item.href}>{item.label}</TextLink>
                 <p>{item.purpose}</p>
               </li>
             ))}

@@ -2,10 +2,11 @@
 
 import { useId, useState } from "react";
 import { searchPickerAction } from "@/app/admin/picker-action";
+import { BUTTON_CLASS, ERROR_CLASS, FIELD_CLASS, HINT_CLASS, INPUT_CLASS, LABEL_CLASS } from "@/components/admin/ui/styles";
 import type { PickerChoice, PickerKind } from "@/lib/data/picker";
 
-const INPUT = "rounded border border-current px-2 py-1";
-const BUTTON = "rounded border border-current px-3 py-1";
+const INPUT = INPUT_CLASS;
+const BUTTON = BUTTON_CLASS.secondary;
 
 interface Props {
   kind: PickerKind;
@@ -64,9 +65,9 @@ export function RecordPicker({ kind, label, value, onChange, emptyText, clearabl
         ) : null}
       </div>
       {open ? (
-        <div className="flex flex-col gap-2 rounded border border-current p-3">
-          <label htmlFor={id} className="flex flex-col gap-1">
-            Search {label.toLowerCase()} by name
+        <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-3">
+          <label htmlFor={id} className={FIELD_CLASS}>
+            <span className={LABEL_CLASS}>Search {label.toLowerCase()} by name</span>
             <input
               id={id}
               value={text}
@@ -81,10 +82,14 @@ export function RecordPicker({ kind, label, value, onChange, emptyText, clearabl
               className={INPUT}
             />
           </label>
-          <button type="button" onClick={() => void search()} disabled={busy} className={`${BUTTON} self-start`}>
+          <button type="button" onClick={() => void search()} disabled={busy} aria-busy={busy || undefined} className={`${BUTTON_CLASS.primary} self-start`}>
             {busy ? "Searching…" : "Search"}
           </button>
-          {problem ? <p role="alert">{problem}</p> : null}
+          {problem ? (
+            <p role="alert" className={ERROR_CLASS}>
+              {problem}
+            </p>
+          ) : null}
           {results && results.length === 0 ? <p role="status">No match.</p> : null}
           {results && results.length > 0 ? (
             <ul className="flex flex-col gap-2">
@@ -93,7 +98,7 @@ export function RecordPicker({ kind, label, value, onChange, emptyText, clearabl
                   <button type="button" onClick={() => pick(choice)} className={`${BUTTON} text-left`}>
                     Use {choice.label}
                   </button>
-                  {choice.hint ? <p className="text-sm">{choice.hint}</p> : null}
+                  {choice.hint ? <p className={HINT_CLASS}>{choice.hint}</p> : null}
                 </li>
               ))}
             </ul>

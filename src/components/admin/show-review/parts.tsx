@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LINK_CLASS, ROW_CLASS } from "@/components/admin/ui/styles";
 import type { ReviewAttachments, ReviewLine } from "@/lib/data/shows/review-types";
 
 /** The card style of the Changes page. Long text wraps. */
-export const CARD = "min-w-0 break-words rounded border border-current p-3";
+export const CARD = ROW_CLASS;
 
 /** One short line that says where a record came from. */
 export function Origin({ text }: { text: string | null }) {
@@ -58,7 +59,7 @@ export function Attachments({ data, level = 4 }: { data: ReviewAttachments; leve
               <li key={ref.key} className="min-w-0 break-words">
                 {ref.kind}:{" "}
                 {ref.href ? (
-                  <Link href={ref.href} className="underline">
+                  <Link href={ref.href} className={LINK_CLASS}>
                     {ref.target}
                   </Link>
                 ) : (

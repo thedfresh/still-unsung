@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
+import { TextLink } from "@/components/admin/ui/components";
 import { Facts } from "@/components/admin/show-review/parts";
 import { getEntityDetail } from "@/lib/data/entity-lists";
 import { ENTITY_CONFIGS, entityKindOf } from "@/lib/entity-lists";
@@ -23,9 +23,7 @@ async function RecordPage({ params }: PageProps<"/admin/[kind]/[id]">) {
     <AdminShell title={detail.title}>
       <p>This page is read-only. Editors for {ENTITY_CONFIGS[kind].plural.toLowerCase()} come later. Fields marked (private) are for admins only.</p>
       <Facts items={detail.facts} />
-      <Link href={`/admin/${kind}`} className="underline">
-        Back to {ENTITY_CONFIGS[kind].plural.toLowerCase()}
-      </Link>
+      <TextLink href={`/admin/${kind}`}>Back to {ENTITY_CONFIGS[kind].plural.toLowerCase()}</TextLink>
     </AdminShell>
   );
 }
