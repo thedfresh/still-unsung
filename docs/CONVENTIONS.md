@@ -456,8 +456,8 @@ kind of change (data-model items 19, 42, 87, 102, 109).
   response holds no record data. (test: `tests/e2e/admin-v1.spec.ts`, `admin-lists.spec.ts`)
 - **Catalogue lists** (works, people, bands, places). One generic page,
   `src/app/admin/[kind]/page.tsx`, driven by `src/lib/entity-lists.ts` and
-  `src/lib/data/entity-lists.ts`: a search box, a sort and 50 rows to a page. Name sorts ignore a
-  leading "The", "A" and "An" (`sortName` in `src/lib/sort-name.ts`; the sort runs in code on the
+  `src/lib/data/entity-lists.ts`: a search box, a sort and 50 rows to a page. Name sorts ignore
+  leading punctuation and a leading "The", "A" and "An" (`sortName` in `src/lib/sort-name.ts`; the sort runs in code on the
   matching names, because no column holds the folded form). Each row links to a read-only record
   page, `src/app/admin/[kind]/[id]/page.tsx`, which may show private fields. The shows list has
   its own page because it sorts by date, and links the public page when the show has one.

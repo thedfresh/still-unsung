@@ -298,5 +298,12 @@ export function updateNoteEdit(note: EditNote, body: string, isPublic: boolean):
   return Object.keys(fields).length === 0 ? none : { edits: [{ op: "update", type: "Note", id: note.noteId, rev: note.noteRev, fields }] };
 }
 
-/** Take a note off the show. The write layer removes a note that no record uses any more. */
-export const removeNoteEdit = (note: EditNote): Built => ({ edits: [{ op: "delete", type: "NoteAttachment", id: note.attachmentId }] });
+/**
+ * Take a note off the show. A note that no other record uses goes too, in the same save, so no
+ * orphan note stays. A note attached elsewhere keeps its other links.
+ */
+export function removeNoteEdit(note: EditNote): Built {
+  const edits: Edit[] = [{ op: "delete", type: "NoteAttachment", id: note.attachmentId }];
+  if (note.alsoAttachedTo === 0) edits.push({ op: "delete", type: "Note", id: note.noteId, rev: note.noteRev });
+  return { edits };
+}
