@@ -116,7 +116,7 @@ export function SummaryEditor({ segmentId, label, rev, summary, recent }: Props)
         </Message>
       ) : null}
       <div className="flex flex-wrap gap-3">
-        <Button type="submit" variant="primary" busy={form.pending}>
+        <Button type="submit" variant="save" busy={form.pending}>
           {form.pending ? "Saving…" : "Save"}
         </Button>
         <Button onClick={() => setOpenedRev(null)} disabled={form.pending}>

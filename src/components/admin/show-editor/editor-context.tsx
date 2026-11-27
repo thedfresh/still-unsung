@@ -28,6 +28,7 @@ export const BUTTON = BUTTON_CLASS.secondary;
 export const INPUT = INPUT_CLASS;
 export const SECTION_CARD = ROW_CLASS;
 export const PRIMARY = BUTTON_CLASS.primary;
+export const SAVE = BUTTON_CLASS.save;
 export const FIELD = FIELD_CLASS;
 export const CHOICE = CHOICE_CLASS;
 export const CHOICE_INPUT = CHOICE_INPUT_CLASS;

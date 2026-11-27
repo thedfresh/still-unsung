@@ -20,6 +20,14 @@ describe("contrastRatio", () => {
   });
 });
 
+describe("admin button colours", () => {
+  const token = (name: string) => css.match(new RegExp(`--color-${name}:\\s*(#[0-9a-f]{6})`, "i"))?.[1] as string;
+  it("has white text on the save green and its hover colour with at least 4.5:1", () => {
+    expect(contrastRatio("#ffffff", token("green-dark"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#ffffff", token("green-darker"))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe("bandThemeClass", () => {
   it("names the class after the slug of a Hunter band", () => {
     expect(bandThemeClass({ slug: "roadhog", isHunterBand: true })).toBe("band-roadhog");

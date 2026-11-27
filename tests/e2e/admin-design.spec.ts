@@ -101,6 +101,14 @@ test.describe("gallery of admin parts", () => {
     await expect(page.getByLabel("Field with an error")).toHaveAttribute("aria-invalid", "true");
   });
 
+  test("the gallery shows the save button in green with its states", async ({ page }) => {
+    await page.goto("/admin/design");
+    const save = page.getByRole("button", { name: "Save save", exact: true });
+    await expect(save).toHaveCSS("background-color", "rgb(74, 102, 23)");
+    await expect(page.getByRole("button", { name: "Disabled save", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Busy save", exact: true })).toHaveAttribute("aria-busy", "true");
+  });
+
   test("a button takes the keyboard and the touch target is 44 px", async ({ page }) => {
     await page.goto("/admin/design");
     const button = page.getByRole("button", { name: "Save primary", exact: true });
