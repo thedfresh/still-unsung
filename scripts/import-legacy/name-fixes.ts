@@ -243,6 +243,13 @@ export const WHITEGUM_PAGES: ReadonlyMap<number, string> = new Map([
   [1106, "BALLADHP.HTM"], // The Ballad Of Harry Pollitt
   [1109, "ROVINGGA.HTM"], // Roving Gambler
   [1112, "YOURESIX.HTM"], // You're Sixteen
+  // Same song; Whitegum's credit differs from the archive's, to settle in HSA-188 (user, 2026-11-27).
+  [409, "MILWAUKE.HTM"], // Milwaukee Blues
+  [445, "OHBABEIT.HTM"], // Oh Babe It Ain't No Lie
+  [794, "BLINDMAN.HTM"], // Blind Man
+  [1030, "DAYSOF49.HTM"], // Days of '49
+  [1063, "WILDABOU.HTM"], // Wild About My Lovin'
+  [1092, "WASNTTHA.HTM"], // Wasn't That A Time?
 ]);
 
 /**
