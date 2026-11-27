@@ -115,6 +115,14 @@ async function checkCreditPassage(tx: Tx, index: number, row: Row): Promise<void
   }
 }
 
+/** Item 123: a passage with credits stays with its work, or those credits would name the wrong work. */
+async function checkPassageMove(tx: Tx, index: number, passageId: number): Promise<void> {
+  const credits = await tx.credit.count({ where: { passageId } });
+  if (credits > 0) {
+    throw new AppError("invalid_input", `Edit ${index}: passage ${passageId} has ${credits} credit${credits === 1 ? "" : "s"}, so it cannot move to another work. Change or remove the credits first.`);
+  }
+}
+
 async function createRecord(tx: Tx, index: number, edit: ParsedEdit, values: Record<string, unknown>): Promise<AppliedItem> {
   const info = modelInfo(edit.type);
   const entityFlag = usesEntityPublicFlag(edit.type);
@@ -150,6 +158,7 @@ async function updateRecord(tx: Tx, index: number, edit: ParsedEdit, values: Rec
   if (entityFlag && typeof isPublic === "boolean") await tx.entity.update({ where: { id }, data: { isPublic } });
   const after = (await readRow(tx, edit.type, id)) as Row;
   if (edit.type === "Credit") await checkCreditPassage(tx, index, after);
+  if (edit.type === "Passage" && after.workId !== before.workId) await checkPassageMove(tx, index, id);
   return { index, op: "update", type: edit.type, id, expectedRev: edit.rev ?? null, before, after };
 }
 

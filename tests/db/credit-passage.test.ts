@@ -120,4 +120,31 @@ describe("credit for one passage (item 123)", () => {
       }),
     ).rejects.toThrow(/belongs to another work/);
   });
+
+  it("refuses moving a passage that has credits to another work", async () => {
+    const s = await setup();
+    const make = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "create", type: "Credit", fields: creditFields(s, { workId: s.workId, passageId: s.passageId }) }],
+    });
+    await applyChanges(agentId, make.token as string);
+    const passage = await db.passage.findUniqueOrThrow({ where: { id: s.passageId } });
+    await expect(
+      previewChanges(agentId, {
+        evidence: evidence(),
+        edits: [{ op: "update", type: "Passage", id: passage.id, rev: passage.rev, fields: { workId: s.otherWorkId } }],
+      }),
+    ).rejects.toThrow(/cannot move to another work/);
+  });
+
+  it("still allows moving a passage with no credits", async () => {
+    const s = await setup();
+    const passage = await db.passage.findUniqueOrThrow({ where: { id: s.otherPassageId } });
+    const preview = await previewChanges(agentId, {
+      evidence: evidence(),
+      edits: [{ op: "update", type: "Passage", id: passage.id, rev: passage.rev, fields: { workId: s.workId } }],
+    });
+    await applyChanges(agentId, preview.token as string);
+    expect((await db.passage.findUniqueOrThrow({ where: { id: passage.id } })).workId).toBe(s.workId);
+  });
 });
