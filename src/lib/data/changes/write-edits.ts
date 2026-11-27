@@ -102,6 +102,27 @@ export async function findConflicts(tx: Tx, edits: ParsedEdit[]): Promise<Versio
   return conflicts;
 }
 
+/** Item 123: a credit that names a passage must also name the work that owns the passage. */
+async function checkCreditPassage(tx: Tx, index: number, row: Row): Promise<void> {
+  if (row.passageId == null) return;
+  const passage = await tx.passage.findUnique({ where: { id: row.passageId as number }, select: { workId: true } });
+  if (!passage) return;
+  if (row.workId == null) {
+    throw new AppError("invalid_input", `Edit ${index}: a credit for a passage must also name the work that the passage belongs to.`);
+  }
+  if (passage.workId !== row.workId) {
+    throw new AppError("invalid_input", `Edit ${index}: passage ${row.passageId as number} belongs to another work, not work ${row.workId as number}. Choose a passage of the credited work.`);
+  }
+}
+
+/** Item 123: a passage with credits stays with its work, or those credits would name the wrong work. */
+async function checkPassageMove(tx: Tx, index: number, passageId: number): Promise<void> {
+  const credits = await tx.credit.count({ where: { passageId } });
+  if (credits > 0) {
+    throw new AppError("invalid_input", `Edit ${index}: passage ${passageId} has ${credits} credit${credits === 1 ? "" : "s"}, so it cannot move to another work. Change or remove the credits first.`);
+  }
+}
+
 async function createRecord(tx: Tx, index: number, edit: ParsedEdit, values: Record<string, unknown>): Promise<AppliedItem> {
   const info = modelInfo(edit.type);
   const entityFlag = usesEntityPublicFlag(edit.type);
@@ -116,6 +137,7 @@ async function createRecord(tx: Tx, index: number, edit: ParsedEdit, values: Rec
   const created = await delegateOf(tx, edit.type).create({ data });
   const id = created.id as number;
   const after = (await readRow(tx, edit.type, id)) ?? JSON.parse(JSON.stringify(created));
+  if (edit.type === "Credit") await checkCreditPassage(tx, index, after);
   return { index, op: "create", type: edit.type, id, expectedRev: null, before: null, after };
 }
 
@@ -135,6 +157,8 @@ async function updateRecord(tx: Tx, index: number, edit: ParsedEdit, values: Rec
   if (result.count !== 1 || !before) throw new ConflictAbort([{ index, type: edit.type, id, expectedRev: edit.rev as number, current: before, proposed: edit.fields }]);
   if (entityFlag && typeof isPublic === "boolean") await tx.entity.update({ where: { id }, data: { isPublic } });
   const after = (await readRow(tx, edit.type, id)) as Row;
+  if (edit.type === "Credit") await checkCreditPassage(tx, index, after);
+  if (edit.type === "Passage" && after.workId !== before.workId) await checkPassageMove(tx, index, id);
   return { index, op: "update", type: edit.type, id, expectedRev: edit.rev ?? null, before, after };
 }
 
