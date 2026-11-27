@@ -216,6 +216,19 @@ describe("bill and notes", () => {
     expect([note.body, note.isPublic]).toEqual(["A public remark.", true]);
     await save(removeNoteEdit(note));
     expect((await load()).notes).toHaveLength(0);
+    expect(await db.note.count()).toBe(0);
+  });
+
+  it("keeps a removed note that another record still uses", async () => {
+    await save(addNoteEdits(showId, "A shared remark.", false));
+    const note = (await load()).notes[0];
+    await db.noteAttachment.create({ data: { noteId: note.noteId, entityId: bandId } });
+    const shared = (await load()).notes[0];
+    expect(shared.alsoAttachedTo).toBe(1);
+    await save(removeNoteEdit(shared));
+    expect((await load()).notes).toHaveLength(0);
+    expect(await db.note.count({ where: { id: note.noteId } })).toBe(1);
+    expect(await db.noteAttachment.count({ where: { noteId: note.noteId, entityId: bandId } })).toBe(1);
   });
 });
 
@@ -227,6 +240,17 @@ describe("pickers and lists", () => {
     await db.variant.create({ data: { id: variant.id, versionId: version.id, name: "Slow variant" } });
     const [choice] = await searchPicker("work", "test");
     expect(choice).toMatchObject({ id: workId, label: "Test Song", hint: "Variants: Slow variant" });
+  });
+
+  it("finds a work or a person by part of an other name, ignoring case", async () => {
+    await db.work.update({ where: { id: workId }, data: { otherNames: ["Wharf Rat Blues"] } });
+    expect((await searchPicker("work", "harf RAT")).map((c) => c.id)).toEqual([workId]);
+    expect(await searchPicker("work", "no such name")).toEqual([]);
+    expect(await searchPicker("work", "100%")).toEqual([]);
+    const entity = await db.entity.create({ data: { kind: "PERSON" } });
+    await db.person.create({ data: { id: entity.id, name: "Jerome Garcia", key: "jerome-garcia", otherNames: ["Captain Trips"] } });
+    expect((await searchPicker("person", "tain tri")).map((c) => c.id)).toEqual([entity.id]);
+    expect(await searchPicker("person", "zzz")).toEqual([]);
   });
 
   it("sorts names without a leading The, A or An", async () => {

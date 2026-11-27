@@ -18,6 +18,20 @@ export interface PickerChoice {
 const LIMIT = 15;
 const match = (q: string) => ({ contains: q, mode: "insensitive" }) as const;
 
+/**
+ * The IDs of the works or people with an other name that holds the text, ignoring case. Prisma
+ * has no part-match on a text list, so this is one parameterised query. The characters `%`, `_`
+ * and backslash in the text match themselves.
+ */
+async function idsByOtherName(db: PrismaClient, table: "works" | "people", text: string): Promise<number[]> {
+  const pattern = `%${text.replace(/[\\%_]/g, "\\$&")}%`;
+  const rows =
+    table === "works"
+      ? await db.$queryRaw<{ id: number }[]>`SELECT w.id FROM works w WHERE EXISTS (SELECT 1 FROM unnest(w."otherNames") AS o WHERE o ILIKE ${pattern}) LIMIT 200`
+      : await db.$queryRaw<{ id: number }[]>`SELECT p.id FROM people p WHERE EXISTS (SELECT 1 FROM unnest(p."otherNames") AS o WHERE o ILIKE ${pattern}) LIMIT 200`;
+  return rows.map((row) => row.id);
+}
+
 /** The most variant names shown with a work: enough to tell works apart, not a list. */
 const VARIANT_LIMIT = 6;
 
@@ -28,8 +42,9 @@ const VARIANT_LIMIT = 6;
 export async function searchPicker(kind: PickerKind, q: string, db: PrismaClient = getPrisma()): Promise<PickerChoice[]> {
   const text = q.trim();
   if (kind === "work") {
+    const byOtherName = text ? await idsByOtherName(db, "works", text) : [];
     const rows = await db.work.findMany({
-      where: text ? { OR: [{ title: match(text) }, { otherNames: { has: text } }] } : {},
+      where: text ? { OR: [{ title: match(text) }, { id: { in: byOtherName } }] } : {},
       orderBy: { title: "asc" },
       take: LIMIT,
       select: { id: true, title: true, versions: { select: { variants: { orderBy: { name: "asc" }, select: { name: true } } } } },
@@ -63,8 +78,9 @@ export async function searchPicker(kind: PickerKind, q: string, db: PrismaClient
     const rows = await db.band.findMany({ where: text ? { name: match(text) } : {}, orderBy: { name: "asc" }, take: LIMIT, select: { id: true, name: true } });
     return rows.map((row) => ({ id: row.id, label: row.name, hint: null }));
   }
+  const byOtherName = text ? await idsByOtherName(db, "people", text) : [];
   const rows = await db.person.findMany({
-    where: text ? { OR: [{ name: match(text) }, { otherNames: { has: text } }] } : {},
+    where: text ? { OR: [{ name: match(text) }, { id: { in: byOtherName } }] } : {},
     orderBy: { name: "asc" },
     take: LIMIT,
     select: { id: true, name: true },
