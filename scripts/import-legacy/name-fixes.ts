@@ -16,6 +16,8 @@ export const CREDIT_FULL_NAMES: ReadonlyMap<number, ReadonlyMap<string, string>>
   [16, new Map([["pigpen", 'Ron "Pigpen" McKernan']])],
   // Mister Charlie: music.
   [414, new Map([["pigpen", 'Ron "Pigpen" McKernan']])],
+  // Operator: words and music (credit text from CREDIT_TEXTS below).
+  [918, new Map([["pigpen", 'Ron "Pigpen" McKernan']])],
   // Dark Star: music.
   [139, new Map([["mckernan", 'Ron "Pigpen" McKernan']])],
   // Down the Road: music.
@@ -84,6 +86,20 @@ export const CREDIT_TEXTS: ReadonlyMap<number, Partial<Record<"song_by" | "lyric
   // Believe It or Not (Fortune or Fame): a Hunter original, not the later Hunter/Garcia song
   // (Whitegum BELIEVE2.HTM).
   [1080, { song_by: "Robert Hunter" }],
+  // Covers, from Whitegum, checked on the web (user, 2026-11-27).
+  [833, { song_by: "Bo Diddley" }], // Mona; Bo Diddley's legal name is Ellas McDaniel
+  [891, { song_by: "Robert Johnson" }], // Judgment Day = If I Had Possession over Judgement Day
+  [918, { song_by: "Pigpen" }], // Operator; quotes are not allowed in credit text, so the name list maps it
+  [980, { song_by: "Traditional" }], // Black Jack Davey
+  [984, { song_by: "Richie Furay" }], // Pickin' Up the Pieces
+  [997, { song_by: "Peter Tosh" }], // Stop That Train
+  [1012, { song_by: "Huddie Ledbetter, John Lomax" }], // Goodnight Irene, published 1936 as a joint composition
+  [1044, { song_by: "Lloyd Price" }], // Lawdy Miss Clawdy
+  [1109, { song_by: "Traditional" }], // Roving Gambler
+  [1110, { song_by: "Traditional, arr. Merle Travis" }], // Nine Pound Hammer
+  [1111, { song_by: "Traditional" }], // Salty Dog Blues; the Morris Brothers' claim is disputed
+  [1112, { song_by: "Richard M. Sherman, Robert B. Sherman" }], // You're Sixteen
+  [1120, { song_by: "Stephen Stills" }], // For What It's Worth
 ]);
 
 /** Public notes for people the credits above make. Key: the person's name. */
