@@ -5,9 +5,6 @@
  * exactly one person has it; these are the names it cannot match (no such person yet, or several:
  * McDonald, Berry, Freiberg).
  *
- * Left as written for now (no source found): Mojo Navigator (Deonson) and Space Buggy (Gosfield,
- * Haber, Preston).
- *
  * Every entry was approved by the user. Keys are the old record IDs, so a fix never touches
  * another song or musician with the same word. Add entries here, never in the database:
  * until the content freeze each staging refresh rebuilds the data from the old site.
@@ -27,6 +24,8 @@ export const CREDIT_FULL_NAMES: ReadonlyMap<number, ReadonlyMap<string, string>>
   [253, new Map([["freiberg", "David Freiberg"]])],
   // The Happy Wanderer: music (Moller) and words (Sigismund).
   [251, new Map([["moller", "Friedrich-Wilhelm Möller"], ["sigismund", "Florenz Friedrich Sigismund"]])],
+  // Space Buggy (Asleep at the Wheel): words and music (HSA-188; Italian Wikipedia and Deezer).
+  [727, new Map([["preston", "Leroy Preston"], ["haber", "James Haber"], ["gosfield", "Reuben Gosfield"]])],
   // Love (Country Joe & the Fish): words and music.
   [381, new Map([["mcdonald", "Country Joe McDonald"], ["cohen", "David Cohen"], ["barthol", "Bruce Barthol"], ["gunning", "John Gunning"], ["hirsch", 'Gary "Chicken" Hirsch']])],
   // The Pits of Thunder: music. "Anton" also matches Anton Delmore, so the import cannot choose.
@@ -39,8 +38,9 @@ export const CREDIT_FULL_NAMES: ReadonlyMap<number, ReadonlyMap<string, string>>
   [742, new Map([["walker", "Wayne P. Walker"], ["zanetis", "Alex Zanetis"], ["mccormick", "George McCormick"]])],
   // River Deep Mountain High: words and music.
   [758, new Map([["spector", "Phil Spector"], ["greenwich", "Ellie Greenwich"]])],
-  // Mojo Navigator (Country Joe & the Fish): words and music. Deonson is not known yet (HSA-188).
-  [857, new Map([["mcdonald", "Country Joe McDonald"]])],
+  // Mojo Navigator (Country Joe & the Fish): words and music. The old text spells Denson
+  // "Deonson" (HSA-188; track listings credit Denson, Melton, McDonald).
+  [857, new Map([["mcdonald", "Country Joe McDonald"], ["deonson", "Ed Denson"]])],
   // UConn Husky (UConn Fight Song): words and music.
   [940, new Map([["france", "Herbert A. France"]])],
   // That's What Love Will Make You Do: words and music. Campbell is Little Milton.
