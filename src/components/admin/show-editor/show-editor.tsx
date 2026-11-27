@@ -40,8 +40,8 @@ export function ShowEditor({ show, recent }: { show: ShowEditData; recent: Recen
   return (
     <EditorProvider value={{ pending: form.pending, send, fail: setFormError }}>
       <div className="flex flex-col gap-6">
-        <details className="rounded border border-current p-3">
-          <summary className="cursor-pointer font-semibold">Evidence for every change on this page: {choiceWords(choice)}</summary>
+        <details className="rounded-card border border-line bg-surface p-3">
+          <summary className="min-h-11 cursor-pointer py-2 font-semibold">Evidence for every change on this page: {choiceWords(choice)}</summary>
           <div className="mt-3 flex flex-col gap-2">
             <p>Each save names its evidence. The choice stays until you change it.</p>
             <EvidencePicker value={choice} onChange={setChoice} recent={recent} />

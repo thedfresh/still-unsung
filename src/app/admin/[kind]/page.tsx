@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { listHref, Pager, SearchForm } from "@/components/admin/list-controls";
+import { TextLink } from "@/components/admin/ui/components";
+import { ROW_CLASS } from "@/components/admin/ui/styles";
 import { listEntities } from "@/lib/data/entity-lists";
 import { ENTITY_CONFIGS, entityKindOf, entityListParamsSchema, SORT_LABEL, SORTS } from "@/lib/entity-lists";
 
@@ -30,10 +31,8 @@ async function EntityListPage({ params, searchParams }: PageProps<"/admin/[kind]
       ) : (
         <ul className="flex flex-col gap-3">
           {list.rows.map((row) => (
-            <li key={row.id} className="min-w-0 break-words rounded border border-current p-3">
-              <Link href={`${path}/${row.id}`} className="font-semibold underline">
-                {row.name}
-              </Link>
+            <li key={row.id} className={ROW_CLASS}>
+              <TextLink href={`${path}/${row.id}`}>{row.name}</TextLink>
               {row.detail ? <p>{row.detail}</p> : null}
             </li>
           ))}

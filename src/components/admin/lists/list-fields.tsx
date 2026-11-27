@@ -1,9 +1,10 @@
 "use client";
 
+import { CHOICE_CLASS, CHOICE_INPUT_CLASS, FIELD_CLASS, HINT_CLASS, INPUT_CLASS, LABEL_CLASS } from "@/components/admin/ui/styles";
 import type { ListConfig, ListField } from "@/lib/lists/config";
 import { editableFields, type ListValues } from "@/lib/lists/edits";
 
-const INPUT = "rounded border border-current px-2 py-1 w-full min-w-0";
+const INPUT = INPUT_CLASS;
 
 interface Props {
   config: ListConfig;
@@ -18,16 +19,16 @@ interface Props {
 function Control({ field, value, id, onChange }: { field: ListField; value: ListValues[string]; id: string; onChange: (value: string | boolean) => void }) {
   if (field.kind === "boolean") {
     return (
-      <label className="flex items-center gap-2">
-        <input type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} />
+      <label className={CHOICE_CLASS}>
+        <input type="checkbox" className={CHOICE_INPUT_CLASS} checked={value === true} onChange={(e) => onChange(e.target.checked)} />
         {field.label}
       </label>
     );
   }
   const help = field.help ? `${id}-help` : undefined;
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id}>
+    <div className={FIELD_CLASS}>
+      <label htmlFor={id} className={LABEL_CLASS}>
         {field.label}
         {field.required ? "" : " (optional)"}
       </label>
@@ -42,7 +43,7 @@ function Control({ field, value, id, onChange }: { field: ListField; value: List
       ) : (
         <input id={id} value={String(value ?? "")} maxLength={300} onChange={(e) => onChange(e.target.value)} aria-describedby={help} className={INPUT} />
       )}
-      {field.help ? <p id={help}>{field.help}</p> : null}
+      {field.help ? <p id={help} className={HINT_CLASS}>{field.help}</p> : null}
     </div>
   );
 }

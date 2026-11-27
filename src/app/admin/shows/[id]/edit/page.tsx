@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
+import { ButtonLink } from "@/components/admin/ui/components";
 import { ShowEditor } from "@/components/admin/show-editor/show-editor";
 import { recentEvidence } from "@/lib/data/changes/admin-save";
 import { getShowEditData } from "@/lib/data/shows/edit";
@@ -20,9 +20,13 @@ async function EditShow({ params }: { params: PageProps<"/admin/shows/[id]/edit"
   const recent = await recentEvidence(user.id);
   return (
     <AdminShell title={`Edit ${show.title}`}>
-      <p className="flex flex-wrap gap-4 underline">
-        <Link href={`/admin/shows/${show.id}`}>Review this show</Link>
-        {show.publicHref ? <Link href={show.publicHref}>Public page</Link> : null}
+      <p className="flex flex-wrap gap-2">
+        <ButtonLink href={`/admin/shows/${show.id}`}>Review this show</ButtonLink>
+        {show.publicHref ? (
+          <ButtonLink href={show.publicHref} variant="quiet">
+            Public page
+          </ButtonLink>
+        ) : null}
       </p>
       <p>Every save is one change. It shows on the Changes page with its evidence.</p>
       <ShowEditor show={show} recent={recent} />

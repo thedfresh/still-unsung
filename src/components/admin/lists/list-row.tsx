@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { ListFields } from "@/components/admin/lists/list-fields";
+import { Badge } from "@/components/admin/ui/components";
+import { BUTTON_CLASS, ROW_CLASS } from "@/components/admin/ui/styles";
 import type { ListRow as Row } from "@/lib/data/lists";
 import type { ListConfig } from "@/lib/lists/config";
 import { checkValues, updateEdit, type ListValues } from "@/lib/lists/edits";
 
-const BUTTON = "rounded border border-current px-3 py-1 disabled:opacity-60";
+const BUTTON = BUTTON_CLASS.secondary;
 
 interface Props {
   config: ListConfig;
@@ -44,11 +46,11 @@ export function ListRowView({ config, row, first, last, busy, send, move, fail }
 
   if (editing) {
     return (
-      <li className="min-w-0 rounded border border-current p-3">
+      <li className={ROW_CLASS}>
         <form onSubmit={save} aria-label={`Edit ${name}`} className="flex flex-col gap-3">
           <ListFields config={config} values={draft} onChange={setDraft} idPrefix={`edit-${row.id}`} stored={row.values} />
           <div className="flex flex-wrap gap-3">
-            <button type="submit" disabled={busy} className={BUTTON}>
+            <button type="submit" disabled={busy} aria-busy={busy || undefined} className={BUTTON_CLASS.primary}>
               {busy ? "Saving…" : "Save"}
             </button>
             <button type="button" disabled={busy} onClick={() => setEditing(false)} className={BUTTON}>
@@ -61,8 +63,8 @@ export function ListRowView({ config, row, first, last, busy, send, move, fail }
   }
 
   return (
-    <li className="min-w-0 rounded border border-current p-3">
-      <p className="break-words font-semibold">{name}</p>
+    <li className={ROW_CLASS}>
+      <p className="break-words text-lead font-semibold">{name}</p>
       <dl className="break-words">
         {config.fields.slice(1).map((field) => (
           <div key={field.name} className="flex flex-wrap gap-x-2">
@@ -91,12 +93,12 @@ export function ListRowView({ config, row, first, last, busy, send, move, fail }
           Edit
         </button>
         {row.usedBy > 0 ? (
-          <span>
+          <Badge>
             In use by {row.usedBy} {row.usedBy === 1 ? "record" : "records"}
-          </span>
+          </Badge>
         ) : confirming ? (
           <>
-            <button type="button" disabled={busy} onClick={() => send({ op: "delete", type: config.type, id: row.id, rev: row.rev })} aria-label={`Confirm delete ${name}`} className={BUTTON}>
+            <button type="button" disabled={busy} onClick={() => send({ op: "delete", type: config.type, id: row.id, rev: row.rev })} aria-label={`Confirm delete ${name}`} className={BUTTON_CLASS.danger}>
               Confirm delete
             </button>
             <button type="button" onClick={() => setConfirming(false)} className={BUTTON}>

@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { ListEditor } from "@/components/admin/lists/list-editor";
+import { TextLink } from "@/components/admin/ui/components";
 import { recentEvidence } from "@/lib/data/changes/admin-save";
 import { getListRows } from "@/lib/data/lists";
 import { listConfigBySlug } from "@/lib/lists/config";
@@ -19,9 +19,7 @@ async function List({ params }: { params: PageProps<"/admin/lists/[list]">["para
   return (
     <AdminShell title={config.plural}>
       <p>{config.purpose}</p>
-      <Link href="/admin/lists" className="underline">
-        All lists
-      </Link>
+      <TextLink href="/admin/lists">All lists</TextLink>
       <ListEditor config={config} rows={rows} recent={recent} />
     </AdminShell>
   );

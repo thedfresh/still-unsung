@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { RecordPicker } from "@/components/admin/record-picker";
 import { isSpoken, SUMMARY_LIMIT, type SegmentDraft } from "@/lib/shows/edit-edits";
-import { INPUT } from "./editor-context";
+import { CHOICE, CHOICE_INPUT, FIELD, INPUT } from "./editor-context";
 
 const DELIVERY = [
   ["", "Default for the work (sung)"],
@@ -49,7 +49,7 @@ export function SegmentFields({ draft, onChange, workLabel, onWorkLabel }: Props
           set({ workId: choice?.id ?? null });
         }}
       />
-      <label className="flex flex-col gap-1">
+      <label className={FIELD}>
         Delivery
         <select value={draft.delivery} onChange={(e) => set({ delivery: e.target.value })} className={INPUT}>
           {DELIVERY.map(([value, label]) => (
@@ -61,7 +61,7 @@ export function SegmentFields({ draft, onChange, workLabel, onWorkLabel }: Props
       </label>
       {spoken ? null : (
         <>
-          <label className="flex flex-col gap-1">
+          <label className={FIELD}>
             Extent
             <select value={draft.extent} onChange={(e) => set({ extent: e.target.value })} className={INPUT}>
               {EXTENT.map(([value, label]) => (
@@ -71,17 +71,17 @@ export function SegmentFields({ draft, onChange, workLabel, onWorkLabel }: Props
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1">
+          <label className={FIELD}>
             Portion note (for example, last verse only)
             <input value={draft.portionNote} onChange={(e) => set({ portionNote: e.target.value })} className={INPUT} />
           </label>
         </>
       )}
-      <label className="flex items-center gap-2">
-        <input type="checkbox" checked={draft.joinsNext} onChange={(e) => set({ joinsNext: e.target.checked })} />
+      <label className={CHOICE}>
+        <input type="checkbox" className={CHOICE_INPUT} checked={draft.joinsNext} onChange={(e) => set({ joinsNext: e.target.checked })} />
         Runs into the next segment (segue)
       </label>
-      <label className="flex flex-col gap-1">
+      <label className={FIELD}>
         Summary
         <textarea
           value={draft.summary}

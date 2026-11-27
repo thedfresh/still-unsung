@@ -2,6 +2,7 @@
 
 import { signIn } from "next-auth/webauthn";
 import { useState } from "react";
+import { Button, Message } from "@/components/admin/ui/components";
 
 /**
  * A button that starts a passkey (WebAuthn) flow. "authenticate" signs in with a passkey the
@@ -21,10 +22,10 @@ export function PasskeyButton({ action, children }: { action: "authenticate" | "
   }
   return (
     <div className="flex flex-col gap-2">
-      <button type="button" onClick={start} className="rounded border border-current px-4 py-2 text-left">
+      <Button onClick={start} className="w-full justify-start text-left">
         {children}
-      </button>
-      {failed ? <p role="alert">The passkey was not accepted. Try again, or use Google.</p> : null}
+      </Button>
+      {failed ? <Message tone="error">The passkey was not accepted. Try again, or use Google.</Message> : null}
     </div>
   );
 }

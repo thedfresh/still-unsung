@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { LINK_CLASS, ROW_CLASS } from "@/components/admin/ui/styles";
 import type { Readout, ReadoutCard, ReadoutField } from "@/lib/changes/readout";
 
 /** A hairline border, a large radius and a small shadow: the card style of the design system. */
-export const CARD = "rounded-lg border border-black/15 p-3 shadow-sm";
+export const CARD = ROW_CLASS;
 
 function Field({ field }: { field: ReadoutField }) {
   if (field.was === undefined) {
@@ -34,7 +35,7 @@ function Card({ card }: { card: ReadoutCard }) {
       )}
       {card.showId !== undefined && (
         <p className="mt-1">
-          <Link href={`/admin/shows/${card.showId}`} className="underline">
+          <Link href={`/admin/shows/${card.showId}`} className={LINK_CLASS}>
             Open the show as it is now
           </Link>
         </p>

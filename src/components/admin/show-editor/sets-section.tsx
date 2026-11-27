@@ -12,7 +12,7 @@ import {
   type SegmentDraft,
 } from "@/lib/shows/edit-edits";
 import type { EditChoice, EditSet, ShowEditData } from "@/lib/shows/edit-types";
-import { BUTTON, INPUT, SECTION_CARD, useEditor } from "./editor-context";
+import { BUTTON, FIELD, INPUT, PRIMARY, SECTION_CARD, useEditor } from "./editor-context";
 import { SegmentFields } from "./segment-fields";
 import { SegmentRow, segmentName } from "./segment-row";
 
@@ -36,7 +36,7 @@ function AddSegmentForm({ set }: { set: EditSet }) {
       }}
     >
       <h4 className="font-semibold">Add a segment to {label}</h4>
-      <label className="flex flex-col gap-1">
+      <label className={FIELD}>
         Where
         <select value={where} onChange={(e) => setWhere(e.target.value)} className={INPUT}>
           <option value="end">At the end of the set</option>
@@ -51,7 +51,7 @@ function AddSegmentForm({ set }: { set: EditSet }) {
         </select>
       </label>
       <SegmentFields draft={draft} onChange={setDraft} workLabel={workLabel} onWorkLabel={setWorkLabel} />
-      <button type="submit" disabled={pending} className={`${BUTTON} self-start`}>
+      <button type="submit" disabled={pending} className={`${PRIMARY} self-start`}>
         {pending ? "Saving…" : `Add segment to ${label}`}
       </button>
     </form>
@@ -67,7 +67,7 @@ function SetHeader({ set, sets, setTypes, index }: { set: EditSet; sets: EditSet
         Set {set.position}: {set.setTypeName}
       </h3>
       <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1">
+        <label className={FIELD}>
           Set type of set {set.position}
           <select value={typeId} onChange={(e) => setTypeId(Number(e.target.value))} className={INPUT}>
             {setTypes.map((type) => (
@@ -136,7 +136,7 @@ export function SetsSection({ show }: { show: ShowEditData }) {
         <h3 id="add-set" className="font-semibold">
           Add a set
         </h3>
-        <label className="flex flex-col gap-1">
+        <label className={FIELD}>
           Set type
           <select value={newType} onChange={(e) => setNewType(Number(e.target.value))} className={INPUT}>
             {show.setTypes.map((type) => (
@@ -146,7 +146,7 @@ export function SetsSection({ show }: { show: ShowEditData }) {
             ))}
           </select>
         </label>
-        <button type="submit" disabled={pending || show.setTypes.length === 0} className={`${BUTTON} self-start`}>
+        <button type="submit" disabled={pending || show.setTypes.length === 0} className={`${PRIMARY} self-start`}>
           {pending ? "Saving…" : "Add the set"}
         </button>
       </form>

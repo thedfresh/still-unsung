@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { listHref, Pager, SearchForm } from "@/components/admin/list-controls";
+import { ButtonLink, TextLink } from "@/components/admin/ui/components";
+import { ROW_CLASS } from "@/components/admin/ui/styles";
 import { listShows } from "@/lib/data/shows/list";
 import { showListParamsSchema } from "@/lib/validation/shows";
 
@@ -34,23 +35,23 @@ async function Shows({ searchParams }: { searchParams: PageProps<"/admin/shows">
       ) : (
         <ul className="flex flex-col gap-3">
           {list.rows.map((show) => (
-            <li key={show.id} className="min-w-0 break-words rounded border border-current p-3">
-              <Link href={`/admin/shows/${show.id}`} className="font-semibold underline">
+            <li key={show.id} className={ROW_CLASS}>
+              <TextLink href={`/admin/shows/${show.id}`}>
                 {show.date}
                 {show.placeName ? `, ${show.placeName}` : ""}
-              </Link>
+              </TextLink>
               <p>
                 {[show.band, show.showType].filter(Boolean).join(", ") || "No band or show type"}. {show.setCount}{" "}
                 {show.setCount === 1 ? "set" : "sets"}, {show.segmentCount} {show.segmentCount === 1 ? "segment" : "segments"}.
               </p>
-              <p className="flex flex-wrap gap-4 underline">
-                <Link href={`/admin/shows/${show.id}/edit`} aria-label={`Edit show ${show.date}`}>
+              <p className="flex flex-wrap gap-2">
+                <ButtonLink href={`/admin/shows/${show.id}/edit`} aria-label={`Edit show ${show.date}`}>
                   Edit
-                </Link>
+                </ButtonLink>
                 {show.publicHref ? (
-                  <Link href={show.publicHref} aria-label={`Public page of show ${show.date}`}>
+                  <ButtonLink href={show.publicHref} variant="quiet" aria-label={`Public page of show ${show.date}`}>
                     Public page
-                  </Link>
+                  </ButtonLink>
                 ) : null}
               </p>
             </li>

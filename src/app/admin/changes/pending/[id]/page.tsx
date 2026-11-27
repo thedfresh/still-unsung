@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
 import { ReadoutView } from "@/components/admin/readout-view";
+import { Message, TextLink } from "@/components/admin/ui/components";
 import { getPendingPreview, type PendingPreview } from "@/lib/data/changes/pending";
 import { parseId } from "@/lib/ids";
 
@@ -13,28 +13,28 @@ const utc = (date: Date) => `${date.toISOString().slice(0, 16).replace("T", " ")
 function Status({ preview }: { preview: PendingPreview }) {
   if (preview.state === "applied") {
     return (
-      <p role="status">
-        This change was applied.{" "}
-        <Link href={`/admin/changes?page=${preview.appliedPage ?? 1}#change-${preview.id}`} className="underline">
-          Read it in the applied changes
-        </Link>
-      </p>
+      <Message tone="success">
+        <p>
+          This change was applied.{" "}
+          <TextLink href={`/admin/changes?page=${preview.appliedPage ?? 1}#change-${preview.id}`}>Read it in the applied changes</TextLink>
+        </p>
+      </Message>
     );
   }
-  if (preview.state === "expired") return <p role="status">This preview expired{preview.expiresAt ? ` at ${utc(preview.expiresAt)}` : ""}. The agent must make a new one.</p>;
-  if (preview.state === "used") return <p role="status">The apply token of this preview was used, but the apply did not finish. Nothing was saved. The agent must make a new preview.</p>;
+  if (preview.state === "expired") return <Message tone="info">This preview expired{preview.expiresAt ? ` at ${utc(preview.expiresAt)}` : ""}. The agent must make a new one.</Message>;
+  if (preview.state === "used") return <Message tone="info">The apply token of this preview was used, but the apply did not finish. Nothing was saved. The agent must make a new preview.</Message>;
   return (
     <>
-      <p role="status">This preview is open. It expires at {preview.expiresAt ? utc(preview.expiresAt) : "an unknown time"}. Nothing is saved yet.</p>
+      <Message tone="info">This preview is open. It expires at {preview.expiresAt ? utc(preview.expiresAt) : "an unknown time"}. Nothing is saved yet.</Message>
       {preview.warnings.length > 0 && (
-        <div role="alert">
+        <Message tone="error">
           <p>This preview cannot be applied now:</p>
           <ul className="list-disc pl-6">
             {preview.warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
           </ul>
-        </div>
+        </Message>
       )}
     </>
   );
@@ -55,9 +55,7 @@ async function PendingPreviewView({ params }: { params: PageProps<"/admin/change
       </p>
       {preview.readout ? <ReadoutView readout={preview.readout} /> : <p>{preview.counts}</p>}
       <p>
-        <Link href="/admin/changes/pending" className="underline">
-          All open previews
-        </Link>
+        <TextLink href="/admin/changes/pending">All open previews</TextLink>
       </p>
     </AdminShell>
   );

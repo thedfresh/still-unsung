@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { addNoteEdits, removeNoteEdit, updateNoteEdit } from "@/lib/shows/edit-edits";
 import type { EditNote, ShowEditData } from "@/lib/shows/edit-types";
-import { BUTTON, INPUT, SECTION_CARD, useEditor } from "./editor-context";
+import { BUTTON, FIELD, INPUT, PRIMARY, SECTION_CARD, useEditor } from "./editor-context";
 
 function Visibility({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className={FIELD}>
       {label}
       <select value={value ? "public" : "private"} onChange={(e) => onChange(e.target.value === "public")} className={INPUT}>
         <option value="private">Private: only admins see it</option>
@@ -29,7 +29,7 @@ function NoteRow({ note, index }: { note: EditNote; index: number }) {
           This note is also attached to {note.alsoAttachedTo} other {note.alsoAttachedTo === 1 ? "record" : "records"}. An edit changes it there too.
         </p>
       ) : null}
-      <label className="flex flex-col gap-1">
+      <label className={FIELD}>
         Text of {name}
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className={INPUT} />
       </label>
@@ -76,12 +76,12 @@ export function NotesSection({ show }: { show: ShowEditData }) {
         <h3 id="add-note" className="font-semibold">
           Add a note
         </h3>
-        <label className="flex flex-col gap-1">
+        <label className={FIELD}>
           Text of the new note
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className={INPUT} />
         </label>
         <Visibility label="Who sees the new note" value={isPublic} onChange={setIsPublic} />
-        <button type="submit" disabled={pending} className={`${BUTTON} self-start`}>
+        <button type="submit" disabled={pending} className={`${PRIMARY} self-start`}>
           {pending ? "Saving…" : "Add the note"}
         </button>
       </form>

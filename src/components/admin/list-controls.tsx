@@ -1,6 +1,5 @@
-import Link from "next/link";
-
-const INPUT = "rounded border border-current px-2 py-1";
+import { Button, TextLink } from "@/components/admin/ui/components";
+import { FIELD_CLASS, INPUT_CLASS, LABEL_CLASS } from "@/components/admin/ui/styles";
 
 interface SearchProps {
   /** The page path, for example "/admin/works". */
@@ -15,13 +14,13 @@ interface SearchProps {
 export function SearchForm({ action, label, q, sort, sortOptions }: SearchProps) {
   return (
     <form method="get" action={action} role="search" className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1">
-        {label}
-        <input name="q" type="search" defaultValue={q} maxLength={100} className={INPUT} />
+      <label className={FIELD_CLASS}>
+        <span className={LABEL_CLASS}>{label}</span>
+        <input name="q" type="search" defaultValue={q} maxLength={100} className={INPUT_CLASS} />
       </label>
-      <label className="flex flex-col gap-1">
-        Sort by
-        <select name="sort" defaultValue={sort} className={INPUT}>
+      <label className={FIELD_CLASS}>
+        <span className={LABEL_CLASS}>Sort by</span>
+        <select name="sort" defaultValue={sort} className={INPUT_CLASS}>
           {sortOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -29,9 +28,9 @@ export function SearchForm({ action, label, q, sort, sortOptions }: SearchProps)
           ))}
         </select>
       </label>
-      <button type="submit" className="self-start rounded border border-current px-4 py-2">
+      <Button type="submit" variant="primary" className="self-start">
         Search
-      </button>
+      </Button>
     </form>
   );
 }
@@ -39,9 +38,9 @@ export function SearchForm({ action, label, q, sort, sortOptions }: SearchProps)
 /** Previous and next page links. `href` builds the address of a page. */
 export function Pager({ page, pageCount, href }: { page: number; pageCount: number; href: (page: number) => string }) {
   return (
-    <nav aria-label="Pages" className="flex flex-wrap gap-4 underline">
-      {page > 1 ? <Link href={href(page - 1)}>Previous page</Link> : null}
-      {page < pageCount ? <Link href={href(page + 1)}>Next page</Link> : null}
+    <nav aria-label="Pages" className="flex flex-wrap gap-4">
+      {page > 1 ? <TextLink href={href(page - 1)}>Previous page</TextLink> : null}
+      {page < pageCount ? <TextLink href={href(page + 1)}>Next page</TextLink> : null}
     </nav>
   );
 }

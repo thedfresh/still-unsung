@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import { Button, Field, Message } from "@/components/admin/ui/components";
+import { INPUT_CLASS } from "@/components/admin/ui/styles";
 
 export interface CreateTokenState {
   /** The new token. Shown once: the server keeps only its hash. */
@@ -19,32 +21,30 @@ export function TokenForm({ action, agents }: Props) {
   if (agents.length === 0) return <p>Add a user with the AGENT role first. Only an agent user can have a token.</p>;
   return (
     <form action={formAction} className="flex flex-col gap-3">
-      <h2 className="text-xl font-semibold">Make a token</h2>
-      <label className="flex flex-col gap-1">
-        Agent user
-        <select name="userId" required className="rounded border border-current px-2 py-1">
+      <h2 className="text-lead font-semibold">Make a token</h2>
+      <Field label="Agent user">
+        <select name="userId" required className={INPUT_CLASS}>
           {agents.map((agent) => (
             <option key={agent.id} value={agent.id}>
               {agent.email}
             </option>
           ))}
         </select>
-      </label>
-      <label className="flex flex-col gap-1">
-        Label
-        <input name="label" required maxLength={100} className="rounded border border-current px-2 py-1" />
-      </label>
-      <button type="submit" disabled={pending} className="self-start rounded border border-current px-4 py-2">
+      </Field>
+      <Field label="Label">
+        <input name="label" required maxLength={100} className={INPUT_CLASS} />
+      </Field>
+      <Button type="submit" variant="primary" busy={pending} className="self-start">
         {pending ? "Making the token…" : "Make token"}
-      </button>
-      {state.error ? <p role="alert">{state.error}</p> : null}
+      </Button>
+      {state.error ? <Message tone="error">{state.error}</Message> : null}
       {state.token ? (
-        <div role="status" className="rounded border border-current p-3">
+        <Message tone="success">
           <p>Copy this token now. It is shown once and cannot be read again.</p>
-          <code className="break-all" data-testid="new-token">
+          <code className="break-all font-mono text-ink" data-testid="new-token">
             {state.token}
           </code>
-        </div>
+        </Message>
       ) : null}
     </form>
   );
