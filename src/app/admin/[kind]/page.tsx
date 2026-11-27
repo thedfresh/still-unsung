@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
-import { listHref, Pager, SearchForm } from "@/components/admin/list-controls";
+import { listHref, Pager } from "@/components/admin/list-controls";
+import { SearchForm } from "@/components/admin/search-form";
 import { TextLink } from "@/components/admin/ui/components";
 import { ROW_CLASS } from "@/components/admin/ui/styles";
 import { listEntities, placeTypeOptions } from "@/lib/data/entity-lists";
@@ -34,10 +35,11 @@ async function EntityListPage({ params, searchParams }: PageProps<"/admin/[kind]
         label={config.searchLabel}
         q={query.q}
         sort={query.sort}
+        defaultSort="name"
         sortOptions={SORT_OPTIONS}
-        filter={typeOptions ? { name: "type", label: "Show", value: type, options: typeOptions } : undefined}
+        filter={typeOptions ? { name: "type", label: "Show", value: type, defaultValue: fallback, options: typeOptions } : undefined}
       />
-      <p>
+      <p role="status">
         {list.total} {typeLabel && type !== "all" ? `${typeLabel}` : list.total === 1 ? config.singular : config.plural.toLowerCase()}. Page {list.page} of {list.pageCount}.
       </p>
       {list.rows.length === 0 ? (

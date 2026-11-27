@@ -81,3 +81,24 @@ test("a band's count and the show review page link to the records they name", as
   await expect(main.getByRole("link", { name: seeded.bandName })).toHaveAttribute("href", `/admin/bands/${seeded.bandId}`);
   expect((await new AxeBuilder({ page }).withTags(WCAG).analyze()).violations).toEqual([]);
 });
+
+test("typing a search on a filtered shows list keeps the filter (HSA-184 with HSA-186)", async ({ page, context, baseURL }) => {
+  const admin = await seedSignedInUser("ADMIN");
+  await context.addCookies([{ name: "authjs.session-token", value: admin.sessionToken, url: baseURL! }]);
+  const seeded = await seedLinkedShow();
+
+  await page.goto(`/admin/shows?place=${seeded.city}`);
+  await expect(page.getByRole("status")).toHaveText("1 show. Page 1 of 1.");
+  const search = page.getByRole("searchbox");
+  // A search that matches the venue keeps the place filter in the address and in the result.
+  await search.fill(`Link Hall ${seeded.tag}`);
+  await expect(page).toHaveURL(new RegExp(`place=${seeded.city}.*q=`));
+  await expect(page.getByRole("status")).toHaveText("1 show. Page 1 of 1.");
+  // A search with no match inside the place gives none, and the filter is still set.
+  await search.fill(`nothing ${seeded.tag}`);
+  await expect(page.getByText("No shows match.")).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`place=${seeded.city}`));
+  // A sort change keeps it too.
+  await page.getByLabel("Sort by").selectOption({ index: 1 });
+  await expect(page).toHaveURL(new RegExp(`place=${seeded.city}.*sort=`));
+});

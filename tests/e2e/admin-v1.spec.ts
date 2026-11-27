@@ -75,8 +75,16 @@ test.describe("admin", () => {
     const names = () => page.locator("main li a.font-semibold").allTextContents();
     expect(await names()).toEqual([`An Apple Tune ${tag}`, `Wolf Song ${tag}`, `The Yak Song ${tag}`]);
     await page.getByLabel("Sort by").selectOption("name-desc");
-    await page.getByRole("button", { name: "Search" }).click();
-    expect(await names()).toEqual([`The Yak Song ${tag}`, `Wolf Song ${tag}`, `An Apple Tune ${tag}`]);
+    await expect(page).toHaveURL(/sort=name-desc/);
+    await expect.poll(names).toEqual([`The Yak Song ${tag}`, `Wolf Song ${tag}`, `An Apple Tune ${tag}`]);
+    await expect(page.getByRole("status")).toHaveText(/^3 works/);
+    await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+
+    // The search box narrows the list as the user types, keeps the sort, and writes both to the address.
+    await page.getByRole("searchbox").fill(`Wolf Song ${tag}`);
+    await expect(page).toHaveURL(new RegExp(`q=Wolf\\+Song\\+${tag}.*sort=name-desc|sort=name-desc.*q=`));
+    await expect.poll(names).toEqual([`Wolf Song ${tag}`]);
+    await expect(page.getByRole("status")).toHaveText(/^1 work\b/);
     await checkPage(page);
 
     await page.getByRole("link", { name: `Wolf Song ${tag}` }).click();
@@ -89,6 +97,17 @@ test.describe("admin", () => {
     }
   });
 
+  test("the places list applies its kind choice on change, at phone width", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto("/admin/places");
+    const kind = page.getByRole("combobox", { name: "Show", exact: true });
+    await kind.selectOption("none");
+    await expect(page).toHaveURL(/type=none/);
+    await expect(page.getByRole("status")).toContainText("Page 1 of");
+    await expect(page.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+    await checkPage(page);
+  });
+
   test("unknown record IDs return HTTP 404", async ({ page }) => {
     for (const path of ["/admin/works/2000000000", "/admin/people/abc", "/admin/shows/2000000000/edit"]) {
       expect((await page.goto(path))?.status(), path).toBe(404);
@@ -99,7 +118,8 @@ test.describe("admin", () => {
     const seeded = await seedShowForReview();
     await page.goto("/admin/shows");
     await page.getByLabel(/Search by date/).fill(seeded.placeName);
-    await page.getByRole("button", { name: "Search" }).click();
+    await expect(page).toHaveURL(/q=/);
+    await expect(page.getByRole("link", { name: /^Edit show 1980-11-14$/ })).toBeVisible();
     await checkPage(page);
     await page.getByRole("link", { name: /^Edit show 1980-11-14$/ }).click();
     await expect(page.getByRole("heading", { level: 1, name: new RegExp(`^Edit Show 1980-11-14, ${seeded.placeName}`) })).toBeVisible();
