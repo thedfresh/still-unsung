@@ -250,6 +250,9 @@ export const WHITEGUM_PAGES: ReadonlyMap<number, string> = new Map([
   [1030, "DAYSOF49.HTM"], // Days of '49
   [1063, "WILDABOU.HTM"], // Wild About My Lovin'
   [1092, "WASNTTHA.HTM"], // Wasn't That A Time?
+  // A part of a longer song: its section of that song's page (user, 2026-11-27).
+  [709, "SUGAR1MG.HTM#SSDD"], // Sunshine Daydream, the close of Sugar Magnolia
+  [1115, "BLSALLAH.HTM#unusual"], // Unusual Occurrences in the Desert, part of Blues for Allah
 ]);
 
 /**
