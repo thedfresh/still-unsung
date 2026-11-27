@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { SiteNav } from "@/components/ui/site-nav";
 import { LICENSE_TEXT, LICENSE_URL, MAIN_NAV, SITE_NAME } from "@/lib/site-config";
 
@@ -18,7 +18,24 @@ export function SiteFrame({ children }: { children: ReactNode }) {
           <Link href="/" className="text-lead font-semibold text-ink hover:text-gold-darker">
             {SITE_NAME}
           </Link>
-          <SiteNav items={MAIN_NAV} />
+          {/* The menu reads the path in the browser. On a page whose address is only known at request time, the plain links show first. */}
+          <Suspense
+            fallback={
+              <nav aria-label="Main">
+                <ul className="flex gap-4">
+                  {MAIN_NAV.map((item) => (
+                    <li key={item.href}>
+                      <Link href={item.href} className="inline-flex min-h-6 items-center font-medium text-ink hover:text-gold-darker">
+                        {item.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            }
+          >
+            <SiteNav items={MAIN_NAV} />
+          </Suspense>
         </div>
       </header>
       <main id="main" tabIndex={-1} className="flex flex-1 flex-col focus:outline-none">

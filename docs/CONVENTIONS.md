@@ -304,7 +304,7 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
 - **Import rules admin page.** `/admin/import-rules` shows the page body as formatted text, with
   its `rev`, its last change time and a link to the change that made the last edit. It reads
   through `getImportRulesForAdmin` (`src/lib/data/guide-pages.ts`), which ignores the public
-  mark, after `requireAdminPage()`. `MarkdownBody` (`src/components/admin/markdown-body.tsx`)
+  mark, after `requireAdminPage()`. `MarkdownBody` (`src/components/ui/markdown-body.tsx`)
   renders the markdown in a server component. It never parses raw HTML, and links and images
   show as text. The page is read-only. (test: `tests/db/import-rules-admin.test.ts`,
   `src/components/admin/import-rules-view.test.tsx`, `tests/e2e/agent-mcp.spec.ts`)
@@ -437,3 +437,22 @@ kind of change (data-model items 19, 42, 87, 102, 109).
   yet.
 - **Not built yet:** undo from the admin (the changeset keeps `before`), and deletes from the
   admin screens. The shared save can use the `delete` op later.
+
+## 13. The public read layer
+
+Every public page reads through `src/lib/data/public/` (HSA-177). One rule: a record is public when
+its `Entity.isPublic` is true (`visibility.ts`).
+
+- **Explicit selects only.** A public read lists its fields with `select`, never `include`. It
+  never selects a private field: `Show.legacyData`, `Segment.wordsAsHeard`, a private note, a
+  citation, or the wording of a rendition. (review; test: `tests/db/public-show.test.ts` and
+  `tests/e2e/public-show.spec.ts` seed a private value of each kind and search the result and the HTML)
+- **A name of a related record** (band, place, work, person) shows only when that record is public
+  (`publicName`). A private work gives the row "Title not public".
+- **Hidden segments keep the structure.** The layer reads a private segment's order and join mark
+  only, so a segue chain stays true across it (`dropWithJoins`). Its children are hidden too.
+- **The show page** is `/shows/<slug>`. `src/proxy.ts` gives an unknown or private slug a real 404.
+  The setlist views are `?view=standard` (default) and `?view=complete`, plain links.
+  The rules for both views live in `src/lib/shows/setlist.ts`.
+- **Not cached yet.** The page reads fresh on each request, because nothing refreshes a cache after
+  an agent edit (section 5). The first cached public page adds the tags and the stale-data test.

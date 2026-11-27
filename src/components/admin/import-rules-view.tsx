@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MarkdownBody } from "@/components/admin/markdown-body";
+import { MarkdownBody } from "@/components/ui/markdown-body";
 import type { ImportRulesView } from "@/lib/data/guide-pages";
 
 export const MISSING_RULES_MESSAGE =
