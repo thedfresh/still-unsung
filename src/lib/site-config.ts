@@ -1,6 +1,6 @@
 /**
- * Site-wide branding and navigation, in one place. The name is not final (branding is not
- * decided), so no other file may write it out.
+ * Site-wide branding and navigation, in one place. The name is final. No other file writes it
+ * out, so a change to it stays one edit.
  */
 export const SITE_NAME = "StillUnsung";
 export const SITE_DESCRIPTION = "The Robert Hunter Performance Archive";

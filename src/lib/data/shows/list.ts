@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/db";
 import { shortDate } from "@/lib/shows/review-words";
 import { parseShowSearch } from "@/lib/shows/search";
+import type { ShowSort } from "@/lib/validation/shows";
 import { JOIN } from "./review-queries";
 
 export const SHOWS_PER_PAGE = 50;
@@ -14,6 +15,8 @@ export interface ShowListRow {
   showType: string | null;
   setCount: number;
   segmentCount: number;
+  /** The public page of the show, or null when it has none (no slug, or the show is private). */
+  publicHref: string | null;
 }
 
 export interface ShowList {
@@ -42,7 +45,13 @@ function searchWhere(query: string): Prisma.ShowWhereInput {
  * One page of shows, newest first. A plain query: no trigram index work yet. Three queries
  * (the count, the shows, the sets with their segment counts), whatever the page holds.
  */
-export async function listShows(query: string, page: number, db: PrismaClient = getPrisma()): Promise<ShowList> {
+export async function listShows(
+  query: string,
+  page: number,
+  db: PrismaClient = getPrisma(),
+  sort: ShowSort = "newest",
+): Promise<ShowList> {
+  const dir = sort === "newest" ? "desc" : "asc";
   const where = searchWhere(query);
   const total = await db.show.count({ where });
   const pageCount = Math.max(1, Math.ceil(total / SHOWS_PER_PAGE));
@@ -51,11 +60,11 @@ export async function listShows(query: string, page: number, db: PrismaClient = 
     ...JOIN,
     where,
     orderBy: [
-      { dateYear: { sort: "desc", nulls: "last" } },
-      { dateMonth: { sort: "desc", nulls: "last" } },
-      { dateDay: { sort: "desc", nulls: "last" } },
-      { orderOnDate: { sort: "desc", nulls: "last" } },
-      { id: "desc" },
+      { dateYear: { sort: dir, nulls: "last" } },
+      { dateMonth: { sort: dir, nulls: "last" } },
+      { dateDay: { sort: dir, nulls: "last" } },
+      { orderOnDate: { sort: dir, nulls: "last" } },
+      { id: dir },
     ],
     skip: (current - 1) * SHOWS_PER_PAGE,
     take: SHOWS_PER_PAGE,
@@ -65,6 +74,8 @@ export async function listShows(query: string, page: number, db: PrismaClient = 
       dateMonth: true,
       dateDay: true,
       dateAsWritten: true,
+      slug: true,
+      entity: { select: { isPublic: true } },
       placeName: { select: { name: true } },
       place: { select: { names: { orderBy: { position: "asc" }, take: 1, select: { name: true } } } },
       band: { select: { name: true } },
@@ -88,6 +99,7 @@ export async function listShows(query: string, page: number, db: PrismaClient = 
     showType: show.showType?.name ?? null,
     setCount: counts.get(show.id)?.sets ?? 0,
     segmentCount: counts.get(show.id)?.segments ?? 0,
+    publicHref: show.slug && show.entity.isPublic ? `/shows/${show.slug}` : null,
   }));
   return { rows, total, page: current, pageCount };
 }

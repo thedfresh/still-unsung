@@ -447,8 +447,39 @@ kind of change (data-model items 19, 42, 87, 102, 109).
   `writeRefusal` take the path, and the MCP tools keep refusing it (section 11). Fixed lists
   (enums) have no page. (test: `src/lib/lists/*.test.ts`, `tests/db/admin-lists.test.ts`,
   `tests/e2e/admin-lists.spec.ts`)
-- **Not built yet:** undo from the admin (the changeset keeps `before`), and deletes from the
-  other admin screens. The shared save can use the `delete` op later.
+- **Admin pages and navigation** (HSA-178). `src/lib/admin-nav.ts` lists every admin page once;
+  the navigation bar and the admin home both read it, so a new page is one new entry. The home
+  page shows the five latest changes. Every admin page, old and new, has this shape: the default
+  export is a `Suspense` around an inner component, and the inner component starts with
+  `await requireAdminPage();` before it awaits anything that reads data (section 10). The users
+  and tokens pages follow it too. Each page has a signed-out e2e test that checks the raw
+  response holds no record data. (test: `tests/e2e/admin-v1.spec.ts`, `admin-lists.spec.ts`)
+- **Catalogue lists** (works, people, bands, places). One generic page,
+  `src/app/admin/[kind]/page.tsx`, driven by `src/lib/entity-lists.ts` and
+  `src/lib/data/entity-lists.ts`: a search box, a sort and 50 rows to a page. Name sorts ignore a
+  leading "The", "A" and "An" (`sortName` in `src/lib/sort-name.ts`; the sort runs in code on the
+  matching names, because no column holds the folded form). Each row links to a read-only record
+  page, `src/app/admin/[kind]/[id]/page.tsx`, which may show private fields. The shows list has
+  its own page because it sorts by date, and links the public page when the show has one.
+  `src/proxy.ts` gives an unknown record ID a real 404.
+- **The show editor** (`/admin/shows/[id]/edit`). The page reads the show once through
+  `getShowEditData` (`src/lib/data/shows/edit.ts`: a fixed number of queries) and passes plain
+  values to `ShowEditor` (`src/components/admin/show-editor/`). The page holds one evidence choice
+  and one save state. Every part saves through `send`, which calls the shared save, so one click
+  or one form is one changeset with the `rev` of each record. The parts are the show fields (a
+  partial date from `src/lib/partial-date.ts`, place and place name, band, billed as, status), the
+  bill, the sets (add, set type, reorder), the segments (add at the end, after or inside another
+  segment; edit work, delivery, extent including aborted, segue, portion note and summary;
+  move, nest and unnest) and the show's notes. `src/lib/shows/edit-edits.ts` builds every edit
+  as a pure function. A move changes only the moved segment's `sortKey` (and `parentId` for a
+  nest). A spoken segment hides extent and portion. A work picker shows each work's variants.
+  `RecordPicker` searches by name through `searchPickerAction`, which is read-only and ADMIN only.
+  (test: `tests/db/show-editor.test.ts`, `src/lib/shows/edit-edits.test.ts`,
+  `tests/e2e/admin-v1.spec.ts`)
+- **Not built yet:** undo from the admin (the changeset keeps `before`), deletes from most admin
+  screens (the show editor deletes only a bill entry and a note's link), editors for works,
+  people, bands and places, lineups, vocals, recordings and citations in the show editor, and
+  merging records. The shared save can use the `delete` op later.
 
 ## 13. The public read layer
 

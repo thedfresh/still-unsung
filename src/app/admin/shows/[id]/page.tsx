@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminShell, requireAdminPage } from "@/components/admin/admin-shell";
@@ -24,6 +25,11 @@ async function ShowReview({ params }: { params: PageProps<"/admin/shows/[id]">["
   return (
     <AdminShell title={show.title}>
       <p>Review of this show, in reading order. Parts marked (private) are for admins only. You can edit a segment summary.</p>
+      <p>
+        <Link href={`/admin/shows/${show.id}/edit`} className="underline">
+          Edit this show
+        </Link>
+      </p>
       <ShowReviewView show={show} recent={recent} />
     </AdminShell>
   );

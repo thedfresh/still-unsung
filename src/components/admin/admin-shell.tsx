@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { signOut } from "@/auth";
+import { ADMIN_NAV } from "@/lib/admin-nav";
 import { getCurrentUser } from "@/lib/current-user";
 import { AppError } from "@/lib/errors";
 import type { CurrentUser } from "@/lib/roles";
@@ -28,12 +29,11 @@ export async function AdminShell({ title, children }: { title: string; children:
       <header className="flex flex-col gap-3">
         <nav aria-label="Admin" className="flex flex-wrap gap-4 underline">
           <Link href="/admin">Admin home</Link>
-          <Link href="/admin/shows">Shows</Link>
-          <Link href="/admin/lists">Lists</Link>
-          <Link href="/admin/users">Users</Link>
-          <Link href="/admin/tokens">Agent tokens</Link>
-          <Link href="/admin/changes">Changes</Link>
-          <Link href="/admin/design">Design</Link>
+          {ADMIN_NAV.filter((item) => item.href !== "/admin/changes/pending").map((item) => (
+            <Link key={item.href} href={item.href}>
+              {item.label}
+            </Link>
+          ))}
         </nav>
         <h1 className="text-2xl font-semibold">{title}</h1>
         <form
