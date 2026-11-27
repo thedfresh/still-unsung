@@ -474,11 +474,15 @@ describe("legacy import: works, people and places", () => {
     expect(await prisma.person.count({ where: { name: "Sebastian" } })).toBe(0);
   });
 
-  it("resolves a surname to one of several first-name forms and lists the merge; lists a name with no match", async () => {
-    expect((await creditsOf("songs:18")).lines).toEqual(["words:David Freiberg"]);
-    expect(await prisma.person.count({ where: { name: "Freiberg" } })).toBe(0);
+  it("never guesses between several people with a surname: keeps it as written and lists the merge (HSA-173); lists a name with no match", async () => {
+    // "Dave Freiberg" is another spelling of David Freiberg (name-fixes.ts): one person.
+    expect((await creditsOf("songs:17")).lines).toEqual(["words:David Freiberg"]);
+    expect(await prisma.person.count({ where: { name: "Dave Freiberg" } })).toBe(0);
+    // David and Cass Freiberg both match "Freiberg". The import does not choose; name-fixes.ts does.
+    expect((await creditsOf("songs:18")).lines).toEqual(["words:Freiberg"]);
+    expect(await prisma.person.count({ where: { name: "Freiberg" } })).toBe(1);
     const merges = JSON.parse(await readFile(path.join(outputDir, "proposals", "06-person-merges.json"), "utf8")).rows as Array<{ name: string; reason: string }>;
-    expect(merges.some((r) => r.name === "Freiberg" && r.reason.includes("first-name forms"))).toBe(true);
+    expect(merges.some((r) => r.name === "Freiberg" && r.reason.includes("several"))).toBe(true);
     expect(merges.some((r) => r.name === "Pigpen" && r.reason.includes("no full-name person"))).toBe(true);
   });
 

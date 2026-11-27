@@ -1,4 +1,5 @@
 import { HINT_LISTS, bulk, uniqueKey, type Ctx } from "./context.ts";
+import { CREDIT_TEXTS, PERSON_NOTES, SAME_PERSON, creditFullName } from "./name-fixes.ts";
 import {
   SUITES,
   dateOf,
@@ -14,7 +15,6 @@ import {
   splitCredit,
   str,
   suiteForTag,
-  surnameOf,
   vocalRoleOf,
   type TraditionalCredit,
 } from "./rules.ts";
@@ -29,6 +29,12 @@ const CREDIT_FIELDS: Array<{ field: string; roles: RoleName[] }> = [
   { field: "music_by", roles: ["music"] },
   { field: "song_by", roles: ["words", "music"] },
 ];
+
+/** The credit text of an old song field. Text the user gave for the song (name-fixes.ts) replaces it. */
+function creditText(row: Record<string, unknown>, field: string): string | null {
+  const given = CREDIT_TEXTS.get(Number(row.id));
+  return given ? (given[field as "song_by"] ?? null) : str(row, field);
+}
 
 export async function importWorks(ctx: Ctx): Promise<void> {
   const allSongs = await ctx.read("songs");
@@ -119,6 +125,11 @@ export async function importWorks(ctx: Ctx): Promise<void> {
   }
 
   await importCredits(ctx, songs);
+  // Public notes for people that the user's credit texts make (name-fixes.ts), such as a pseudonym.
+  for (const [name, body] of PERSON_NOTES) {
+    const personId = ctx.personByName.get(normalizeName(name));
+    if (personId !== undefined) ctx.note(personId, body, true, `name-fixes:${slugify(name)}`);
+  }
   await importSingers(ctx);
   await importSuites(ctx, songs);
 }
@@ -132,7 +143,7 @@ function traditionalSongs(songs: Array<Record<string, unknown>>): Set<number> {
   const out = new Set<number>();
   for (const row of songs) {
     for (const { field } of CREDIT_FIELDS) {
-      const text = str(row, field);
+      const text = creditText(row, field);
       if (text && parseTraditional(text)) out.add(Number(row.id));
     }
   }
@@ -156,7 +167,11 @@ const KNOWN_ARRANGERS = new Map([
 const HUNTER_FORMS = new Set(["robert hunter", "hunter", "bob hunter", "robert c hunter", "robert c. hunter"]);
 
 /** A person for a name in credit text: an existing one with that name, or a new one. */
-async function personForName(ctx: Ctx, name: string, legacyId: string): Promise<number> {
+async function personForName(ctx: Ctx, written: string, legacyId: string): Promise<number> {
+  // Another spelling of a person the archive has (name-fixes.ts): use that person's name.
+  const same = SAME_PERSON.get(normalizeName(written));
+  if (same !== undefined) ctx.line("Credit names that are another spelling of a person (name-fixes.ts)", `${legacyId}: "${written}" is "${same}"`);
+  const name = same ?? written;
   const normalized = normalizeName(name);
   // Robert Hunter's usual name forms are the seeded person, never a new one.
   if (HUNTER_FORMS.has(normalized)) return ctx.fixedPerson.hunter;
@@ -195,7 +210,7 @@ async function importCredits(ctx: Ctx, songs: Array<Record<string, unknown>>): P
     const oldId = Number(row.id);
     const workId = ctx.workBySong.get(oldId) as number;
     for (const { field, roles } of CREDIT_FIELDS) {
-      const text = str(row, field);
+      const text = creditText(row, field);
       if (!text) continue;
       const legacyId = `songs:${oldId}:${camel(field)}`;
       // Item 121: odd credits go on the review list, with no credit.
@@ -235,26 +250,23 @@ async function importCredits(ctx: Ctx, songs: Array<Record<string, unknown>>): P
       byWord.set(word, (byWord.get(word) ?? new Set<number>()).add(personId));
     }
   }
-  const nameOfPerson = new Map([...ctx.personByName].map(([name, id]) => [id, name]));
   for (const entry of names.filter((n) => isSurnameOnly(n.name))) {
     const word = normalizeName(entry.name).replace(/[^a-z0-9]/g, "");
-    // A known arranger: the old text names only the surname of an existing person.
-    const alias = entry.roles.includes("arrangement") ? KNOWN_ARRANGERS.get(word) : undefined;
+    // A full name the user gave for this song (name-fixes.ts), or a known arranger: the old text
+    // names only the surname.
+    const alias = creditFullName(entry.legacyId, word) ?? (entry.roles.includes("arrangement") ? KNOWN_ARRANGERS.get(word) : undefined);
     if (alias !== undefined) {
       personFor.set(entry, await personForName(ctx, alias, entry.legacyId));
       ctx.line("Surname-only credit names resolved to a full-name person", `${entry.legacyId}: "${entry.name}" is "${alias}"`);
       continue;
     }
     const matches = [...(byWord.get(word) ?? [])].sort((a, b) => a - b);
-    const lastNames = new Set(matches.map((id) => surnameOf(nameOfPerson.get(id) ?? "")));
-    if (matches.length >= 1 && lastNames.size === 1) {
-      // One person, or one surname with spelling variants of the first name (Dave and David).
+    if (matches.length === 1) {
+      // Exactly one person has the word. With several (McDonald: Country Joe, Kathi, Joe; or Dave
+      // and David Freiberg) the import never guesses (HSA-173): the user names the person in
+      // name-fixes.ts, and until then the name stays as written, on the person-merge list.
       personFor.set(entry, matches[0]);
       ctx.line("Surname-only credit names resolved to a full-name person", `${entry.legacyId}: "${entry.name}" is person ${matches[0]}`);
-      if (matches.length > 1) {
-        ctx.line("Surname-only credit names with several full-name variants (person-merge list)", `${entry.legacyId}: "${entry.name}" matches people ${matches.join(", ")}`);
-        ctx.propose("06-person-merges", { personIds: matches.join(","), legacyIds: matches.map((id) => `person ${id}`).join(","), name: entry.name, reason: "one surname, several first-name forms" });
-      }
     } else {
       ctx.line(
         "Surname-only credit names not resolved (kept as written; person-merge list)",
