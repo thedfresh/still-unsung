@@ -106,3 +106,123 @@ export const CREDIT_TEXTS: ReadonlyMap<number, Partial<Record<"song_by" | "lyric
 export const PERSON_NOTES: ReadonlyMap<string, string> = new Map([
   ["McGannahan Skjellyfetti", "The Grateful Dead's collective pseudonym, used for songs credited to the whole band."],
 ]);
+
+/**
+ * Whitegum lyrics pages for performed songs the old site did not link (user, 2026-11-27, HSA-89).
+ * Each matches the song's title, and Whitegum's writer credit agrees with the archive's.
+ * Key: old song ID. Value: the page name under /songfile/. Added after the old site's own links.
+ */
+export const WHITEGUM_PAGES: ReadonlyMap<number, string> = new Map([
+  [21, "AMAZINGG.HTM"], // Amazing Grace
+  [42, "BANKSOFT.HTM"], // Banks Of The Ohio
+  [46, "BATTLEOF.HTM"], // Battle Of New Orleans
+  [47, "BEEDLEUM.HTM"], // Beedle Um Bum
+  [78, "BORNTORU.HTM"], // Born To Run
+  [82, "BOYSOFSU.HTM"], // The Boys Of Summer
+  [86, "BUCKDANC.HTM"], // Buckdancer's Choice
+  [88, "BURYMENE.HTM"], // Bury Me 'Neath The Willow Tree
+  [103, "CHANGES.HTM"], // Changes
+  [126, "CRUCIFIX.HTM"], // Crucifixion
+  [137, "DANNYBOY.HTM"], // Danny Boy
+  [147, "DEEPELEM.HTM"], // Deep Elem Blues
+  [149, "DESOLATI.HTM"], // Desolation Row
+  [169, "DOWNBYTH.HTM"], // Down By The Riverside
+  [190, "ELEVEN.HTM"], // The Eleven
+  [223, "FOX.HTM"], // The Fox
+  [227, "FREIGHTT.HTM"], // Freight Train
+  [231, "THERESA.HTM"], // Gallo Del Cielo
+  [232, "GENTLEON.HTM"], // Gentle On My Mind
+  [234, "GHOSTRID.HTM"], // Ghost Riders In The Sky
+  [244, "GRANADA.HTM"], // Granada
+  [245, "GRINNING.HTM"], // Grinnin' In Your Face
+  [251, "HAPPYWAN.HTM"], // The Happy Wanderer
+  [257, "HEARTGLA.HTM"], // Heart Of Glass
+  [260, "HELP.HTM"], // Help!
+  [279, "I1COMEFO.HTM"], // I Come For To Sing
+  [292, "FOURLEAF.HTM"], // I'm Looking Over A Four Leaf Clover
+  [297, "IKOIKO.HTM"], // Iko Iko
+  [366, "LILYROSE.HTM"], // Lily, Rosemary And The Jack Of Hearts
+  [386, "MACCRIMM.HTM"], // MacCrimmon's Lament
+  [389, "MAKEMEAP.HTM"], // Make Me A Pallet On Your Floor
+  [391, "MANOFCON.HTM"], // Man Of Constant Sorrow
+  [421, "MURDERBA.HTM"], // Murder Ballads Medley
+  [424, "MYCREOLE.HTM"], // My Creole Belle
+  [454, "ONEWAYOU.HTM"], // One Way Out
+  [463, "PASSINGT.HTM"], // Passing Through
+  [466, "PEGGYO.HTM"], // Peggy-O
+  [483, "RAILRDBL.HTM"], // Railroad Blues (Down To The Depot)
+  [511, "ROLLINTU.HTM"], // Rollin' And Tumblin'
+  [524, "SADEYEDL.HTM"], // Sad-Eyed Lady Of The Lowlands
+  [526, "SAINTLOU.HTM"], // Saint Louis Blues
+  [547, "SHAKESUG.HTM"], // Shake Sugaree
+  [551, "SHELTERF.HTM"], // Shelter From The Storm
+  [599, "TENWALTZ.HTM"], // Tennessee Waltz
+  [603, "THATLUCK.HTM"], // That Lucky Old Sun
+  [640, "UNCLEPEN.HTM"], // Uncle Pen
+  [655, "WEREWOLF.HTM"], // Werewolves Of London
+  [675, "WHISKEYI.HTM"], // Whiskey In The Jar
+  [678, "WHITEHOU.HTM"], // White House Blues
+  [712, "ROCKAROU.HTM"], // Rock Around The Clock
+  [714, "SILVERTH.HTM"], // Silver Threads And Golden Needles
+  [718, "COLDCOLD.HTM"], // Cold Cold Heart
+  [738, "BUILTCO2.HTM"], // Built For Comfort
+  [758, "RIVERDEE.HTM"], // River Deep Mountain High
+  [789, "LOUIE.HTM"], // Louie Louie
+  [799, "THERENOC.HTM"], // There Ain't No Cars On Me
+  [802, "THEDANCE.HTM"], // The Dance
+  [804, "SLOOPJOH.HTM"], // Sloop John B
+  [816, "THIRTYDA.HTM"], // Thirty Days
+  [824, "HIGHWY61.HTM"], // Highway 61 Revisited
+  [833, "MONA.HTM"], // Mona
+  [834, "BUTCHERS.HTM"], // Butcher's Boy
+  [857, "MOJONAVI.HTM"], // Mojo Navigator
+  [874, "YONDERCO.HTM"], // Yonder Comes A Sucker
+  [885, "WILLIEAN.HTM"], // Willie And The Hand Jive
+  [902, "TALKBLUE.HTM"], // Talkin' Blues
+  [906, "RAINSNOW.HTM"], // Rainbows In The Snow
+  [914, "OHSUSANN.HTM"], // Oh! Susanna
+  [918, "OPERATOR.HTM"], // Operator
+  [945, "CRAZYWOR.HTM"], // Crazy Words, Crazy Tune
+  [946, "WESHALLN.HTM"], // We Shall Not Be Moved
+  [953, "MARIAHEL.HTM"], // Maria Elena
+  [979, "PAULANDS.HTM"], // Paul And Silas
+  [984, "PICKINGU.HTM"], // Pickin' Up The Pieces
+  [985, "EVILHEAR.HTM"], // Evil Hearted Man
+  [994, "LETITROC.HTM"], // Let It Rock
+  [995, "THATSWHA.HTM"], // That's What Love Will Make You Do
+  [996, "KNOCKING.HTM"], // Knockin' On Heaven's Door
+  [997, "STOPTHAT.HTM"], // Stop That Train
+  [998, "STRANGEM.HTM"], // Strange Man
+  [1010, "CLOSER.HTM"], // Closer
+  [1012, "GOODNIGH.HTM"], // Goodnight Irene
+  [1044, "LAWDYMIS.HTM"], // Lawdy Miss Clawdy
+  [1047, "CODINE.HTM"], // Cod'ine
+  [1048, "SHAKERAT.HTM"], // Shake, Rattle and Roll
+  [1049, "BLUESUED.HTM"], // Blue Suede Shoes
+  [1054, "TELLOLDB.HTM"], // Tell Ol' Bill
+  [1064, "TWOIRISH.HTM"], // Two Irishmen
+  [1065, "INTHEPIN.HTM"], // In The Pines
+  [1067, "BLACKMOR.HTM"], // Black Mountain Rag
+  [1076, "JBGOODE.HTM"], // Johnny B. Goode
+  [1078, "BOOGIEON.HTM"], // Boogie On Reggae Woman
+  [1085, "STAGGERL.HTM"], // Stagger Lee
+  [1086, "FOLLOWTH.HTM"], // Follow The Drinking Gourd
+  [1087, "JOHNHENR.HTM"], // John Henry
+  [1090, "I2VEGHOM.HTM"], // I've Got A Home In That Rock
+  [1091, "MARYDONT.HTM"], // Oh, Mary Don't You Weep
+  [1093, "ALL1MYTR.HTM"], // All My Trials
+  [1095, "MICHAELR.HTM"], // Michael Row The Boat Ashore
+  [1099, "POORELLE.HTM"], // Poor Ellen Smith
+  [1100, "WILDWOOD.HTM"], // Wildwood Flower
+  [1101, "BROWNSFE.HTM"], // Brown's Ferry Blues
+  [1102, "JESSEJ2.HTM"], // Jesse James
+  [1104, "ALLTHEGO.HTM"], // All The Good Times Are Past And Gone
+  [1107, "HANDSOMM.HTM"], // Handsome Molly
+  [1108, "PIGINAPE.HTM"], // Pig In A Pen
+  [1110, "NINEPOUN.HTM"], // Nine Pound Hammer
+  [1111, "SALTYDOG.HTM"], // Salty Dog Blues
+  [1113, "MORNINGG.HTM"], // Morning Glory
+  [1114, "HIGHWAY1.HTM"], // Highway 101 Blues
+  [1117, "HE1SGONE.HTM"], // He's Gone
+  [1120, "FORWHATI.HTM"], // For What It's Worth
+]);

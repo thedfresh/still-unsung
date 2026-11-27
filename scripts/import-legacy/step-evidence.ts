@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Ctx } from "./context.ts";
+import { WHITEGUM_PAGES } from "./name-fixes.ts";
 import {
   LINK_SYSTEMS,
   bool,
@@ -190,6 +191,14 @@ export async function importRecordingCandidates(ctx: Ctx, outputDir: string): Pr
 export async function importLinks(ctx: Ctx): Promise<void> {
   const types = new Map((await ctx.read("link_types")).map((row) => [Number(row.id), str(row, "name")]));
   for (const row of await ctx.read("links")) importLink(ctx, row, types);
+  // Whitegum pages the user added (name-fixes.ts), for songs with no Whitegum link of their own.
+  const linked = new Set(ctx.externalIds.filter((e) => e.system === "Whitegum").map((e) => e.entityId));
+  for (const [songId, page] of WHITEGUM_PAGES) {
+    const workId = ctx.workBySong.get(songId);
+    if (workId === undefined || linked.has(workId)) continue;
+    ctx.externalIds.push({ entityId: workId, system: "Whitegum", value: page, legacyId: `name-fixes:whitegum:${songId}`, isActive: true, checkedAt: null });
+    ctx.line("Whitegum links added from the reviewed list (name-fixes.ts)", `songs:${songId}: ${page}`);
+  }
   for (const row of await ctx.read("rss_entries")) ctx.tally.drop("rss_entries", row.id, "replaced-by-the-public-list-of-changesets (item 20)");
   for (const row of await ctx.read("data_migrations")) ctx.tally.drop("data_migrations", row.id, "system-table");
 }
