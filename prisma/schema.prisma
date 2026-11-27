@@ -1029,6 +1029,10 @@ model Credit {
   work      Work?      @relation(fields: [workId], references: [id], onDelete: Restrict)
   versionId Int?
   version   Version?   @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  /// Item 123: optional. The credit covers one passage of the work only. The passage must
+  /// belong to `workId`; the write path checks it.
+  passageId Int?
+  passage   Passage?   @relation(fields: [passageId], references: [id], onDelete: Restrict)
   personId  Int
   person    Person     @relation(fields: [personId], references: [id], onDelete: Restrict)
   roleId    Int
@@ -1045,6 +1049,7 @@ model Credit {
 
   @@index([workId])
   @@index([versionId])
+  @@index([passageId])
   @@index([personId])
   @@map("credits")
 }
@@ -1097,6 +1102,7 @@ model Passage {
   renditions      Rendition[]
   appearances     Appearance[]
   vocalScopes     VocalEntry[]
+  credits         Credit[]
 
   @@unique([workId, motifKey])
   @@index([workId])

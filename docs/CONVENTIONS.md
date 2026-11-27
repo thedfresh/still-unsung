@@ -332,6 +332,9 @@ An agent writes content only through the app's MCP server at `POST /api/v1/mcp`
   children such as the segments of a set) is refused with a plain message that names the count
   and the first few records. The database `ON DELETE` rules are a last guard, never the check.
   (`findAttached` in `write-edits.ts`; test: `tests/db/agent-changes.test.ts`)
+- **Credit for one passage (item 123).** A `Credit` may have a `passageId`. Then it must also have
+  a `workId`, and the passage must belong to that work. `checkCreditPassage` (`write-edits.ts`)
+  refuses any other case, for a create and for an update. (test: `tests/db/credit-passage.test.ts`)
 - **Zotero fields.** A source may have no Zotero link (item 108). The tools may create a
   source with `title`, `key`, `sourceKindId` and `otherNames`, and change them while it is
   unlinked. They never set `zoteroKey`, `zoteroData` or `syncedAt` (`AGENT_FORBIDDEN_FIELDS`).
