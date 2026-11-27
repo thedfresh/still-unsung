@@ -22,6 +22,9 @@ describe("table classification", () => {
     expect(writeRefusal("SubjectKind", "create")).toBeNull();
     expect(writeRefusal("SubjectKind", "update")).toContain("Ask the user to change list values in the admin");
     expect(writeRefusal("SubjectKind", "delete")).toContain("Ask the user to change list values in the admin");
+    expect(writeRefusal("SubjectKind", "update", "ADMIN")).toBeNull();
+    expect(writeRefusal("SubjectKind", "delete", "ADMIN")).toBeNull();
+    expect(writeRefusal("User", "update", "ADMIN")).not.toBeNull();
     expect(writeRefusal("Citation", "delete")).toBeNull();
     expect(writeRefusal("User", "delete")).not.toBeNull();
   });

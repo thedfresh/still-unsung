@@ -435,8 +435,20 @@ kind of change (data-model items 19, 42, 87, 102, 109).
   (`src/lib/evidence-choice.ts`) turns the choice into the `evidence` of the save.
 - **The public mark** keeps the changeset default (`defaultPublicMark`). A form does not set it
   yet.
+- **Editable lists** (`/admin/lists`, `/admin/lists/[list]`, HSA-165). One generic page, driven by
+  `LIST_CONFIGS` in `src/lib/lists/config.ts`: the model, the labels and the fields of each list.
+  A new list is one new entry. A unit test fails for a list model with no entry and not named in
+  `NO_PAGE_LISTS`. `src/lib/lists/edits.ts` builds the edits (add, update, delete, move) and
+  `src/lib/data/lists.ts` reads the values with how many records use each. Every change is one
+  `saveAdminChanges` call with the evidence picked once on the page. A move swaps the `position`
+  of two neighbours. A value in use shows "In use by N records" and no delete control; the delete
+  is also refused by the data layer. A field that code reads (`ReferenceKind.ruleKey`) is
+  read-only. Only the ADMIN path may update or delete a list value: `parseEdits` and
+  `writeRefusal` take the path, and the MCP tools keep refusing it (section 11). Fixed lists
+  (enums) have no page. (test: `src/lib/lists/*.test.ts`, `tests/db/admin-lists.test.ts`,
+  `tests/e2e/admin-lists.spec.ts`)
 - **Not built yet:** undo from the admin (the changeset keeps `before`), and deletes from the
-  admin screens. The shared save can use the `delete` op later.
+  other admin screens. The shared save can use the `delete` op later.
 
 ## 13. The public read layer
 

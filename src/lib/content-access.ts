@@ -120,12 +120,13 @@ export type EditOp = "create" | "update" | "delete";
 
 /**
  * Why the tools refuse an edit of a type, or null when the agent may make it. The agent may
- * create a value in an editable list (item 116), but never change or delete one.
+ * create a value in an editable list (item 116), but never change or delete one. The admin
+ * (`path` ADMIN) may do all three: it is how the curator maintains the lists.
  */
-export function writeRefusal(type: string, op: EditOp = "create"): string | null {
+export function writeRefusal(type: string, op: EditOp = "create", path: "MCP" | "ADMIN" = "MCP"): string | null {
   if (!isKnownType(type)) return `${type} is not a record type.`;
   if (LISTS.has(type)) {
-    return op === "create" ? null : `${type} is an editable list. Ask the user to change list values in the admin.`;
+    return op === "create" || path === "ADMIN" ? null : `${type} is an editable list. Ask the user to change list values in the admin.`;
   }
   if (!WRITABLE.has(type)) return `${type} cannot be changed with this tool.`;
   return null;

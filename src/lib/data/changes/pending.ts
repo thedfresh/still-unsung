@@ -50,8 +50,8 @@ export async function changesetExists(id: number): Promise<boolean> {
 }
 
 /** The stored edits, run again as the preview ran them, in a transaction that always rolls back. */
-async function rebuildItems(plan: unknown): Promise<{ items: PreviewItem[] | null; warnings: string[] }> {
-  const edits = parseEdits(plan);
+async function rebuildItems(plan: unknown, path: "MCP" | "ADMIN"): Promise<{ items: PreviewItem[] | null; warnings: string[] }> {
+  const edits = parseEdits(plan, path);
   try {
     return await getPrisma().$transaction(async (tx) => {
       const { warnings } = await trialRun(tx, edits);
@@ -122,7 +122,7 @@ export async function getPendingPreview(id: number): Promise<PendingPreview | nu
   let readout: Readout | null = null;
   let warnings: string[] = [];
   if (state === "open") {
-    const rebuilt = await rebuildItems(row.plan);
+    const rebuilt = await rebuildItems(row.plan, row.path === "ADMIN" ? "ADMIN" : "MCP");
     warnings = rebuilt.warnings;
     if (rebuilt.items) readout = buildReadout(await withShowIds(rebuilt.items));
   }

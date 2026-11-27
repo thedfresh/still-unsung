@@ -60,7 +60,7 @@ async function report(conflicts: VersionConflict[]): Promise<ConflictReport[]> {
  */
 export async function applyChanges(userId: string, token: string, isPublic?: boolean): Promise<ApplyResult> {
   const changeset = await claim(userId, token, isPublic);
-  const edits = parseEdits(changeset.plan);
+  const edits = parseEdits(changeset.plan, changeset.path === "ADMIN" ? "ADMIN" : "MCP");
   // A change to the import rules page is never public, even when the apply call says so.
   if (await touchesRulesPage(getPrisma(), edits)) {
     await getPrisma().changeset.update({ where: { id: changeset.id }, data: { isPublic: false } });
