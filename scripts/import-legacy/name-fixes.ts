@@ -86,6 +86,8 @@ export const CREDIT_TEXTS: ReadonlyMap<number, Partial<Record<"song_by" | "lyric
   // Believe It or Not (Fortune or Fame): a Hunter original, not the later Hunter/Garcia song
   // (Whitegum BELIEVE2.HTM).
   [1080, { song_by: "Robert Hunter" }],
+  // Mesa Linda: words Hunter, music Kevin Morgenstern (Whitegum MESALIND.HTM; user, 2026-11-27).
+  [956, { lyrics_by: "Robert Hunter", music_by: "Kevin Morgenstern" }],
   // Covers, from Whitegum, checked on the web (user, 2026-11-27).
   [833, { song_by: "Bo Diddley" }], // Mona; Bo Diddley's legal name is Ellas McDaniel
   [891, { song_by: "Robert Johnson" }], // Judgment Day = If I Had Possession over Judgement Day
@@ -225,4 +227,14 @@ export const WHITEGUM_PAGES: ReadonlyMap<number, string> = new Map([
   [1114, "HIGHWAY1.HTM"], // Highway 101 Blues
   [1117, "HE1SGONE.HTM"], // He's Gone
   [1120, "FORWHATI.HTM"], // For What It's Worth
+]);
+
+/**
+ * Work titles the user changed (2026-11-27). The old title and the given other names become the
+ * work's other names; the slug follows the new title (the old slug stays an old address).
+ * Key: old song ID.
+ */
+export const WORK_TITLES: ReadonlyMap<number, { title: string; otherNames: readonly string[]; slug: string }> = new Map([
+  // The community name since the 50th-anniversary Rum Runners bonus track (Whitegum BALLBUDD.HTM).
+  [39, { title: "West Virginia Steel Guitar", otherNames: ["Ballad of Buddy Holly", "All the Same", "All the Same to Me"], slug: "west-virginia-steel-guitar" }],
 ]);

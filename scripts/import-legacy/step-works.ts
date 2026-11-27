@@ -1,5 +1,5 @@
 import { HINT_LISTS, bulk, uniqueKey, type Ctx } from "./context.ts";
-import { CREDIT_TEXTS, PERSON_NOTES, SAME_PERSON, creditFullName } from "./name-fixes.ts";
+import { CREDIT_TEXTS, PERSON_NOTES, SAME_PERSON, WORK_TITLES, creditFullName } from "./name-fixes.ts";
 import {
   SUITES,
   dateOf,
@@ -53,14 +53,17 @@ export async function importWorks(ctx: Ctx): Promise<void> {
   const ids = await bulk(ctx, "WORK", songs, async (batch) => {
     await ctx.db.work.createMany({
       data: batch.map(({ item, id }) => {
-        const slug = str(item, "slug");
+        // A title the user changed (name-fixes.ts): the new title and slug; the old names stay.
+        const renamed = WORK_TITLES.get(Number(item.id));
+        const slug = renamed?.slug ?? str(item, "slug");
         const keep = slug !== null && !usedSlugs.has(slug) ? slug : null;
         if (keep) usedSlugs.add(keep);
         const alternate = str(item, "alternate_title");
+        const names = renamed ? renamed.otherNames.filter((n) => n !== renamed.title) : alternate ? [alternate] : [];
         return {
           id,
-          title: str(item, "title") ?? `Song ${item.id}`,
-          otherNames: alternate ? [alternate] : [],
+          title: renamed?.title ?? str(item, "title") ?? `Song ${item.id}`,
+          otherNames: names,
           workKindId: songKind,
           traditional: traditional.has(Number(item.id)),
           slug: keep,
