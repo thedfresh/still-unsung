@@ -16,6 +16,15 @@ export default function AdminHomePage() {
             Open the show list
           </Link>
         </section>
+        <section aria-labelledby="lists" className="flex flex-col gap-3">
+          <h2 id="lists" className="text-xl font-semibold">
+            Lists
+          </h2>
+          <p>Edit the short lists that other records pick from: set types, instruments and more.</p>
+          <Link href="/admin/lists" className="underline">
+            Open the lists
+          </Link>
+        </section>
         <section aria-labelledby="previews" className="flex flex-col gap-3">
           <h2 id="previews" className="text-xl font-semibold">
             Open previews

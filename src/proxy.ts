@@ -5,6 +5,7 @@ import { publicShowExists } from "@/lib/data/public/show";
 import { showExists } from "@/lib/data/shows/review";
 import { findCurrentUser } from "@/lib/data/users";
 import { parseId } from "@/lib/ids";
+import { listConfigBySlug } from "@/lib/lists/config";
 
 /** The Auth.js session cookie: the secure name is used over HTTPS. */
 const SESSION_COOKIES = ["__Secure-authjs.session-token", "authjs.session-token"];
@@ -45,6 +46,10 @@ export async function proxy(request: NextRequest) {
   const user = userId ? await findCurrentUser(userId) : null;
   if (user?.role !== "ADMIN") return NextResponse.next();
   const parts = request.nextUrl.pathname.split("/");
+  if (parts[2] === "lists") {
+    if (listConfigBySlug(parts[3] ?? "")) return NextResponse.next();
+    return NextResponse.rewrite(new URL("/_not-found", request.url), { status: 404 });
+  }
   const pending = parts[2] === "changes";
   const id = parseId(parts[pending ? 4 : 3]);
   if (id !== null && (await (pending ? changesetExists(id) : showExists(id)))) return NextResponse.next();
@@ -52,4 +57,4 @@ export async function proxy(request: NextRequest) {
   return NextResponse.rewrite(new URL("/_not-found", request.url), { status: 404 });
 }
 
-export const config = { matcher: ["/admin/shows/:id", "/admin/changes/pending/:id", "/shows/:slug"] };
+export const config = { matcher: ["/admin/shows/:id", "/admin/changes/pending/:id", "/admin/lists/:list","/shows/:slug"] };

@@ -122,7 +122,7 @@ export async function trialRun(tx: Tx, edits: ParsedEdit[]): Promise<{ warnings:
  * blocks it, the preview is saved as a changeset with a one-time token.
  */
 export async function previewChanges(userId: string, input: PreviewInput): Promise<PreviewResult> {
-  const edits = parseEdits(input.edits);
+  const edits = parseEdits(input.edits, input.path === "ADMIN" ? "ADMIN" : "MCP");
   const evidence = parseEvidence(input.evidence);
   const db = getPrisma();
   // A change to the import rules page is always private, whatever the caller passes.

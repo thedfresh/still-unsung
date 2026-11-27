@@ -10,6 +10,8 @@ export interface SeededShow {
   showId: number;
   placeName: string;
   workTitle: string;
+  /** A set type that the show's set uses, so a list page can show "In use by". */
+  setTypeName: string;
   summaries: [string, string, string];
   wordsAsHeard: string;
 }
@@ -82,5 +84,5 @@ export async function seedShowForReview(): Promise<SeededShow> {
   const note = await query<{ id: number }>(`INSERT INTO notes (body, "isPublic", "updatedAt") VALUES ('A private note', false, now()) RETURNING id`);
   await query(`INSERT INTO note_attachments ("noteId", "entityId") VALUES ($1, $2)`, [note[0].id, secondId]);
 
-  return { showId, placeName, workTitle, summaries: [summaries[0], summaries[1], summaries[2]], wordsAsHeard };
+  return { showId, placeName, workTitle, setTypeName: `type ${tag}`, summaries: [summaries[0], summaries[1], summaries[2]], wordsAsHeard };
 }

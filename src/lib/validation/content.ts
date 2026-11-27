@@ -151,7 +151,7 @@ function addIssues(fields: Record<string, string[]>, prefix: string, error: z.Zo
  * and the field (`edits.0.fields.title`). It does not check the database; the caller checks the
  * records exist and the versions match.
  */
-export function parseEdits(input: unknown): ParsedEdit[] {
+export function parseEdits(input: unknown, path: "MCP" | "ADMIN" = "MCP"): ParsedEdit[] {
   const list = editsSchema.safeParse(input);
   const problems: Record<string, string[]> = {};
   if (!list.success) {
@@ -166,7 +166,7 @@ export function parseEdits(input: unknown): ParsedEdit[] {
     const edit = editSchema.safeParse(raw);
     if (!edit.success) return addIssues(problems, prefix, edit.error);
     const { type } = edit.data;
-    const refusal = writeRefusal(type, edit.data.op);
+    const refusal = writeRefusal(type, edit.data.op, path);
     if (refusal) return void (problems[`${prefix}.type`] = [refusal]);
     if (edit.data.op === "delete") {
       const { id, rev } = edit.data;
