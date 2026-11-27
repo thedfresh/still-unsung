@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/db";
 import type { EditSegment, EditSet, ShowEditData } from "@/lib/shows/edit-types";
+import { adminHref, publicHref } from "@/lib/record-links";
 import { shortDate } from "@/lib/shows/review-words";
 import { JOIN } from "./review-queries";
 
@@ -98,7 +99,7 @@ export async function getShowEditData(id: number, db: PrismaClient = getPrisma()
       band: { select: { id: true, name: true } },
       bill: {
         orderBy: { position: "asc" },
-        select: { id: true, rev: true, position: true, role: true, certainty: true, actBand: { select: { name: true } }, actPerson: { select: { name: true } } },
+        select: { id: true, rev: true, position: true, role: true, certainty: true, actBandId: true, actPersonId: true, actBand: { select: { name: true } }, actPerson: { select: { name: true } } },
       },
     },
   });
@@ -159,6 +160,7 @@ export async function getShowEditData(id: number, db: PrismaClient = getPrisma()
       role: entry.role,
       certainty: entry.certainty,
       actName: entry.actBand?.name ?? entry.actPerson?.name ?? "Unnamed act",
+      actHref: entry.actBandId !== null ? adminHref("Band", entry.actBandId) : entry.actPersonId !== null ? adminHref("Person", entry.actPersonId) : null,
     })),
     sets: buildSets(sets, segments),
     notes: attachments.map((row) => ({
@@ -170,6 +172,6 @@ export async function getShowEditData(id: number, db: PrismaClient = getPrisma()
       alsoAttachedTo: row.note._count.attachments - 1,
     })),
     setTypes: setTypes.map((type) => ({ id: type.id, label: type.displayName || type.name })),
-    publicHref: show.slug && show.entity.isPublic ? `/shows/${show.slug}` : null,
+    publicHref: show.entity.isPublic ? publicHref("Show", show.slug) : null,
   };
 }

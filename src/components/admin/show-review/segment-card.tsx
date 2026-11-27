@@ -1,6 +1,6 @@
 import type { ReviewSegment } from "@/lib/data/shows/review-types";
 import type { RecentEvidence } from "@/lib/data/changes/admin-save";
-import { Attachments, CARD, Facts, Lines, Origin } from "./parts";
+import { Attachments, CARD, Facts, linked, Lines, Origin } from "./parts";
 import { SummaryEditor } from "./summary-editor";
 
 /** One segment: its facts, its summary in full, and what hangs under it. Children are indented. */
@@ -9,7 +9,7 @@ export function SegmentCard({ segment, recent }: { segment: ReviewSegment; recen
     <li id={`segment-${segment.id}`} style={{ marginInlineStart: `${segment.depth * 1.25}rem` }} className="list-none">
       <article className={`${CARD} flex flex-col gap-2`} aria-labelledby={`segment-${segment.id}-title`}>
         <h3 id={`segment-${segment.id}-title`} className="text-lg font-semibold">
-          {segment.number}. {segment.work}
+          {segment.number}. {linked(segment.work, segment.workHref)}
           {segment.joinMark ? (
             <span>
               {" "}
@@ -22,12 +22,12 @@ export function SegmentCard({ segment, recent }: { segment: ReviewSegment; recen
         <Facts
           items={[
             ["Delivery", segment.delivery],
-            ["Words from", segment.wordsFrom],
-            ["Tune from", segment.tuneFrom],
+            ["Words from", linked(segment.wordsFrom, segment.wordsFromHref)],
+            ["Tune from", linked(segment.tuneFrom, segment.tuneFromHref)],
             ["Extent", segment.extent],
             ["Portion", segment.portionNote],
             ["Cuts", segment.cuts.join(", ")],
-            ["Delivered by", segment.deliveredBy],
+            ["Delivered by", linked(segment.deliveredBy, segment.deliveredByHref)],
           ]}
         />
         <SummaryEditor

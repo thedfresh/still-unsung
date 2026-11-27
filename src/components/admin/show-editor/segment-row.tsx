@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { RecordLink } from "@/components/admin/ui/components";
+import { adminHref } from "@/lib/record-links";
 import {
   draftOfSegment,
   moveSegmentEdit,
@@ -66,7 +68,8 @@ export function SegmentRow({ segment, all, firstSibling, lastSibling }: { segmen
     <li id={`segment-${segment.id}`} style={{ marginInlineStart: `${segment.depth * 1.25}rem` }} className="list-none">
       <article className={`${SECTION_CARD} flex flex-col gap-2`} aria-label={name}>
         <h4 className="text-lg font-semibold">
-          {segment.number}. {segment.workTitle ?? "No work"}
+          {segment.number}.{" "}
+          {segment.workTitle ? <RecordLink href={segment.workId === null ? null : adminHref("Work", segment.workId)}>{segment.workTitle}</RecordLink> : "No work"}
         </h4>
         {facts.length > 0 ? <p>{facts.join("; ")}</p> : null}
         {segment.summary ? <p className="whitespace-pre-wrap">{segment.summary}</p> : null}

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/db";
+import { adminHref } from "@/lib/record-links";
 import { dateInWords, shortDate, showStatusWords, certaintyNote } from "@/lib/shows/review-words";
 import { attachmentsOf, groupBy, lineupLines, mapSegments, placeNameOf, setTypeName, type Maps } from "./review-map";
 import { loadOrigins, type OriginType } from "./review-origin";
@@ -10,10 +11,12 @@ function showLines(show: ShowRow, origin: Maps["origin"]): Pick<ReviewShow, "bil
   return {
     bill: show.bill.map((entry): ReviewLine => {
       const name = entry.actBand?.name ?? entry.actPerson?.name ?? "Unnamed act";
+      const href = entry.actBandId !== null ? adminHref("Band", entry.actBandId) : entry.actPersonId !== null ? adminHref("Person", entry.actPersonId) : null;
       return {
         key: `bill-${entry.id}`,
         text: `${entry.role.toLowerCase().replaceAll("_", "-")}: ${name}${certaintyNote(entry.certainty)}`,
         origin: origin("BillEntry", entry.id),
+        ...(href ? { link: { text: name, href } } : {}),
       };
     }),
     recordings: show.recordings.map((rec): ReviewLine => {
@@ -82,6 +85,7 @@ export async function getShowReview(id: number, db: PrismaClient = getPrisma()):
       setType: setTypeName(set),
       incompleteReason: set.incompleteReason?.name ?? null,
       band: set.band?.name ?? null,
+      bandHref: set.bandId !== null ? adminHref("Band", set.bandId) : null,
       origin: maps.origin("Set", set.id),
       lineup: lineupLines(set.lineup, maps.origin),
       attachments: attachmentsOf(set.id, maps),
@@ -97,9 +101,11 @@ export async function getShowReview(id: number, db: PrismaClient = getPrisma()):
     origin: origins.main,
     date: dateInWords(show),
     place: show.place ? `${placeNameOf(show.place) ?? "Place with no name"}${certaintyNote(show.placeCertainty)}` : null,
+    placeHref: show.placeId !== null ? adminHref("Place", show.placeId) : null,
     placeName: show.placeName?.name ?? null,
     billedAs: show.billedAs,
     band: show.band?.name ?? null,
+    bandHref: show.bandId !== null ? adminHref("Band", show.bandId) : null,
     showType: show.showType?.name ?? null,
     status:
       show.status === "TOOK_PLACE" && certaintyNote(show.statusCertainty) === ""

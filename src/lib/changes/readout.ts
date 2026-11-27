@@ -1,5 +1,6 @@
 import { LIST_TABLES, modelInfo } from "@/lib/content-access";
 import { bareLabel, changedFields, filledFields, isPrivateText, notKeyFields, showValue, withType, type Row } from "@/lib/changes/labels";
+import { fieldLink, groupHref, hrefPart, linksOf, recordHref, targetType, type ReadoutLink } from "@/lib/changes/readout-links";
 
 /**
  * The readout: one plain-words view of what a set of changes adds and changes. The MCP preview
@@ -49,6 +50,8 @@ export interface ReadoutItem {
   parent: ParentInfo | null;
   /** The show that the record sits in, when it has a show page. Only the pending preview page sets it. */
   showId?: number | null;
+  /** True for an item read from an applied changeset: every record in it exists now, so it can link (HSA-186). */
+  stored?: boolean;
 }
 
 /** One line of a card: a value, or a before and after pair. */
@@ -59,6 +62,8 @@ export interface ReadoutField {
   now?: string;
   /** True when the field changed from one value to another, not only filled in. */
   overwrite?: boolean;
+  /** The records that `value` names, in order of appearance, when they have an admin page. */
+  links?: ReadoutLink[];
 }
 
 /** One record, as a heading and its fields. */
@@ -69,6 +74,8 @@ export interface ReadoutCard {
   fields: ReadoutField[];
   /** The show whose page the card links to, when there is one. */
   showId?: number;
+  /** The admin page of the record that the card is about, when it has one and the record exists. */
+  href?: string;
 }
 
 export interface Readout {
@@ -76,12 +83,12 @@ export interface Readout {
   unusual: ReadoutCard[];
   /** How many unusual cards are left out of `unusual`. */
   unusualMore: number;
-  groups: Array<{ heading: string; cards: ReadoutCard[] }>;
+  groups: Array<{ heading: string; /** The admin page of the parent record, when it has one. */ href?: string; cards: ReadoutCard[] }>;
 }
 
 /** The group for an item stored before the grouping was stored. */
 export const EARLIER_KEY = "earlier";
-const EARLIER: ParentInfo = { key: EARLIER_KEY, type: "Earlier change", label: "Earlier change (no grouping stored)" };
+export const EARLIER: ParentInfo = { key: EARLIER_KEY, type: "Earlier change", label: "Earlier change (no grouping stored)" };
 
 /** New records of these types are listed first, so the user can catch a duplicate. */
 const NEW_RECORD_TYPES = new Set<string>(["Person", "Place", "Work", "Band", "Subject", "Source", ...LIST_TABLES]);
@@ -130,11 +137,6 @@ function fieldName(field: string): string {
   return words(field.replace(/Id$/, ""));
 }
 
-/** The type that a field points at, or null when the field is not a link. */
-function targetType(type: string, field: string): string | null {
-  return field === "id" ? null : (modelInfo(type)?.fields[field]?.fk ?? null);
-}
-
 /**
  * A field value as text. A link shows the name of the record, never its ID: `Beedle Um Bum`. A
  * link to a shared record shows its type too. A link to a record made in the same call reads
@@ -177,7 +179,8 @@ function fillFields(item: ReadoutItem, skip: Set<string>): ReadoutField[] {
   for (const [field, value] of inModelOrder(item.type, filledFields(item.type, item.after))) {
     // The label already says a name, title or short body: do not print it twice.
     if (SKIPPED_FIELDS.has(field) || skip.has(field) || value === bareLabel(item.type, item.label)) continue;
-    fields.push({ name: privateName(item, field, fieldName(field)), value: showField(item.type, field, value, item.links.after[field]) });
+    const link = item.links.after[field];
+    fields.push({ name: privateName(item, field, fieldName(field)), value: showField(item.type, field, value, link), ...linksOf(fieldLink(item, field, value, link)) });
   }
   const seen = visibility(item.type, item.after);
   // A public record is the usual case: only a note and a segment always say who sees them.
@@ -209,12 +212,14 @@ function changeFields(item: ReadoutItem): ReadoutField[] {
     if (longText) {
       fields.push(textChange(item, field, from, to));
     } else if (isEmpty(from)) {
-      fields.push({ name, value: showField(item.type, field, to, item.links.after[field]) });
+      const link = item.links.after[field];
+      fields.push({ name, value: showField(item.type, field, to, link), ...linksOf(fieldLink(item, field, to, link)) });
     } else if (targetType(item.type, field)) {
       // A moved link reads on one line, in names.
       const was = showField(item.type, field, from, item.links.before[field]);
       const now = showField(item.type, field, to, item.links.after[field]);
-      fields.push({ name, value: `${was} → ${now}`, overwrite: true });
+      const links = linksOf(fieldLink(item, field, from, item.links.before[field]), fieldLink(item, field, to, item.links.after[field]));
+      fields.push({ name, value: `${was} → ${now}`, overwrite: true, ...links });
     } else {
       fields.push({ name, was: plainValue(from), now: plainValue(to), overwrite: true });
     }
@@ -262,7 +267,8 @@ function deletedFields(item: ReadoutItem, skip: Set<string>): ReadoutField[] {
 /** One card for one record. */
 function recordCard(item: ReadoutItem): ReadoutCard {
   const card = recordCardBody(item);
-  return item.showId ? { ...card, showId: item.showId } : card;
+  const href = recordHref(item);
+  return { ...card, ...(item.showId ? { showId: item.showId } : {}), ...(href ? { href } : {}) };
 }
 
 function recordCardBody(item: ReadoutItem): ReadoutCard {
@@ -289,14 +295,14 @@ function unusualCards(items: ReadoutItem[]): ReadoutCard[] {
   for (const item of items) {
     const name = withType(item.type, item.label);
     if (item.op === "create" && NEW_RECORD_TYPES.has(item.type)) {
-      cards.push({ action: "", title: `New ${words(item.type)}: ${bareLabel(item.type, item.label)}`, fields: [] });
+      cards.push({ action: "", title: `New ${words(item.type)}: ${bareLabel(item.type, item.label)}`, fields: [], ...hrefPart(item) });
     }
     if (item.op === "delete") {
       const { title, skip } = recordTitle(item);
       cards.push({ action: "", title: `Deleted · ${title}`, fields: deletedFields(item, skip) });
     }
     const overwritten = item.op === "update" ? changeFields(item).filter((f) => f.overwrite) : [];
-    if (overwritten.length > 0) cards.push({ action: "", title: `Changed value in ${name}`, fields: overwritten });
+    if (overwritten.length > 0) cards.push({ action: "", title: `Changed value in ${name}`, fields: overwritten, ...hrefPart(item) });
     if (item.op === "delete") continue;
     const before = item.before ?? {};
     for (const [field, value] of inModelOrder(item.type, Object.entries(item.after))) {
@@ -333,12 +339,15 @@ export function countsSentence(items: ReadoutItem[]): string {
 }
 
 /** The items grouped under one heading per parent, in the order each parent first appears. */
-function groupItems(items: ReadoutItem[]): Array<{ heading: string; items: ReadoutItem[] }> {
-  const groups = new Map<string, { heading: string; items: ReadoutItem[] }>();
+function groupItems(items: ReadoutItem[]): Array<{ heading: string; href?: string; items: ReadoutItem[] }> {
+  const groups = new Map<string, { heading: string; href?: string; items: ReadoutItem[] }>();
+  const madeHere = new Set(items.filter((i) => i.op === "delete" || (i.op === "create" && !i.stored)).map((i) => `${i.type}:${String(i.after.id)}`));
   for (const item of items) {
     const key = item.parent?.key ?? `${item.type}:${String(item.after.id)}`;
     const heading = item.parent ? withType(item.parent.type, item.parent.label) : withType(item.type, item.label);
-    const group = groups.get(key) ?? { heading, items: [] };
+    // The heading links to its record when the record exists: not a record that only a preview makes (HSA-186).
+    const href = groupHref(key, madeHere);
+    const group = groups.get(key) ?? { heading, ...(href ? { href } : {}), items: [] };
     group.items.push(item);
     groups.set(key, group);
   }
@@ -352,7 +361,7 @@ export function buildReadout(items: ReadoutItem[]): Readout {
     counts: countsSentence(items),
     unusual: unusual.slice(0, MAX_UNUSUAL),
     unusualMore: Math.max(0, unusual.length - MAX_UNUSUAL),
-    groups: groupItems(items).map((group) => ({ heading: group.heading, cards: group.items.map(recordCard) })),
+    groups: groupItems(items).map((group) => ({ heading: group.heading, ...(group.href ? { href: group.href } : {}), cards: group.items.map(recordCard) })),
   };
 }
 
@@ -393,23 +402,4 @@ export function renderReadout(readout: Readout): string {
 
 export function formatReadout(items: ReadoutItem[]): string {
   return renderReadout(buildReadout(items));
-}
-
-/**
- * Build the item of a stored changeset: its rows, and the detail that the apply step saved. An
- * item stored before the detail existed has no grouping: it goes in one "earlier change" group.
- * The caller may pass links that it looked up for such an item.
- */
-export function storedReadoutItem(
-  item: { type: string; label: string; action: string; before: Row | null; after: Row | null; detail: ItemDetail | null },
-): ReadoutItem {
-  return {
-    op: item.action === "CREATE" ? "create" : item.action === "DELETE" ? "delete" : "update",
-    type: item.type,
-    label: item.label,
-    before: item.before,
-    after: item.after ?? item.before ?? {},
-    links: item.detail?.links ?? { before: {}, after: {} },
-    parent: item.detail?.parent ?? EARLIER,
-  };
 }

@@ -19,3 +19,15 @@ export async function countShowsInPlace(placeId: number, db: PrismaClient = getP
       (SELECT count(*) FROM shows WHERE "placeId" IN (SELECT id FROM tree)) AS inside`;
   return { direct: Number(row?.direct ?? 0), inside: Number(row?.inside ?? 0) };
 }
+
+/** The IDs of a place and of every place inside it, at any depth. A filter of the shows list uses it. */
+export async function placeIdsInside(placeId: number, db: PrismaClient = getPrisma()): Promise<number[]> {
+  const rows = await db.$queryRaw<{ id: number }[]>`
+    WITH RECURSIVE tree(id) AS (
+      SELECT ${placeId}::int
+      UNION
+      SELECT p.id FROM places p JOIN tree ON p."parentId" = tree.id
+    )
+    SELECT id FROM tree`;
+  return rows.map((row) => row.id);
+}

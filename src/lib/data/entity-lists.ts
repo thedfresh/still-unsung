@@ -2,6 +2,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/db";
 import { countShowsInPlace } from "@/lib/data/places";
 import { DEFAULT_PLACE_TYPE, ENTITIES_PER_PAGE, type EntityKind, type EntitySort } from "@/lib/entity-lists";
+import { adminHref, showsListHref } from "@/lib/record-links";
 import { compareNames } from "@/lib/sort-name";
 
 export interface EntityRow {
@@ -134,13 +135,17 @@ export async function entityExists(kind: EntityKind, id: number, db: PrismaClien
   return (await delegate.count({ where: { id } })) > 0;
 }
 
+/** A fact value: plain text, or text that links to a page (HSA-186). */
+export type FactValue = string | { text: string; href: string; /** What the link opens, for a screen reader (WCAG link purpose). */ opens?: string };
+
 export interface EntityDetail {
   title: string;
   /** Label and value. A value of null is left out. */
-  facts: Array<[string, string | null]>;
+  facts: Array<[string, FactValue | null]>;
 }
 
 const yesNo = (value: boolean) => (value ? "Yes" : "No");
+const countOf = (n: number, word: string) => `${n} ${n === 1 ? word : `${word}s`}`;
 
 /** A read-only view of one record for its admin page. Admins may see private fields. */
 export async function getEntityDetail(kind: EntityKind, id: number, db: PrismaClient = getPrisma()): Promise<EntityDetail | null> {
@@ -158,7 +163,8 @@ export async function getEntityDetail(kind: EntityKind, id: number, db: PrismaCl
         ["Kind", row.workKind.name],
         ["Title status", row.titleStatus === "WORKING_TITLE" ? "Working title" : "Known"],
         ["Default delivery", row.defaultDelivery?.toLowerCase().replaceAll("_", " ") ?? null],
-        ["Played in", `${row._count.segments} ${row._count.segments === 1 ? "segment" : "segments"}`],
+        // The count links to the shows that have a segment of this work (HSA-186).
+        ["Played in", { text: countOf(row._count.segments, "segment"), href: showsListHref({ work: id }), opens: "the list of shows with this work" }],
       ],
     };
   }
@@ -186,7 +192,7 @@ export async function getEntityDetail(kind: EntityKind, id: number, db: PrismaCl
         ["Name", row.name],
         ["Display name", row.displayName],
         ["Hunter's own band", yesNo(row.isHunterBand)],
-        ["Billed at", `${row._count.shows} ${row._count.shows === 1 ? "show" : "shows"}`],
+        ["Billed at", { text: countOf(row._count.shows, "show"), href: showsListHref({ band: id }), opens: "the list of shows of this band" }],
       ],
     };
   }
@@ -195,21 +201,22 @@ export async function getEntityDetail(kind: EntityKind, id: number, db: PrismaCl
     include: {
       names: { orderBy: { position: "asc" }, select: { name: true } },
       placeKind: { select: { name: true } },
-      parent: { select: { names: { orderBy: { position: "asc" }, take: 1, select: { name: true } } } },
+      parent: { select: { id: true, names: { orderBy: { position: "asc" }, take: 1, select: { name: true } } } },
     },
   });
   if (!row) return null;
   const shows = await countShowsInPlace(id, db);
-  const plural = (n: number) => `${n} ${n === 1 ? "show" : "shows"}`;
+  const inside = row.parent ? { text: row.parent.names[0]?.name ?? `Place ${row.parent.id}`, href: adminHref("Place", row.parent.id) ?? "" } : null;
   return {
     title: row.names[0]?.name ?? `Place ${row.id}`,
     facts: [
       ["Names", row.names.map((n) => n.name).join("; ") || null],
       ["Kind", row.placeKind?.name ?? null],
-      ["Inside", row.parent?.names[0]?.name ?? null],
-      // Roll-up (HSA-185): a city or region counts the shows at the places inside it.
-      ["Shows here and inside", plural(shows.inside)],
-      ["Shows attached here", plural(shows.direct)],
+      ["Inside", inside],
+      // Roll-up (HSA-185): a city or region counts the shows at the places inside it. Each count
+      // links to the shows list with the same filter (HSA-186).
+      ["Shows here and inside", { text: countOf(shows.inside, "show"), href: showsListHref({ place: id }), opens: "the list of shows here and inside" }],
+      ["Shows attached here", { text: countOf(shows.direct, "show"), href: showsListHref({ place: id, direct: true }), opens: "the list of shows attached here" }],
     ],
   };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildReadout, countsSentence, formatReadout, storedReadoutItem, type LinkInfo, type ParentInfo, type ReadoutItem } from "@/lib/changes/readout";
+import { buildReadout, countsSentence, formatReadout, type LinkInfo, type ParentInfo, type ReadoutItem } from "@/lib/changes/readout";
+import { storedReadoutItem } from "@/lib/changes/readout-stored";
 
 const show: ParentInfo = { key: "Show:1", type: "Show", label: "Show 1980-11-14, WHFS-FM Studio" };
 const link = (type: string, name: string, isNew = false): LinkInfo => ({ type, label: type === "Set" ? name : `${type} "${name}"`, name, isNew });
