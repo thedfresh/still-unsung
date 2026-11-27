@@ -50,7 +50,7 @@ export function ListRowView({ config, row, first, last, busy, send, move, fail }
         <form onSubmit={save} aria-label={`Edit ${name}`} className="flex flex-col gap-3">
           <ListFields config={config} values={draft} onChange={setDraft} idPrefix={`edit-${row.id}`} stored={row.values} />
           <div className="flex flex-wrap gap-3">
-            <button type="submit" disabled={busy} aria-busy={busy || undefined} className={BUTTON_CLASS.primary}>
+            <button type="submit" disabled={busy} aria-busy={busy || undefined} className={BUTTON_CLASS.save}>
               {busy ? "Saving…" : "Save"}
             </button>
             <button type="button" disabled={busy} onClick={() => setEditing(false)} className={BUTTON}>
