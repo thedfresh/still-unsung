@@ -1,4 +1,5 @@
 import { bulk, newEntities, uniqueKey, type Ctx } from "./context.ts";
+import { MUSICIAN_FULL_NAMES } from "./name-fixes.ts";
 import { bool, countryOf, dateOf, dateParts, isFestivalName, isUnknownName, isUnknownVenue, normalizeName, num, slugify, str, type Row } from "./rules.ts";
 
 // Steps 2: people, bands and places (plan section 4: Musician and Contributor, Band and
@@ -67,11 +68,14 @@ export async function importPeople(ctx: Ctx): Promise<void> {
       ctx.line("Musicians that are fixed people", `musicians:${id} is the fixed person ${normalized === "audience" ? "Audience" : "Robert Hunter"}`);
       continue;
     }
+    // A one-name musician the user named in full (name-fixes.ts).
+    const full = MUSICIAN_FULL_NAMES.get(id);
+    if (full) ctx.line("One-name musicians given their full name (name-fixes.ts)", `musicians:${id}: "${name}" is "${full.name}"`);
     toMake.push({
       legacyId: `musicians:${id}`,
-      name,
-      firstName: str(row, "first_name"),
-      lastName: str(row, "last_name"),
+      name: full?.name ?? name,
+      firstName: full?.firstName ?? str(row, "first_name"),
+      lastName: full?.lastName ?? str(row, "last_name"),
       slug: str(row, "slug"),
       email: null,
       oldId: id,

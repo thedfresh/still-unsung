@@ -1,4 +1,5 @@
 import { HINT_LISTS, bulk, uniqueKey, type Ctx } from "./context.ts";
+import { creditFullName } from "./name-fixes.ts";
 import {
   SUITES,
   dateOf,
@@ -238,8 +239,9 @@ async function importCredits(ctx: Ctx, songs: Array<Record<string, unknown>>): P
   const nameOfPerson = new Map([...ctx.personByName].map(([name, id]) => [id, name]));
   for (const entry of names.filter((n) => isSurnameOnly(n.name))) {
     const word = normalizeName(entry.name).replace(/[^a-z0-9]/g, "");
-    // A known arranger: the old text names only the surname of an existing person.
-    const alias = entry.roles.includes("arrangement") ? KNOWN_ARRANGERS.get(word) : undefined;
+    // A full name the user gave for this song (name-fixes.ts), or a known arranger: the old text
+    // names only the surname.
+    const alias = creditFullName(entry.legacyId, word) ?? (entry.roles.includes("arrangement") ? KNOWN_ARRANGERS.get(word) : undefined);
     if (alias !== undefined) {
       personFor.set(entry, await personForName(ctx, alias, entry.legacyId));
       ctx.line("Surname-only credit names resolved to a full-name person", `${entry.legacyId}: "${entry.name}" is "${alias}"`);
