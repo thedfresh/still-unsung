@@ -4,7 +4,7 @@ import { FieldsPart } from "@/components/admin/ui/fields-gallery";
 import { Part } from "@/components/admin/ui/gallery-part";
 import { ERROR_CLASS, ROW_CLASS } from "@/components/admin/ui/styles";
 
-const VARIANTS = ["primary", "secondary", "quiet", "danger"] as const;
+const VARIANTS = ["primary", "save", "secondary", "quiet", "danger"] as const;
 
 function ButtonsPart() {
   return (

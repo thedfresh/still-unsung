@@ -12,7 +12,7 @@ import {
   type SegmentDraft,
 } from "@/lib/shows/edit-edits";
 import type { EditSegment } from "@/lib/shows/edit-types";
-import { BUTTON, PRIMARY, SECTION_CARD, useEditor } from "./editor-context";
+import { BUTTON, SAVE, SECTION_CARD, useEditor } from "./editor-context";
 import { SegmentFields } from "./segment-fields";
 
 const DELIVERY_WORDS: Record<string, string> = {
@@ -41,7 +41,7 @@ function EditForm({ segment, onClose }: { segment: EditSegment; onClose: () => v
     >
       <SegmentFields draft={draft} onChange={setDraft} workLabel={workLabel} onWorkLabel={setWorkLabel} />
       <div className="flex flex-wrap gap-3">
-        <button type="submit" disabled={pending} className={PRIMARY}>
+        <button type="submit" disabled={pending} className={SAVE}>
           {pending ? "Saving…" : `Save ${segmentName(segment)}`}
         </button>
         <button type="button" onClick={onClose} disabled={pending} className={BUTTON}>

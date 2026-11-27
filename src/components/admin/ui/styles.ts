@@ -8,6 +8,7 @@ const BUTTON_BASE =
 
 export const BUTTON_CLASS = {
   primary: `${BUTTON_BASE} border-2 border-gold-darker bg-gold-darker text-paper hover:border-ink hover:bg-ink`,
+  save: `${BUTTON_BASE} border-2 border-green-dark bg-green-dark text-paper hover:border-green-darker hover:bg-green-darker`,
   secondary: `${BUTTON_BASE} border-2 border-muted bg-paper text-body hover:border-ink hover:bg-surface`,
   quiet: `${BUTTON_BASE} border-2 border-transparent bg-transparent text-gold-darker hover:bg-surface`,
   danger: `${BUTTON_BASE} border-2 border-danger bg-danger text-paper hover:border-danger-dark hover:bg-danger-dark`,
