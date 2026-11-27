@@ -69,3 +69,24 @@ export function creditFullName(legacyId: string, word: string): string | undefin
   const songId = Number(/^songs:(\d+):/.exec(legacyId)?.[1]);
   return CREDIT_FULL_NAMES.get(songId)?.get(word);
 }
+
+/**
+ * Credit text for songs the old site left uncredited, or credited in a way the import cannot use
+ * ("Grateful Dead"), from the user's review (2026-11-27; checked against Whitegum). It replaces all
+ * of the song's old credit fields, and is read exactly as old credit text would be.
+ * Key: old song ID. Fields as in the old `songs` table.
+ */
+export const CREDIT_TEXTS: ReadonlyMap<number, Partial<Record<"song_by" | "lyrics_by" | "music_by", string>>> = new Map([
+  // The Golden Road (To Unlimited Devotion): the first album credits the band's joint pseudonym.
+  [238, { song_by: "McGannahan Skjellyfetti" }],
+  // Rainbows in the Snow: a rare Hunter original (Whitegum RAINSNOW.HTM).
+  [906, { song_by: "Robert Hunter" }],
+  // Believe It or Not (Fortune or Fame): a Hunter original, not the later Hunter/Garcia song
+  // (Whitegum BELIEVE2.HTM).
+  [1080, { song_by: "Robert Hunter" }],
+]);
+
+/** Public notes for people the credits above make. Key: the person's name. */
+export const PERSON_NOTES: ReadonlyMap<string, string> = new Map([
+  ["McGannahan Skjellyfetti", "The Grateful Dead's collective pseudonym, used for songs credited to the whole band."],
+]);

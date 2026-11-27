@@ -1,5 +1,5 @@
 import { HINT_LISTS, bulk, uniqueKey, type Ctx } from "./context.ts";
-import { SAME_PERSON, creditFullName } from "./name-fixes.ts";
+import { CREDIT_TEXTS, PERSON_NOTES, SAME_PERSON, creditFullName } from "./name-fixes.ts";
 import {
   SUITES,
   dateOf,
@@ -29,6 +29,12 @@ const CREDIT_FIELDS: Array<{ field: string; roles: RoleName[] }> = [
   { field: "music_by", roles: ["music"] },
   { field: "song_by", roles: ["words", "music"] },
 ];
+
+/** The credit text of an old song field. Text the user gave for the song (name-fixes.ts) replaces it. */
+function creditText(row: Record<string, unknown>, field: string): string | null {
+  const given = CREDIT_TEXTS.get(Number(row.id));
+  return given ? (given[field as "song_by"] ?? null) : str(row, field);
+}
 
 export async function importWorks(ctx: Ctx): Promise<void> {
   const allSongs = await ctx.read("songs");
@@ -119,6 +125,11 @@ export async function importWorks(ctx: Ctx): Promise<void> {
   }
 
   await importCredits(ctx, songs);
+  // Public notes for people that the user's credit texts make (name-fixes.ts), such as a pseudonym.
+  for (const [name, body] of PERSON_NOTES) {
+    const personId = ctx.personByName.get(normalizeName(name));
+    if (personId !== undefined) ctx.note(personId, body, true, `name-fixes:${slugify(name)}`);
+  }
   await importSingers(ctx);
   await importSuites(ctx, songs);
 }
@@ -132,7 +143,7 @@ function traditionalSongs(songs: Array<Record<string, unknown>>): Set<number> {
   const out = new Set<number>();
   for (const row of songs) {
     for (const { field } of CREDIT_FIELDS) {
-      const text = str(row, field);
+      const text = creditText(row, field);
       if (text && parseTraditional(text)) out.add(Number(row.id));
     }
   }
@@ -199,7 +210,7 @@ async function importCredits(ctx: Ctx, songs: Array<Record<string, unknown>>): P
     const oldId = Number(row.id);
     const workId = ctx.workBySong.get(oldId) as number;
     for (const { field, roles } of CREDIT_FIELDS) {
-      const text = str(row, field);
+      const text = creditText(row, field);
       if (!text) continue;
       const legacyId = `songs:${oldId}:${camel(field)}`;
       // Item 121: odd credits go on the review list, with no credit.
