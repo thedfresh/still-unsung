@@ -85,6 +85,7 @@ const DATA: Array<[string, string[], Value[][]]> = [
     [17, "Freiberg Two", null, "Dave Freiberg", null, null, null, null, null, null, F, F, F, "freiberg-two", null],
     [18, "Freiberg Three", null, "Freiberg", null, null, null, null, null, null, F, F, F, "freiberg-three", null],
     [19, "Pigpen Test", null, "Pigpen", null, null, null, null, null, null, F, F, F, "pigpen-test", null],
+    [20, "Freiberg Four", null, "Cass Freiberg", null, null, null, null, null, null, F, F, F, "freiberg-four", null],
   ]],
   ["song_vocalists", ["id", "song_id", "musician_id", "vocal_role"], [[1, 2, 3, "lead"], [2, 1, 2, "harmony"], [3, 3, 4, "mystery"]]],
   ["tags", ["id", "name"], [[1, "Terrapin"], [2, "dylan"], [3, "unused"], [4, "amagamalin-suite"], [5, "eagle-mall-suite"]]],
