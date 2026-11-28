@@ -408,3 +408,58 @@ export const BILLED_AS: ReadonlyMap<number, string> = new Map([
   [290, "MuSiC"],
   [301, "MuSiC"],
 ]);
+
+/**
+ * Segment fixes from the review lists (user, 2026-11-27). Key: old performance ID.
+ * `delivery`: how the segment was delivered. `playedCertainty`: how sure it was played. `hunterAbsent`: Hunter did not play on it. `refile`: move the row to another review list,
+ * because the note is about something else (a quote of another song, not an a cappella song).
+ */
+export const SEGMENT_FIXES: ReadonlyMap<number, { delivery?: "SUNG_A_CAPPELLA"; refile?: "18-quotes-and-teases"; hunterAbsent?: true; playedCertainty?: "PROBABLE" }> = new Map([
+  // Reported but not on the circulating tape (item 126): played, "probable"; the note says why.
+  [6302, { playedCertainty: "PROBABLE" }], // 1980-02-24 Friend of the Devil: "Not on tape but reported by taper"
+  [8710, { playedCertainty: "PROBABLE" }], // 1980-02-26 Friend of the Devil: "Reportedly played but not on the circulating tape"
+  // 1980-03-17 Masonic Hall, set 3: the video shows Hunter off stage. The songs stay so the
+  // setlist is complete; Hunter is absent on them (data-model item 125).
+  [6406, { hunterAbsent: true }], // Stop That Train
+  [6407, { hunterAbsent: true }], // Strange Man
+  // 2002-04-30 House of Blues: "A cappella while his wireless guitar transmitter is fixed".
+  [3727, { delivery: "SUNG_A_CAPPELLA" }], // Man of Constant Sorrow
+  [3728, { delivery: "SUNG_A_CAPPELLA" }], // John Silver
+  // 2002-08-07: two lines of Uncle Dave Macon's "Way Down the Old Plank Road" before Beedle Um Bum.
+  [5078, { refile: "18-quotes-and-teases" }],
+]);
+
+/**
+ * Old shows and sets that are not imported, because Hunter did not play (data-model item 85;
+ * user, 2026-11-27). The show's or set's note says so; the old address answers "gone".
+ */
+export const DROPPED_EVENTS: ReadonlyMap<number, string> = new Map([]);
+
+/**
+ * Shows Hunter did not perform at, kept with an absent lineup entry for Hunter so they count in no
+ * stats (data-model item 125; user, 2026-11-27). Key: old event ID. Whether such a show is public
+ * is open (HSA-195); until then it stays as on the old site.
+ */
+export const SHOWS_WITHOUT_HUNTER: ReadonlyMap<number, string> = new Map([
+  [233, "1982-12-21, Dinosaurs at Uncle Charlie's: \"Hunter did not play at this show according to Corry.\""],
+]);
+export const DROPPED_SETS: ReadonlyMap<number, string> = new Map([]);
+
+/**
+ * Public notes on sets (user, 2026-11-27). Key: old set ID. A set Hunter did not play stays as an
+ * empty placeholder with a note, so the sets around it keep their numbers.
+ */
+export const SET_NOTES: ReadonlyMap<number, string> = new Map([
+  [814, "Hunter did not perform in set 2."], // 1980-03-15: the Ghosts without Hunter
+]);
+
+/**
+ * Review-list rows the user has settled with no further change to the data (user, 2026-11-27):
+ * the row leaves its list. Key: list name. Value: legacy IDs with the reason.
+ */
+export const REVIEWED_ROWS: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map([
+  ["20-hunter-does-not-play", new Map([
+    ["events:574", "set 2 stays as an empty placeholder with the note \"Hunter did not perform in set 2.\""],
+    ["events:762", "kept as a note: the setlist comes from a review, so the songs before Hunter joined are not known"],
+  ])],
+]);

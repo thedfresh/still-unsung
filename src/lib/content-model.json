@@ -85,6 +85,7 @@
    "SHOW_LINEUP",
    "SHOW_BILLING",
    "SEGMENT_IDENTIFICATION",
+   "SEGMENT_PLAYED",
    "SEGMENT_WORDS",
    "SEGMENT_EXTENT",
    "SEGMENT_CUT_MARKS",
@@ -572,6 +573,19 @@
       "SPOKEN",
       "RECORDING_PLAYED"
      ]
+    },
+    "playedCertainty": {
+     "type": "Certainty",
+     "required": true,
+     "list": false,
+     "hasDefault": true,
+     "enum": [
+      "CONFIRMED",
+      "PROBABLE",
+      "POSSIBLE",
+      "UNKNOWN"
+     ],
+     "default": "CONFIRMED"
     },
     "workId": {
      "type": "Int",
@@ -3436,6 +3450,7 @@
       "SHOW_LINEUP",
       "SHOW_BILLING",
       "SEGMENT_IDENTIFICATION",
+      "SEGMENT_PLAYED",
       "SEGMENT_WORDS",
       "SEGMENT_EXTENT",
       "SEGMENT_CUT_MARKS",
