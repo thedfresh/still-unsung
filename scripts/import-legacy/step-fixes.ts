@@ -29,11 +29,11 @@ export async function importSegmentFixes(ctx: Ctx): Promise<void> {
       if (target && !alreadyThere) for (const row of here) target.push({ ...row, refiledFrom: name });
     }
   }
-  // Shows Hunter did not perform at: listed and public, with Hunter absent (item 125).
+  // Shows Hunter did not perform at: kept, with Hunter absent (item 125). Public or private stays
+  // as on the old site until the user decides (HSA-195).
   for (const [oldEvent, why] of SHOWS_WITHOUT_HUNTER) {
     const showId = ctx.showByEvent.get(oldEvent);
     if (showId === undefined) continue;
-    await ctx.db.entity.update({ where: { id: showId }, data: { isPublic: true } });
     const [id] = await newEntities(ctx.db, "LINEUP_ENTRY", [true]);
     await ctx.db.lineupEntry.create({ data: { id, showId, personId: ctx.fixedPerson.hunter, absent: true, legacyId: `events:${oldEvent}:hunterAbsent` } });
     ctx.line("Shows without Hunter, listed (name-fixes.ts)", `events:${oldEvent}: ${why}`);

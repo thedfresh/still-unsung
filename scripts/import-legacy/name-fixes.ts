@@ -433,9 +433,9 @@ export const SEGMENT_FIXES: ReadonlyMap<number, { delivery?: "SUNG_A_CAPPELLA"; 
 export const DROPPED_EVENTS: ReadonlyMap<number, string> = new Map([]);
 
 /**
- * Shows Hunter did not perform at that stay listed, so readers who know of them find the answer
- * (data-model item 125; user, 2026-11-27). Key: old event ID. The show is public, with an absent
- * lineup entry for Hunter, so it counts in no stats; its old public note says why.
+ * Shows Hunter did not perform at, kept with an absent lineup entry for Hunter so they count in no
+ * stats (data-model item 125; user, 2026-11-27). Key: old event ID. Whether such a show is public
+ * is open (HSA-195); until then it stays as on the old site.
  */
 export const SHOWS_WITHOUT_HUNTER: ReadonlyMap<number, string> = new Map([
   [233, "1982-12-21, Dinosaurs at Uncle Charlie's: \"Hunter did not play at this show according to Corry.\""],
