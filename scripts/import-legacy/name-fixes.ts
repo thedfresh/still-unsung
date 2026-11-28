@@ -430,8 +430,15 @@ export const SEGMENT_FIXES: ReadonlyMap<number, { delivery?: "SUNG_A_CAPPELLA"; 
  * Old shows and sets that are not imported, because Hunter did not play (data-model item 85;
  * user, 2026-11-27). The show's or set's note says so; the old address answers "gone".
  */
-export const DROPPED_EVENTS: ReadonlyMap<number, string> = new Map([
-  [233, "1982-12-21, Dinosaurs at Uncle Charlie's: \"Hunter did not play at this show according to Corry\""],
+export const DROPPED_EVENTS: ReadonlyMap<number, string> = new Map([]);
+
+/**
+ * Shows Hunter did not perform at that stay listed, so readers who know of them find the answer
+ * (data-model item 125; user, 2026-11-27). Key: old event ID. The show is public, with an absent
+ * lineup entry for Hunter, so it counts in no stats; its old public note says why.
+ */
+export const SHOWS_WITHOUT_HUNTER: ReadonlyMap<number, string> = new Map([
+  [233, "1982-12-21, Dinosaurs at Uncle Charlie's: \"Hunter did not play at this show according to Corry.\""],
 ]);
 export const DROPPED_SETS: ReadonlyMap<number, string> = new Map([]);
 

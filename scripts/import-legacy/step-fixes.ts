@@ -1,6 +1,6 @@
 import type { Ctx } from "./context.ts";
 import { newEntities } from "./context.ts";
-import { REVIEWED_ROWS, SEGMENT_FIXES, SET_NOTES } from "./name-fixes.ts";
+import { REVIEWED_ROWS, SEGMENT_FIXES, SET_NOTES, SHOWS_WITHOUT_HUNTER } from "./name-fixes.ts";
 
 // Segment fixes the user made from the review lists (name-fixes.ts). Runs after segments exist.
 export async function importSegmentFixes(ctx: Ctx): Promise<void> {
@@ -28,6 +28,15 @@ export async function importSegmentFixes(ctx: Ctx): Promise<void> {
       rows.splice(0, rows.length, ...rows.filter((r) => r.legacyId !== legacyId));
       if (target && !alreadyThere) for (const row of here) target.push({ ...row, refiledFrom: name });
     }
+  }
+  // Shows Hunter did not perform at: listed and public, with Hunter absent (item 125).
+  for (const [oldEvent, why] of SHOWS_WITHOUT_HUNTER) {
+    const showId = ctx.showByEvent.get(oldEvent);
+    if (showId === undefined) continue;
+    await ctx.db.entity.update({ where: { id: showId }, data: { isPublic: true } });
+    const [id] = await newEntities(ctx.db, "LINEUP_ENTRY", [true]);
+    await ctx.db.lineupEntry.create({ data: { id, showId, personId: ctx.fixedPerson.hunter, absent: true, legacyId: `events:${oldEvent}:hunterAbsent` } });
+    ctx.line("Shows without Hunter, listed (name-fixes.ts)", `events:${oldEvent}: ${why}`);
   }
   // Public notes on sets, such as a placeholder set Hunter did not play.
   for (const [oldSet, body] of SET_NOTES) {
