@@ -408,3 +408,16 @@ export const BILLED_AS: ReadonlyMap<number, string> = new Map([
   [290, "MuSiC"],
   [301, "MuSiC"],
 ]);
+
+/**
+ * Segment fixes from the review lists (user, 2026-11-27). Key: old performance ID.
+ * `delivery`: how the segment was delivered. `refile`: move the row to another review list,
+ * because the note is about something else (a quote of another song, not an a cappella song).
+ */
+export const SEGMENT_FIXES: ReadonlyMap<number, { delivery?: "SUNG_A_CAPPELLA"; refile?: "18-quotes-and-teases" }> = new Map([
+  // 2002-04-30 House of Blues: "A cappella while his wireless guitar transmitter is fixed".
+  [3727, { delivery: "SUNG_A_CAPPELLA" }], // Man of Constant Sorrow
+  [3728, { delivery: "SUNG_A_CAPPELLA" }], // John Silver
+  // 2002-08-07: two lines of Uncle Dave Macon's "Way Down the Old Plank Road" before Beedle Um Bum.
+  [5078, { refile: "18-quotes-and-teases" }],
+]);
