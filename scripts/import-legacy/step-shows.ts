@@ -19,6 +19,7 @@ import {
   type Row,
   type TimingResult,
 } from "./rules.ts";
+import { DROPPED_EVENTS, DROPPED_SETS } from "./name-fixes.ts";
 
 // Step 4, first half (plan section 4: Event, Set): shows and sets. Segments are in
 // step-segments.ts.
@@ -118,8 +119,17 @@ export async function importShows(ctx: Ctx): Promise<void> {
   const contentTypes = new Map((await ctx.read("content_types")).map((row) => [Number(row.id), str(row, "name") ?? ""]));
 
   for (const row of events) if (isTestEvent(row)) ctx.testEvents.add(Number(row.id));
-  const kept = events.filter((row) => !ctx.testEvents.has(Number(row.id)));
   for (const id of ctx.testEvents) ctx.tally.drop("events", id, TEST_RULE);
+  // Shows Hunter did not play (name-fixes.ts). They join the dropped set, so nothing hangs off them.
+  for (const row of events) {
+    const id = Number(row.id);
+    const why = DROPPED_EVENTS.get(id);
+    if (!why || ctx.testEvents.has(id)) continue;
+    ctx.testEvents.add(id);
+    ctx.tally.drop("events", id, "hunter-did-not-play (name-fixes.ts)");
+    ctx.line("Shows not imported: Hunter did not play (name-fixes.ts)", `events:${id}: ${why}`);
+  }
+  const kept = events.filter((row) => !ctx.testEvents.has(Number(row.id)));
   const credits = await readLegacyCredits(ctx, new Set(kept.map((row) => Number(row.id))));
 
   // A show with an uncertain set, in 1975, gets an uncertain date as well (user, 2026-11-24).
@@ -303,6 +313,12 @@ async function importSets(ctx: Ctx, sets: Row[]): Promise<void> {
     if (ctx.testEvents.has(Number(row.event_id))) {
       ctx.testSets.add(id);
       ctx.tally.drop("sets", id, TEST_RULE);
+      return false;
+    }
+    const dropWhy = DROPPED_SETS.get(id);
+    if (dropWhy) {
+      ctx.tally.drop("sets", id, "hunter-did-not-play (name-fixes.ts)");
+      ctx.line("Sets not imported: Hunter did not play (name-fixes.ts)", `sets:${id}: ${dropWhy}`);
       return false;
     }
     if (!ctx.showByEvent.has(Number(row.event_id))) {
