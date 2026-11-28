@@ -317,6 +317,22 @@ export const BILL_ACTS: ReadonlyMap<string, BillAct> = new Map<string, BillAct>(
   ["holly near", { kind: "person", name: "Holly Near" }],
   ["odetta", { kind: "person", name: "Odetta" }],
   ["kate wolf", { kind: "person", name: "Kate Wolf" }],
+  // Lineups found in the notes' second sweep (user, 2026-11-27).
+  ["merl saunders", { kind: "person", name: "Merl Saunders" }],
+  ["moby grape", { kind: "band", name: "Moby Grape" }],
+  ["nick gravenites", { kind: "person", name: "Nick Gravenites" }],
+  ["leila and snakes", { kind: "band", name: "Leila and the Snakes" }],
+  ["charles biscuit band", { kind: "band", name: "Charles Biscuit Band" }],
+  ["pure prairie league", { kind: "band", name: "Pure Prairie League" }],
+  ["dave mason", { kind: "person", name: "Dave Mason" }],
+  ["vassar clements", { kind: "person", name: "Vassar Clements" }],
+  ["norton buffalo", { kind: "person", name: "Norton Buffalo" }],
+  ["michael hinton", { kind: "person", name: "Michael Hinton" }],
+  ["john cipollina", { kind: "person", name: "John Cipollina" }],
+  ["toni brown", { kind: "person", name: "Toni Brown" }],
+  ["terry garthwaite", { kind: "person", name: "Terry Garthwaite" }],
+  ["sonny terry", { kind: "person", name: "Sonny Terry" }],
+  ["brownie mcghee", { kind: "person", name: "Brownie McGhee" }], // "McGee" in the note
   ["bob dylan", { kind: "person", name: "Bob Dylan" }],
   ["vince welnick", { kind: "person", name: "Vince Welnick" }],
   ["jorma kaukonen", { kind: "person", name: "Jorma Kaukonen" }],
@@ -343,22 +359,52 @@ export const BILL_OVERRIDES: ReadonlyMap<number, readonly BillRow[]> = new Map([
   [715, [{ act: "show", role: "CO_BILL" }, { act: "jorma kaukonen", role: "CO_BILL" }, { act: "max creek", role: "OPENER" }]], // the notes: "Max Creek opened"
   // "Robert Hunter with Tom Constanten".
   [350, [{ act: "show", role: "CO_BILL" }, { act: "tom constanten", role: "CO_BILL" }]],
+  // "Sonny Terry and Brownie McGee also appeared" (advertised in the NY Times, 1980-02-01).
+  [757, [{ act: "show", role: "CO_BILL" }, { act: "sonny terry", role: "CO_BILL" }, { act: "brownie mcghee", role: "CO_BILL" }]],
 ]);
 
 /**
  * Festivals and events, one show group per edition (data-model item 124). Key: the group's name.
  * `events`: old event IDs. `bill`: the group's lineup, in the order the source gives it.
  */
-export const FESTIVAL_EDITIONS: ReadonlyMap<string, { events: readonly number[]; bill?: readonly string[]; certainty?: "CONFIRMED" | "PROBABLE" }> = new Map([
-  ["Whole Earth Festival 1977", { events: [628] }],
-  ["No Nukes Rally 1979", { events: [131] }],
+export const FESTIVAL_EDITIONS: ReadonlyMap<string, { kind: "festival" | "benefit" | "rally" | "tribute"; events: readonly number[]; bill?: readonly string[]; certainty?: "CONFIRMED" | "PROBABLE" }> = new Map([
+  ["Nobody for President Rally 1976", { kind: "rally", events: [599] }], // presented by Wavy Gravy
+  ["Whole Earth Festival 1977", { kind: "festival", events: [628] }],
+  // "Also performing: Merl Saunders, Moby Grape, Nick Gravenites, Leila and Snakes, Charles Biscuit Band".
+  ["Haight-Ashbury Street Fair 1978", { kind: "festival", events: [775], bill: ["merl saunders", "moby grape", "nick gravenites", "leila and snakes", "charles biscuit band"], certainty: "PROBABLE" }],
+  ["No Nukes Rally 1979", { kind: "rally", events: [131] }],
+  ["Southern Country Rock Festival 1980", { kind: "festival", events: [671], bill: ["pure prairie league", "dave mason", "vassar clements", "peter rowan"], certainty: "PROBABLE" }],
   // The notes: "SEVA 'Sing Out For Sight' benefit with Jackson Browne, Graham Nash, Country Joe,
   // Holly Near, Odetta and Kate Wolf, with MC Wavy Gravy".
-  ["SEVA Sing Out for Sight 1982", { events: [197], bill: ["jackson browne", "graham nash", "country joe", "holly near", "odetta", "kate wolf", "wavy gravy"], certainty: "PROBABLE" }],
-  ["Furthur Festival 1997", { events: [392] }],
-  ["Terrapin Station Reunion 2002", { events: [453, 454] }],
-  // The notes list the other acts; their billing order is not known.
+  ["SEVA Sing Out for Sight 1982", { kind: "benefit", events: [197], bill: ["jackson browne", "graham nash", "country joe", "holly near", "odetta", "kate wolf", "wavy gravy"], certainty: "PROBABLE" }],
+  // "With Kate Wolf, Toni Brown and Terry Garthwaite. Wavy Gravy MC."
+  ["Livermore Action Group Benefit 1982", { kind: "benefit", events: [697], bill: ["kate wolf", "toni brown", "terry garthwaite"], certainty: "PROBABLE" }],
+  ["Camp Winnarainbow Benefit 1983", { kind: "benefit", events: [248], bill: ["norton buffalo", "michael hinton", "nick gravenites", "john cipollina"], certainty: "PROBABLE" }],
+  // The Dinosaurs were billed and rained out; Hunter played solo (BILLED_AS below).
+  ["Nobody for President Rally 1983", { kind: "rally", events: [274] }],
   // Pyramid Lake; the notes: "also on the bill: Zero, Mickey & the Daylights, Problem Child, Kingfish, Wavy Gravy".
-  ["Ranch Rock 1986", { events: [325], bill: ["zero", "mickey & the daylights", "problem child", "kingfish", "wavy gravy"], certainty: "PROBABLE" }],
-  ["Jerry Garcia Tribute 2002", { events: [456], bill: ["jazz is dead", "vince welnick", "david nelson band", "gregg's eggs", "crispy critters"], certainty: "PROBABLE" }],
+  ["Ranch Rock 1986", { kind: "festival", events: [325], bill: ["zero", "mickey & the daylights", "problem child", "kingfish", "wavy gravy"], certainty: "PROBABLE" }],
+  ["John Cipollina Tribute 1989", { kind: "tribute", events: [352] }],
+  ["Barry Melton for Judge Benefit 1992", { kind: "benefit", events: [735] }],
+  ["Furthur Festival 1997", { kind: "festival", events: [386, 387, 388, 389, 390, 391, 392] }],
+  ["Terrapin Station Reunion 2002", { kind: "festival", events: [453, 454] }],
+  // The notes list the other acts; their billing order is not known.
+  ["Jerry Garcia Tribute 2002", { kind: "tribute", events: [456], bill: ["jazz is dead", "vince welnick", "david nelson band", "gregg's eggs", "crispy critters"], certainty: "PROBABLE" }],
+]);
+
+/**
+ * How a show was billed, when only the notes say it (from ads; user, 2026-11-27). It goes into the
+ * show's billed-as field. Key: old event ID. A guess stays in the notes ("may have been billed as
+ * a Roadhog show", 1976-10-12).
+ */
+export const BILLED_AS: ReadonlyMap<number, string> = new Map([
+  [629, "Grateful Dead lyricist Robert Hunter"],
+  [630, "Grateful Dead lyricist Robert Hunter"],
+  [644, "Robert Hunter plus Comfort"], // "Advertised as"
+  [216, "Fish and Chip"], // Hunter sat in
+  [274, "Dinosaurs"], // rained out; Hunter played solo
+  [288, "MuSiC"],
+  [289, "MuSiC"],
+  [290, "MuSiC"],
+  [301, "MuSiC"],
 ]);

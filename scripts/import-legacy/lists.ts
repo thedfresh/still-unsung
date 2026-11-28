@@ -34,7 +34,7 @@ const REFERENCE_KINDS: Array<{ name: string; ruleKey: string | null }> = [
   { name: "main subject", ruleKey: null },
 ];
 const RECORDING_TYPE_NAMES = ["SBD", "FM", "Matrix", "Video", "Aud"];
-const SHOW_GROUP_KINDS = ["festival", "tour", "run", "residency", "benefit series"];
+const SHOW_GROUP_KINDS = ["festival", "tour", "run", "residency", "benefit series", "benefit", "rally", "tribute"];
 const PLACE_KINDS = ["country", "region", "city", "campus", "park", "venue", "stage"];
 const SOURCE_KINDS = [
   "album", "article", "book", "tape list", "ticket", "poster", "advertisement", "review", "website",

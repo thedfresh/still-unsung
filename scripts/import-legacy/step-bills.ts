@@ -1,6 +1,6 @@
 import type { Ctx } from "./context.ts";
 import { bulk, newEntities, uniqueKey } from "./context.ts";
-import { BILL_ACTS, BILL_OVERRIDES, FESTIVAL_EDITIONS, type BillAct, type BillRow } from "./name-fixes.ts";
+import { BILLED_AS, BILL_ACTS, BILL_OVERRIDES, FESTIVAL_EDITIONS, type BillAct, type BillRow } from "./name-fixes.ts";
 import { normalizeName, num, slugify, str } from "./rules.ts";
 
 // Data-model items 82 and 124: who else was on the bill moves out of the old billing text and
@@ -136,11 +136,10 @@ export async function importBills(ctx: Ctx): Promise<void> {
   }
 
   // Festivals: one show group per edition, its shows as members, its lineup as the group's bill.
-  const kind = ctx.list.showGroupKind.get("festival") as number;
   const members: Array<{ groupId: number; showId: number }> = [];
   for (const [name, edition] of FESTIVAL_EDITIONS) {
     const [groupId] = await newEntities(ctx.db, "SHOW_GROUP", [true]);
-    await ctx.db.showGroup.create({ data: { id: groupId, name, showGroupKindId: kind, slug: slugify(name) } });
+    await ctx.db.showGroup.create({ data: { id: groupId, name, showGroupKindId: ctx.list.showGroupKind.get(edition.kind) as number, slug: slugify(name) } });
     ctx.line("Festival editions (name-fixes.ts)", `show group ${groupId}: ${name}`);
     for (const oldId of edition.events) {
       const showId = ctx.showByEvent.get(oldId);
@@ -172,6 +171,15 @@ export async function importBills(ctx: Ctx): Promise<void> {
       })),
     });
   });
+
+  // Billed-as names that only the notes give (from ads).
+  for (const [oldId, billedAs] of BILLED_AS) {
+    const showId = ctx.showByEvent.get(oldId);
+    if (showId === undefined) continue;
+    await ctx.db.show.update({ where: { id: showId }, data: { billedAs } });
+    handled.add(showId);
+    ctx.line("Billed-as names from the notes (name-fixes.ts)", `events:${oldId}: ${billedAs}`);
+  }
 
   // The bill list keeps only the shows this step did not settle.
   const list = ctx.proposals.get("01-bill");
