@@ -234,7 +234,12 @@ describe("legacy import: shows", () => {
     const middle = byLegacy(shows, "events:14");
     expect(middle.billedAs).toBeNull();
     expect(middle.legacyData).toMatchObject({ billing: "Comfort opened for the Jerry Garcia Band" });
-    expect(bill.rows.some((r: { legacyId: string; text?: string }) => r.legacyId === "events:14" && r.text === "Comfort opened for the Jerry Garcia Band")).toBe(true);
+    // An act on the reviewed list (item 124): a bill is made, and the show leaves the bill list.
+    expect(bill.rows.some((r: { legacyId: string }) => r.legacyId === "events:14")).toBe(false);
+    const rows = await prisma.billEntry.findMany({ where: { showId: middle.id }, orderBy: { position: "asc" }, include: { actBand: true } });
+    expect(rows.map((r) => [r.actBand?.name, r.role])).toEqual([["Jerry Garcia Band", "HEADLINER"], [expect.any(String), "OPENER"]]);
+    // An act not on the list: no bill, and the show stays on the list.
+    expect(await prisma.billEntry.count({ where: { showId: opened.id } })).toBe(0);
   });
 
   it("clears the month of a season date and moves a time of day to the time label (item 22)", async () => {

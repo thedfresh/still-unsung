@@ -41,7 +41,8 @@
   "BillRole": [
    "HEADLINER",
    "OPENER",
-   "CO_BILL"
+   "CO_BILL",
+   "SET_BREAK"
   ],
   "MemberOverride": [
    "MEMBER",
@@ -1183,7 +1184,8 @@
      "enum": [
       "HEADLINER",
       "OPENER",
-      "CO_BILL"
+      "CO_BILL",
+      "SET_BREAK"
      ]
     },
     "position": {

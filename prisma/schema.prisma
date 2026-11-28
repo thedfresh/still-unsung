@@ -124,11 +124,13 @@ enum VocalRole {
   BACKING
 }
 
-/// Item 82. "Opened for" and "openers" are derived from it.
+/// Items 82 and 124. "Opened for" and "openers" are derived from it.
 enum BillRole {
   HEADLINER
   OPENER
   CO_BILL
+  /// Item 124: played between another act's sets (The Other Ones, 2002; Dylan and The Dead, 2003).
+  SET_BREAK
 }
 
 /// Item 84: a lineup entry can override the derived member/guest status by hand.
