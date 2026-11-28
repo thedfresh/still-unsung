@@ -433,8 +433,14 @@ export const SEGMENT_FIXES: ReadonlyMap<number, { delivery?: "SUNG_A_CAPPELLA"; 
 export const DROPPED_EVENTS: ReadonlyMap<number, string> = new Map([
   [233, "1982-12-21, Dinosaurs at Uncle Charlie's: \"Hunter did not play at this show according to Corry\""],
 ]);
-export const DROPPED_SETS: ReadonlyMap<number, string> = new Map([
-  [814, "1980-03-15, set 2: an empty set, \"the Ghosts without Hunter\" (the show's note keeps it)"],
+export const DROPPED_SETS: ReadonlyMap<number, string> = new Map([]);
+
+/**
+ * Public notes on sets (user, 2026-11-27). Key: old set ID. A set Hunter did not play stays as an
+ * empty placeholder with a note, so the sets around it keep their numbers.
+ */
+export const SET_NOTES: ReadonlyMap<number, string> = new Map([
+  [814, "Hunter did not perform in set 2."], // 1980-03-15: the Ghosts without Hunter
 ]);
 
 /**
@@ -443,7 +449,7 @@ export const DROPPED_SETS: ReadonlyMap<number, string> = new Map([
  */
 export const REVIEWED_ROWS: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map([
   ["20-hunter-does-not-play", new Map([
-    ["events:574", "set 2 (the Ghosts without Hunter) is not imported; the show's note keeps it"],
+    ["events:574", "set 2 stays as an empty placeholder with the note \"Hunter did not perform in set 2.\""],
     ["events:762", "kept as a note: the setlist comes from a review, so the songs before Hunter joined are not known"],
   ])],
 ]);

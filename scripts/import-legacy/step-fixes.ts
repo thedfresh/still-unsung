@@ -1,6 +1,6 @@
 import type { Ctx } from "./context.ts";
 import { newEntities } from "./context.ts";
-import { REVIEWED_ROWS, SEGMENT_FIXES } from "./name-fixes.ts";
+import { REVIEWED_ROWS, SEGMENT_FIXES, SET_NOTES } from "./name-fixes.ts";
 
 // Segment fixes the user made from the review lists (name-fixes.ts). Runs after segments exist.
 export async function importSegmentFixes(ctx: Ctx): Promise<void> {
@@ -28,6 +28,13 @@ export async function importSegmentFixes(ctx: Ctx): Promise<void> {
       rows.splice(0, rows.length, ...rows.filter((r) => r.legacyId !== legacyId));
       if (target && !alreadyThere) for (const row of here) target.push({ ...row, refiledFrom: name });
     }
+  }
+  // Public notes on sets, such as a placeholder set Hunter did not play.
+  for (const [oldSet, body] of SET_NOTES) {
+    const setId = ctx.setBySet.get(oldSet);
+    if (setId === undefined) continue;
+    ctx.note(setId, body, true, `name-fixes:set:${oldSet}`);
+    ctx.line("Set notes (name-fixes.ts)", `sets:${oldSet}: ${body}`);
   }
   // Rows the user settled with no data change leave their list.
   for (const [name, settled] of REVIEWED_ROWS) {
