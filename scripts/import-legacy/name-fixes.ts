@@ -411,10 +411,13 @@ export const BILLED_AS: ReadonlyMap<number, string> = new Map([
 
 /**
  * Segment fixes from the review lists (user, 2026-11-27). Key: old performance ID.
- * `delivery`: how the segment was delivered. `hunterAbsent`: Hunter did not play on it. `refile`: move the row to another review list,
+ * `delivery`: how the segment was delivered. `playedCertainty`: how sure it was played. `hunterAbsent`: Hunter did not play on it. `refile`: move the row to another review list,
  * because the note is about something else (a quote of another song, not an a cappella song).
  */
-export const SEGMENT_FIXES: ReadonlyMap<number, { delivery?: "SUNG_A_CAPPELLA"; refile?: "18-quotes-and-teases"; hunterAbsent?: true }> = new Map([
+export const SEGMENT_FIXES: ReadonlyMap<number, { delivery?: "SUNG_A_CAPPELLA"; refile?: "18-quotes-and-teases"; hunterAbsent?: true; playedCertainty?: "PROBABLE" }> = new Map([
+  // Reported but not on the circulating tape (item 126): played, "probable"; the note says why.
+  [6302, { playedCertainty: "PROBABLE" }], // 1980-02-24 Friend of the Devil: "Not on tape but reported by taper"
+  [8710, { playedCertainty: "PROBABLE" }], // 1980-02-26 Friend of the Devil: "Reportedly played but not on the circulating tape"
   // 1980-03-17 Masonic Hall, set 3: the video shows Hunter off stage. The songs stay so the
   // setlist is complete; Hunter is absent on them (data-model item 125).
   [6406, { hunterAbsent: true }], // Stop That Train

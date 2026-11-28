@@ -196,6 +196,8 @@ enum CitationAspect {
   SHOW_LINEUP
   SHOW_BILLING
   SEGMENT_IDENTIFICATION
+  /// Item 126: that the segment was played at all (a taper's report of a song not on the tape).
+  SEGMENT_PLAYED
   SEGMENT_WORDS
   SEGMENT_EXTENT
   SEGMENT_CUT_MARKS
@@ -464,6 +466,10 @@ model Segment {
 
   /// Item 101: empty means the work's default delivery, otherwise SUNG.
   delivery Delivery?
+
+  /// Item 126 (fills item 51): that this was played at all. "Probable" for a song a taper or a
+  /// list reports but the circulating tape does not have.
+  playedCertainty Certainty @default(CONFIRMED)
 
   /// Item 66: what this is a performance of. Empty for talk, and for a completely unknown
   /// song (item 90).

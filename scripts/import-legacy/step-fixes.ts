@@ -14,6 +14,10 @@ export async function importSegmentFixes(ctx: Ctx): Promise<void> {
       await ctx.db.lineupEntry.create({ data: { id, segmentId, personId: ctx.fixedPerson.hunter, absent: true, legacyId: `${legacyId}:hunterAbsent` } });
       ctx.line("Segment fixes from the review lists (name-fixes.ts)", `${legacyId}: Hunter absent`);
     }
+    if (fix.playedCertainty) {
+      await ctx.db.segment.update({ where: { id: segmentId }, data: { playedCertainty: fix.playedCertainty } });
+      ctx.line("Segment fixes from the review lists (name-fixes.ts)", `${legacyId}: played ${fix.playedCertainty}`);
+    }
     if (fix.delivery) {
       await ctx.db.segment.update({ where: { id: segmentId }, data: { delivery: fix.delivery } });
       ctx.line("Segment fixes from the review lists (name-fixes.ts)", `${legacyId}: delivery ${fix.delivery}`);
