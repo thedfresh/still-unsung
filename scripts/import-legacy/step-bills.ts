@@ -23,6 +23,7 @@ function sentences(text: string): string[] {
  * - "Opened for X [and Y]": X (and Y) headline, the show's act opens.
  * - "Performed between X sets": X headlines, the show's act plays the set break.
  * - "performed between X and Y's sets": X and Y headline around the show's act (set break).
+ * - "X [and Y] opened": the show's act headlines, X (and Y) open.
  */
 export function readBill(billing: string | null, notes: string | null): BillRow[] | null {
   const texts = [billing, ...sentences(notes ?? "")].filter((t): t is string => !!t);
@@ -45,6 +46,16 @@ export function readBill(billing: string | null, notes: string | null): BillRow[
     if (opened) {
       const heads = opened[1].split(/\s+and\s+/i).map(actKey);
       return [...heads.map((act) => ({ act, role: "HEADLINER" as const })), { act: "show", role: "OPENER" }];
+    }
+  }
+  // "Peter Rowan opened", "James Montgomery and Peter Rowan opened": the show's act headlines.
+  for (const text of texts) {
+    const opener = /([A-Z][\w.'’&]*(?:\s+(?:&|and|[A-Z][\w.'’&]*))*)\s+opened\b(?!\s+for)/.exec(text);
+    if (opener) {
+      const acts = opener[1].replace(/^Comments:\s*/, "").split(/\s+and\s+/).map(actKey);
+      // "The show opened with…" names no act.
+      if (acts.includes("show")) continue;
+      return [{ act: "show", role: "HEADLINER" }, ...acts.map((act) => ({ act, role: "OPENER" as const }))];
     }
   }
   return null;
@@ -99,7 +110,8 @@ export async function importBills(ctx: Ctx): Promise<void> {
   for (const [oldId, row] of ctx.eventRow) {
     const showId = ctx.showByEvent.get(oldId);
     if (showId === undefined) continue;
-    const bill = BILL_OVERRIDES.get(oldId) ?? readBill(str(row, "billing"), str(row, "private_notes"));
+    const notes = [str(row, "public_notes"), str(row, "private_notes")].filter(Boolean).join("\n");
+    const bill = BILL_OVERRIDES.get(oldId) ?? readBill(str(row, "billing"), notes);
     if (!bill) continue;
     const unknown = bill.filter((r) => r.act !== "show" && !BILL_ACTS.has(r.act));
     if (unknown.length > 0) {

@@ -31,6 +31,15 @@ describe("readBill (data-model item 124)", () => {
     ]);
   });
 
+  it("reads 'X opened' from the notes: the show's act headlines, X opens", () => {
+    expect(readBill(null, "Contributor: B.G.. Recordings: Audience. Comments: Tom Constanten opened. *With Tom Constanten.")).toEqual([
+      { act: "show", role: "HEADLINER" },
+      { act: "tom constanten", role: "OPENER" },
+    ]);
+    expect(readBill(null, "James Montgomery and Peter Rowan opened. Tape cut.")?.map((r) => r.act)).toEqual(["show", "james montgomery", "peter rowan"]);
+    expect(readBill(null, "The show opened with Bertha.")).toBeNull();
+  });
+
   it("reads no bill from a billed name or a festival name", () => {
     expect(readBill('Robert Hunter & Barry Melton "The Fish"', null)).toBeNull();
     expect(readBill("Furthur Festival", null)).toBeNull();

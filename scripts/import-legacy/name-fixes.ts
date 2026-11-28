@@ -295,6 +295,28 @@ export const BILL_ACTS: ReadonlyMap<string, BillAct> = new Map<string, BillAct>(
   ["mickey & the daylights", { kind: "band", name: "Mickey & the Daylights" }],
   ["problem child", { kind: "band", name: "Problem Child" }],
   ["wavy gravy", { kind: "person", name: "Wavy Gravy" }],
+  // Acts that opened for Hunter, from the old notes ("Peter Rowan opened").
+  ["peter rowan", { kind: "person", name: "Peter Rowan" }],
+  ["tom constantin", { kind: "person", name: "Tom Constanten" }], // a misspelling in one note
+  ["new harvest moon band", { kind: "band", name: "New Harvest Moon Band" }],
+  ["susan osborne", { kind: "person", name: "Susan Osborne" }],
+  ["jonathan edwards", { kind: "person", name: "Jonathan Edwards" }],
+  ["patty larkin", { kind: "person", name: "Patty Larkin" }],
+  ["dean adrien", { kind: "person", name: "Dean Adrien" }],
+  ["sarah baker", { kind: "person", name: "Sarah Baker" }],
+  ["shakers", { kind: "band", name: "The Shakers" }],
+  ["steve hayden", { kind: "person", name: "Steve Hayden" }],
+  ["james montgomery", { kind: "person", name: "James Montgomery" }],
+  ["rick danko & friends", { kind: "band", name: "Rick Danko & Friends" }],
+  ["chris smither", { kind: "person", name: "Chris Smither" }],
+  ["max creek", { kind: "band", name: "Max Creek" }],
+  // The 1982 SEVA benefit lineup.
+  ["jackson browne", { kind: "person", name: "Jackson Browne" }],
+  ["graham nash", { kind: "person", name: "Graham Nash" }],
+  ["country joe", { kind: "person", name: "Country Joe McDonald" }],
+  ["holly near", { kind: "person", name: "Holly Near" }],
+  ["odetta", { kind: "person", name: "Odetta" }],
+  ["kate wolf", { kind: "person", name: "Kate Wolf" }],
   ["bob dylan", { kind: "person", name: "Bob Dylan" }],
   ["vince welnick", { kind: "person", name: "Vince Welnick" }],
   ["jorma kaukonen", { kind: "person", name: "Jorma Kaukonen" }],
@@ -318,7 +340,7 @@ export const BILL_OVERRIDES: ReadonlyMap<number, readonly BillRow[]> = new Map([
   // The notes: "Comfort & NRPS opened for the Jerry Garcia Band" (the billing field says "and NRPS").
   [75, [{ act: "jerry garcia band", role: "HEADLINER" }, { act: "show", role: "OPENER" }, { act: "nrps", role: "OPENER" }]],
   // "Co-headline with Jorma Kaukonen".
-  [715, [{ act: "show", role: "CO_BILL" }, { act: "jorma kaukonen", role: "CO_BILL" }]],
+  [715, [{ act: "show", role: "CO_BILL" }, { act: "jorma kaukonen", role: "CO_BILL" }, { act: "max creek", role: "OPENER" }]], // the notes: "Max Creek opened"
   // "Robert Hunter with Tom Constanten".
   [350, [{ act: "show", role: "CO_BILL" }, { act: "tom constanten", role: "CO_BILL" }]],
 ]);
@@ -330,6 +352,9 @@ export const BILL_OVERRIDES: ReadonlyMap<number, readonly BillRow[]> = new Map([
 export const FESTIVAL_EDITIONS: ReadonlyMap<string, { events: readonly number[]; bill?: readonly string[]; certainty?: "CONFIRMED" | "PROBABLE" }> = new Map([
   ["Whole Earth Festival 1977", { events: [628] }],
   ["No Nukes Rally 1979", { events: [131] }],
+  // The notes: "SEVA 'Sing Out For Sight' benefit with Jackson Browne, Graham Nash, Country Joe,
+  // Holly Near, Odetta and Kate Wolf, with MC Wavy Gravy".
+  ["SEVA Sing Out for Sight 1982", { events: [197], bill: ["jackson browne", "graham nash", "country joe", "holly near", "odetta", "kate wolf", "wavy gravy"], certainty: "PROBABLE" }],
   ["Furthur Festival 1997", { events: [392] }],
   ["Terrapin Station Reunion 2002", { events: [453, 454] }],
   // The notes list the other acts; their billing order is not known.
