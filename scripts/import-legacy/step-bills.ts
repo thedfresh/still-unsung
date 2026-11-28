@@ -108,6 +108,13 @@ export async function importBills(ctx: Ctx): Promise<void> {
     }
     // The show's own act: its band, or Robert Hunter.
     const ownBand = ctx.bandByBand.get(num(row, "primary_band_id") ?? -1) ?? hunterBand;
+    // A set Hunter sat in on with the headliner itself (1980: the JGB's set, whose notes repeat
+    // "Opened for the Jerry Garcia Band" from his own set that night) gets no bill.
+    const heads = await Promise.all(bill.filter((r) => r.act !== "show").map((r) => actRecord(ctx, BILL_ACTS.get(r.act) as BillAct, made)));
+    if (ownBand !== undefined && heads.some((h) => h.band === ownBand)) {
+      ctx.line("Bills not made: the show's own band is on its bill (a sat-in set)", `events:${oldId}`);
+      continue;
+    }
     for (const [index, entry] of bill.entries()) {
       const act = entry.act === "show" ? (ownBand !== undefined ? { band: ownBand } : { person: ctx.fixedPerson.hunter }) : await actRecord(ctx, BILL_ACTS.get(entry.act) as BillAct, made);
       rows.push({ showId, ...act, role: entry.role, position: index + 1, certainty: "CONFIRMED" });
