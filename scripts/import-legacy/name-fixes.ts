@@ -264,3 +264,70 @@ export const WORK_TITLES: ReadonlyMap<number, { title: string; otherNames: reado
   // The community name since the 50th-anniversary Rum Runners bonus track (Whitegum BALLBUDD.HTM).
   [39, { title: "West Virginia Steel Guitar", otherNames: ["Ballad of Buddy Holly", "All the Same", "All the Same to Me"], slug: "west-virginia-steel-guitar" }],
 ]);
+
+/** An act on a bill: a band or a person, by its name in the archive. */
+export interface BillAct {
+  kind: "band" | "person";
+  name: string;
+}
+
+/**
+ * Acts named in the old billing text and notes (user, 2026-11-27; data-model item 124). Key: the
+ * name as written, normalized by `normalizeName`, without a leading "the". A missing band or
+ * person is made once. "The Dead" (2003–04) is its own band, not the Grateful Dead.
+ */
+export const BILL_ACTS: ReadonlyMap<string, BillAct> = new Map<string, BillAct>([
+  ["dead", { kind: "band", name: "The Dead" }],
+  ["other ones", { kind: "band", name: "The Other Ones" }],
+  ["jerry garcia band", { kind: "band", name: "Jerry Garcia Band" }],
+  ["nrps", { kind: "band", name: "New Riders of the Purple Sage" }],
+  ["garcia/kahn", { kind: "band", name: "Jerry Garcia & John Kahn" }],
+  ["phil & friends", { kind: "band", name: "Phil Lesh & Friends" }],
+  ["kingfish", { kind: "band", name: "Kingfish" }],
+  ["go ahead", { kind: "band", name: "Go Ahead" }],
+  ["sea level", { kind: "band", name: "Sea Level" }],
+  ["hot tuna", { kind: "band", name: "Hot Tuna" }],
+  ["jazz is dead", { kind: "band", name: "Jazz Is Dead" }],
+  ["david nelson band", { kind: "band", name: "David Nelson Band" }],
+  ["gregg's eggs", { kind: "band", name: "Gregg's Eggs" }],
+  ["crispy critters", { kind: "band", name: "Crispy Critters" }],
+  ["bob dylan", { kind: "person", name: "Bob Dylan" }],
+  ["vince welnick", { kind: "person", name: "Vince Welnick" }],
+  ["jorma kaukonen", { kind: "person", name: "Jorma Kaukonen" }],
+  ["robert palmer", { kind: "person", name: "Robert Palmer" }],
+  ["john hartford", { kind: "person", name: "John Hartford" }],
+  ["bonnie raitt", { kind: "person", name: "Bonnie Raitt" }],
+  ["tom constanten", { kind: "person", name: "Tom Constanten" }],
+]);
+
+/** One row of a bill as the user gave it. "show" is the show's own act (its band, or Hunter). */
+export interface BillRow {
+  act: string | "show";
+  role: "HEADLINER" | "OPENER" | "CO_BILL" | "SET_BREAK";
+}
+
+/**
+ * Bills the old text gets wrong or cannot say, by old event ID, in bill order (user, 2026-11-27).
+ * They replace what the import would read from the billing field and notes.
+ */
+export const BILL_OVERRIDES: ReadonlyMap<number, readonly BillRow[]> = new Map([
+  // The notes: "Comfort & NRPS opened for the Jerry Garcia Band" (the billing field says "and NRPS").
+  [75, [{ act: "jerry garcia band", role: "HEADLINER" }, { act: "show", role: "OPENER" }, { act: "nrps", role: "OPENER" }]],
+  // "Co-headline with Jorma Kaukonen".
+  [715, [{ act: "show", role: "CO_BILL" }, { act: "jorma kaukonen", role: "CO_BILL" }]],
+  // "Robert Hunter with Tom Constanten".
+  [350, [{ act: "show", role: "CO_BILL" }, { act: "tom constanten", role: "CO_BILL" }]],
+]);
+
+/**
+ * Festivals and events, one show group per edition (data-model item 124). Key: the group's name.
+ * `events`: old event IDs. `bill`: the group's lineup, in the order the source gives it.
+ */
+export const FESTIVAL_EDITIONS: ReadonlyMap<string, { events: readonly number[]; bill?: readonly string[]; certainty?: "CONFIRMED" | "PROBABLE" }> = new Map([
+  ["Whole Earth Festival 1977", { events: [628] }],
+  ["No Nukes Rally 1979", { events: [131] }],
+  ["Furthur Festival 1997", { events: [392] }],
+  ["Terrapin Station Reunion 2002", { events: [453, 454] }],
+  // The notes list the other acts; their billing order is not known.
+  ["Jerry Garcia Tribute 2002", { events: [456], bill: ["jazz is dead", "vince welnick", "david nelson band", "gregg's eggs", "crispy critters"], certainty: "PROBABLE" }],
+]);

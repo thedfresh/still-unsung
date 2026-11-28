@@ -8,6 +8,7 @@ import { collectMergeProposals, writeProposals } from "./proposals.ts";
 import { writeReport } from "./report.ts";
 import { runStressTests } from "./stress.ts";
 import { importAlbums } from "./step-albums.ts";
+import { importBills } from "./step-bills.ts";
 import { flushEvidence, flushNotes, importLinks, importRecordingCandidates } from "./step-evidence.ts";
 import { importLineups } from "./step-lineups.ts";
 import { importBands, importPeople, importPlaces } from "./step-people.ts";
@@ -59,6 +60,7 @@ export async function runImport(options: ImportOptions): Promise<{ unaccounted: 
   const solo = await importSegments(ctx);
   await importInterviews(ctx);
   await importLineups(ctx, solo);
+  await importBills(ctx);
   // 5 and 6. Recording candidates (a private file: no recording is made), outside IDs, albums.
   await importRecordingCandidates(ctx, options.outputDir);
   await importLinks(ctx);
