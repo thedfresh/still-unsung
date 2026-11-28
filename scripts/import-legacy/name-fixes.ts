@@ -291,6 +291,10 @@ export const BILL_ACTS: ReadonlyMap<string, BillAct> = new Map<string, BillAct>(
   ["david nelson band", { kind: "band", name: "David Nelson Band" }],
   ["gregg's eggs", { kind: "band", name: "Gregg's Eggs" }],
   ["crispy critters", { kind: "band", name: "Crispy Critters" }],
+  ["zero", { kind: "band", name: "Zero" }],
+  ["mickey & the daylights", { kind: "band", name: "Mickey & the Daylights" }],
+  ["problem child", { kind: "band", name: "Problem Child" }],
+  ["wavy gravy", { kind: "person", name: "Wavy Gravy" }],
   ["bob dylan", { kind: "person", name: "Bob Dylan" }],
   ["vince welnick", { kind: "person", name: "Vince Welnick" }],
   ["jorma kaukonen", { kind: "person", name: "Jorma Kaukonen" }],
@@ -329,5 +333,7 @@ export const FESTIVAL_EDITIONS: ReadonlyMap<string, { events: readonly number[];
   ["Furthur Festival 1997", { events: [392] }],
   ["Terrapin Station Reunion 2002", { events: [453, 454] }],
   // The notes list the other acts; their billing order is not known.
+  // Pyramid Lake; the notes: "also on the bill: Zero, Mickey & the Daylights, Problem Child, Kingfish, Wavy Gravy".
+  ["Ranch Rock 1986", { events: [325], bill: ["zero", "mickey & the daylights", "problem child", "kingfish", "wavy gravy"], certainty: "PROBABLE" }],
   ["Jerry Garcia Tribute 2002", { events: [456], bill: ["jazz is dead", "vince welnick", "david nelson band", "gregg's eggs", "crispy critters"], certainty: "PROBABLE" }],
 ]);
